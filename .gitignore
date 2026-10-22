@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# 虚拟环境 / 构建产物
+.venv/
+.venv*/
+.build*/
+build/
+build-*/
+dist/
+dist-*/
+uv-cache/
+
+# 运行产物
+data/
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+*.csv
+*.jsonl
+*.log
+evidence/
+rejected-*/
+outputs/
+
+# 本地工具与凭据
+platform-tools/
+*.mitm
+*.har
+.env
