@@ -1,5 +1,7 @@
 # 携程点评采集器（CtripCollector）
 
+![tests](https://github.com/harbinresearcher/ctrip-collector/actions/workflows/tests.yml/badge.svg)
+
 > ⚠️ **开发中，非成品**。当前 `0.8`，只对下面「当前状态」表里标为完成的能力负责。
 > 未完成的能力在 [ROADMAP.md](ROADMAP.md) 里列着，不要当成已有功能使用或宣传。
 
