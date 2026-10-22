@@ -12,7 +12,7 @@ from threading import Event
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, build_opener
 
-from PIL import Image
+from PIL import Image, ImageSequence
 
 logger = logging.getLogger(__name__)
 MAX_BYTES = 20 * 1024 * 1024
@@ -115,6 +115,8 @@ def download_media(source, output, limit=20, stop=None, fetch=None, delay=1.5):
                         if valid:
                             report['reused'] += 1
                             continue
+                        with db:
+                            db.execute('DELETE FROM assets WHERE url=?', (url,))
                         payload = fetch(url)
                         if len(payload) > MAX_BYTES:
                             raise ValueError('图片超过20MB限制')
@@ -125,6 +127,13 @@ def download_media(source, output, limit=20, stop=None, fetch=None, delay=1.5):
                             if fmt not in {'JPEG', 'PNG', 'WEBP', 'GIF'} or width * height > 50_000_000:
                                 raise ValueError('图片格式或像素数量未支持')
                             image.verify()
+                        with Image.open(io.BytesIO(payload)) as decoded:
+                            pixels = 0
+                            for frame in ImageSequence.Iterator(decoded):
+                                pixels += frame.width * frame.height
+                                if pixels > 50_000_000:
+                                    raise ValueError('图片所有帧合计超过5000万像素限制')
+                                frame.load()
                         filename = hashlib.sha256(url.encode()).hexdigest() + '.' + fmt.lower()
                         path = folder / filename
                         temporary = path.with_suffix('.part')

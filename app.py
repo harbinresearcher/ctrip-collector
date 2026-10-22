@@ -16,6 +16,8 @@ from capture_io import import_capture
 from ai_capture import capture_ai
 from discovery import discover_objects
 from batch import collect_batch
+from media import download_media
+from shopping_discovery import discover_shopping
 
 logger = logging.getLogger(__name__)
 HOME = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).parent
@@ -28,7 +30,7 @@ def gui(default_adb, smoke=False):
     # ================================================================ */
     logger.info('开始创建窗口')
     root = tk.Tk()
-    root.title('携程点评采集 · 测试版 0.8')
+    root.title('携程点评采集 · 测试版 0.9')
     root.geometry('900x850')
     frame = ttk.Frame(root, padding=18)
     frame.pack(fill='both', expand=True)
@@ -42,7 +44,9 @@ def gui(default_adb, smoke=False):
     ttk.Radiobutton(modes, text='手机评论补采（先打开全部评论）', value='phone', variable=mode).pack(side='left', padx=12)
     ttk.Radiobutton(modes, text='酒店 AI 总结', value='ai', variable=mode).pack(side='left')
     ttk.Radiobutton(frame, text='城市景点/餐饮目录：填第一页链接，生成对象清单后转入网络模式', value='discover', variable=mode).pack(anchor='w')
+    ttk.Radiobutton(frame, text='购物目录：下框填写携程地区数字 ID（上海为 2），生成后转网络模式', value='shopping_discover', variable=mode).pack(anchor='w')
     ttk.Radiobutton(frame, text='导入 App 响应：在下框填写受限抓包 JSONL 文件路径', value='capture', variable=mode).pack(anchor='w')
+    ttk.Radiobutton(frame, text='下载评论图片：在下框填写已导出评论 JSONL 路径；数量框为图片上限', value='media', variable=mode).pack(anchor='w')
     ttk.Checkbutton(frame, text='手机使用快速页面读取（uiautomator2；不要同时运行 Mobile MCP）', variable=fast_ui).pack(anchor='w')
     ttk.Label(frame, text='对象详情链接，每行一个（酒店 hotels.ctrip.com；景点 / 餐厅 / 购物 you.ctrip.com）').pack(anchor='w', pady=(8, 2))
     urls_box = tk.Text(frame, height=3, wrap='word')
@@ -86,11 +90,13 @@ def gui(default_adb, smoke=False):
             target = int(values['limit'].get())
             selected_mode = mode.get()
             urls = [line.strip() for line in urls_box.get('1.0', 'end').splitlines() if line.strip()]
-            if target < 1 or (selected_mode in ('phone', 'ai') and not values['place'].get().strip()) or (selected_mode in ('network', 'discover', 'capture') and not urls):
+            if target < 1 or (selected_mode in ('phone', 'ai') and not values['place'].get().strip()) or (selected_mode in ('network', 'discover', 'capture', 'media') and not urls):
                 raise ValueError()
-            if selected_mode == 'capture' and (len(urls) != 1 or not Path(urls[0]).is_file()):
+            if selected_mode in ('capture', 'media') and (len(urls) != 1 or not Path(urls[0]).is_file()):
                 raise ValueError()
             if selected_mode == 'discover' and (len(urls) != 1 or int(values['pages'].get()) < 1 or int(values['objects'].get()) < 1):
+                raise ValueError()
+            if selected_mode == 'shopping_discover' and (len(urls) != 1 or not urls[0].isdigit() or int(values['pages'].get()) < 1 or int(values['objects'].get()) < 1):
                 raise ValueError()
             if selected_mode == 'ai' and (kind.get() != 'hotel' or not values['resource_id'].get().strip().isdigit()):
                 raise ValueError()
@@ -110,12 +116,16 @@ def gui(default_adb, smoke=False):
             # 2.2 异常和完成消息均送回主线程。
             try:
                 # 2.2.1 网络任务串行读取，不与手机争抢页面。
-                if selected_mode == 'capture':
+                if selected_mode == 'media':
+                    result = download_media(Path(urls[0]), Path(selected['folder']), target, stop)
+                    events.put(('log', json.dumps(result, ensure_ascii=False, indent=2)))
+                elif selected_mode == 'capture':
                     result = import_capture(Path(urls[0]), Path(selected['folder']), target, stop,
                                             lambda msg: events.put(('log', msg)))
                     events.put(('log', json.dumps(result, ensure_ascii=False, indent=2)))
-                elif selected_mode == 'discover':
-                    result = discover_objects(urls[0], Path(selected['folder']), int(selected['pages']), int(selected['objects']), stop)
+                elif selected_mode in ('discover', 'shopping_discover'):
+                    finder = discover_shopping if selected_mode == 'shopping_discover' else discover_objects
+                    result = finder(urls[0], Path(selected['folder']), int(selected['pages']), int(selected['objects']), stop)
                     events.put(('log', json.dumps({k: v for k, v in result.items() if k != 'objects'}, ensure_ascii=False, indent=2)))
                     if result['objects']:
                         events.put(('urls', '\n'.join(obj['url'] for obj in result['objects'])))
@@ -209,9 +219,12 @@ def main():
     parser.add_argument('--collect', action='store_true')
     parser.add_argument('--url', action='append', default=[], help='公开点评对象详情链接，可重复指定')
     parser.add_argument('--import-capture', type=Path, help='导入受限 App 点评响应 JSONL')
+    parser.add_argument('--download-media', type=Path, help='从已导出评论 JSONL 下载返回的图片版本')
+    parser.add_argument('--media-limit', type=int, default=20, help='本次处理的不同图片URL上限')
     parser.add_argument('--capture-ai', action='store_true')
     parser.add_argument('--resource-id', default='')
     parser.add_argument('--city-list', help='城市景点或餐饮第一页列表链接')
+    parser.add_argument('--shopping-district', type=int, help='发现购物目录，携程地区ID，上海为2；0表示全球')
     parser.add_argument('--discovery-pages', type=int, default=5)
     parser.add_argument('--max-objects', type=int, default=50)
     parser.add_argument('--collect-discovered', action='store_true')
@@ -223,9 +236,18 @@ def main():
     parser.add_argument('--max-swipes', type=int, default=1500)
     parser.add_argument('--ui-backend', choices=['adb', 'uiautomator2'], default='uiautomator2')
     args = parser.parse_args()
+    # 3.0.0 图片任务与评论采集分开，避免参数混用触发额外请求。
+    if args.download_media:
+        if args.url or args.url_file or args.city_list or args.shopping_district is not None or args.collect or args.capture_ai or args.import_capture:
+            parser.error('--download-media 不能与其他采集任务同时使用')
+        result = download_media(args.download_media, args.output, args.media_limit)
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        if result['reason'] == 'error':
+            raise SystemExit(1)
+        return
     # 3.0.1 离线导入不启动浏览器、不连接手机。
     if args.import_capture:
-        if args.url or args.url_file or args.city_list or args.collect or args.capture_ai:
+        if args.url or args.url_file or args.city_list or args.shopping_district is not None or args.collect or args.capture_ai:
             parser.error('--import-capture 不能与其他采集任务同时使用')
         result = import_capture(args.import_capture, args.output, args.limit)
         print(json.dumps(result, ensure_ascii=False, indent=2))
@@ -233,10 +255,14 @@ def main():
             raise SystemExit(1)
         return
     # 3.0 目录先生成可核对的对象清单；命令行可明确选择接着采集。
-    if args.collect_discovered and not args.city_list:
-        parser.error('--collect-discovered 必须与 --city-list 一起使用')
-    if args.city_list:
-        result = discover_objects(args.city_list, args.output, args.discovery_pages, args.max_objects)
+    if args.city_list and args.shopping_district is not None:
+        parser.error('餐饮/景点目录与购物目录不能同时运行')
+    if args.collect_discovered and not args.city_list and args.shopping_district is None:
+        parser.error('--collect-discovered 必须与 --city-list 或 --shopping-district 一起使用')
+    if args.city_list or args.shopping_district is not None:
+        finder = discover_shopping if args.shopping_district is not None else discover_objects
+        entry = args.shopping_district if args.shopping_district is not None else args.city_list
+        result = finder(entry, args.output, args.discovery_pages, args.max_objects)
         print(json.dumps(result, ensure_ascii=False, indent=2))
         if result['reason'] == 'error':
             raise SystemExit(1)
@@ -284,6 +310,7 @@ if __name__ == '__main__':
             stream.reconfigure(encoding='utf-8', errors='replace')
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
     main()
+
 
 
 

@@ -18,6 +18,23 @@ def page(items, total=3):
 
 
 class NetworkTests(unittest.TestCase):
+    def test_zero_review_shop_without_entry_is_explicit_snapshot(self):
+        # /* ===== 步骤0：核对零点评商铺；数据源：成功详情响应；操作：1) 明确零数量 2) 不猜分页类型 ===== */
+        logger.info('开始零点评商铺检查')
+        overview = {'ResultCode': 0, 'PoiOverviewInfo': {'BusinessId': 15, 'PoiId': 99, 'PoiName': '商铺'}}
+        comments = {'ResultCode': 0, 'ResponseStatus': {'Ack': 'Success', 'Errors': []},
+                    'commentDetail': {'totalCount': 0, 'commentList': None, 'moreUrl': None}}
+        target = shopping_target('https://you.ctrip.com/shopping/city2/15.html', overview, comments)
+        self.assertIsNone(target['resource_type'])
+        with tempfile.TemporaryDirectory() as folder, patch('network.urlopen', side_effect=AssertionError('不应猜测评论请求')):
+            result = collect_network(target, folder, 3)
+            self.assertEqual(result['count'], 0)
+            self.assertEqual(result['reason'], 'public_snapshot_only')
+        comments['commentDetail']['totalCount'] = 2
+        with self.assertRaises(ValueError):
+            shopping_target('https://you.ctrip.com/shopping/city2/15.html', overview, comments)
+        logger.info('零点评商铺检查完成')
+
     def test_cumulative_limit_and_locked_export_preserve_previous_files(self):
         # /* ===== 步骤0：核对续采与导出；数据源：已有数据库；操作：1) 不超过累计目标 2) 失败保留旧文件 ===== */
         logger.info('开始续采边界检查')

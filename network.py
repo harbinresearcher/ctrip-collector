@@ -143,12 +143,20 @@ def shopping_target(url, overview, comments):
     # 4.1.1 从返回的点评链接读取业务类型，不根据 POI 类型猜测。
     query = parse_qs(urlparse(comments.get('commentDetail', {}).get('moreUrl', '')).query)
     business_id = int(url.rsplit('/', 1)[-1].split('.')[0])
-    if overview.get('ResultCode') != 0 or info.get('BusinessId') != business_id or query.get('businessId') != [str(business_id)]:
+    detail = comments.get('commentDetail') or {}
+    status = comments.get('ResponseStatus') or {}
+    zero_snapshot = (comments.get('ResultCode') == 0 and status.get('Ack') == 'Success'
+                     and not status.get('Errors') and detail.get('totalCount') == 0
+                     and detail.get('commentList') in (None, []) and not detail.get('moreUrl'))
+    if overview.get('ResultCode') != 0 or info.get('BusinessId') != business_id or (not zero_snapshot and query.get('businessId') != [str(business_id)]):
         raise ValueError('购物对象与点评入口不匹配')
     target = {'kind': 'shopping', 'url': url, 'resource_id': business_id,
-              'resource_type': int(query['businessType'][0]), 'poi_id': info['PoiId'],
+              'resource_type': None if zero_snapshot else int(query['businessType'][0]), 'poi_id': info['PoiId'],
               'name': info['PoiName'], 'display_total': info.get('CommentCount'),
               'details': sanitize(info), 'ai_summary': {'status': 'not_captured', 'content': None}}
+    # 4.1.2 零点评且无入口时，只保存已返回的零点评快照，不猜业务类型。
+    if zero_snapshot:
+        target.update(source_method='shopping_zero_review_snapshot', display_total=0, snapshot_comments=[])
     logger.info('购物对象解析完成')
     return target
 
@@ -167,10 +175,10 @@ def post_json(url, payload):
 def fetch_page(target, page_index):
     # /* ===== 步骤5：请求一页点评；数据源：公开接口；操作：1) 固定排序及大小 2) 不自动绕过错误 ===== */
     logger.info('开始请求第 %s 页', page_index)
-    if target.get('source_method') == 'hotel_public_html_snapshot':
+    if target.get('source_method') in {'hotel_public_html_snapshot', 'shopping_zero_review_snapshot'}:
         if page_index != 1:
             raise ValueError('公开页面样本不支持翻页')
-        logger.info('读取已下载酒店页面样本，不发起分页请求')
+        logger.info('读取已下载公开快照，不发起分页请求')
         return {'code': 200, 'result': {'items': target['snapshot_comments'], 'totalCount': target['display_total']}}
     # 5.1 sortType=3 原样记录；不把接口排序误称为无偏抽样。
     payload = {'arg': {'channelType': 7, 'collapseType': 1, 'commentTagId': 0,
@@ -276,7 +284,7 @@ def collect_network(target, output, limit=500, stop=None, emit=None, fetch=None,
                 # 离线文件还可能有后续有效批次，空批次不等于文件结束。
                 if report['source_method'] == 'app_proxy_capture':
                     continue
-                report['reason'] = ('public_snapshot_only' if report['source_method'] == 'hotel_public_html_snapshot'
+                report['reason'] = ('public_snapshot_only' if report['source_method'] in {'hotel_public_html_snapshot', 'shopping_zero_review_snapshot'}
                                     else 'capture_exhausted' if report['source_method'] == 'app_proxy_capture' else 'empty_page')
                 break
             fetched_at = datetime.now(timezone.utc).isoformat()

@@ -2,20 +2,21 @@
 
 ![tests](https://github.com/harbinresearcher/ctrip-collector/actions/workflows/tests.yml/badge.svg)
 
-> ⚠️ **开发中，非成品**。当前 `0.8`，只对下面「当前状态」表里标为完成的能力负责。
+> ⚠️ **开发中，非成品**。当前 `0.9`，只对下面「当前状态」表里标为完成的能力负责。
 > 未完成的能力在 [ROADMAP.md](ROADMAP.md) 里列着，不要当成已有功能使用或宣传。
 
 从携程 App / 网页采集**公开可见**的点评类数据，落地 SQLite，导出 CSV / JSONL，带 Tkinter 操作窗口和 CLI。
 
 面向学术研究：**有界、可复现、不抽样**，数量以数据库为准，不以"长时间没有新增"当作全量完成。
 
-## 当前状态（0.8）
+## 当前状态（0.9）
 
 | 能力 | 状态 | 备注 |
 | --- | --- | --- |
 | 网络点评采集（景点 / 餐饮 / 购物） | ✅ 可用 | 真实页面验证过，分页到接口返回空为止 |
 | 酒店浏览器通道 + AI 总结 | ✅ 可用 | 依赖本机 Edge，首次需自行登录 |
-| 城市景点 / 餐饮目录发现 | ✅ 可用 | 只做了这两类，酒店 / 购物目录未适配 |
+| 景点 / 餐饮 / 购物目录发现 | ✅ 可用 | 购物按地区 ID 发现；酒店目录仍未适配 |
+| 评论图片下载 | ✅ 可用 | 只取接口明确返回的大图，Pillow 校验 + SHA256 复用 |
 | 持久批处理与断点续跑 | ✅ 可用 | 中断恢复做过模拟测试，未做真实强杀测试 |
 | 抓包 JSONL 导入 | ✅ 可用 | 不含原始流量，字段按白名单脱敏 |
 | 手机 UI 补采 | ⚠️ 受限 | 机型 / 版本强相关，只作兜底 |
@@ -28,9 +29,9 @@
 | 网络响应 | 酒店、景点、餐饮、购物的点评分页；酒店用本机 Edge 配置目录打开页面，监听响应并顺带取 AI 总结 |
 | 手机 UI | `adb` / `uiautomator2` 读 Android UI XML，按卡片解析，适合网络接口拿不到时的补采 |
 | App 响应导入 | `capture_addon.py`（mitmproxy addon）写 JSONL，`--import-capture` 导入，不保存原始流量 |
-| 城市目录 | 景点/餐饮列表页翻页生成对象清单，可直接串接采集 |
+| 目录发现 | 景点/餐饮列表页翻页、购物按地区 ID 拉目录，生成对象清单后可串接采集 |
 | 持久批处理 | `batch.sqlite3` 记录进度，重启跳过已达标对象，中断任务重试 |
-| 媒体 | 下载评论里明确返回的图片版本，不猜测原图地址 |
+| 图片下载 | 从评论 JSONL 的 `images`/`imageCuttingsList` 取平台返回的大图，CDN 白名单 + 尺寸上限，不猜原图地址 |
 | 打包 | PyInstaller（`CtripCollector.spec` / `package_release.py`） |
 
 ## 快速开始
@@ -56,6 +57,12 @@ python app.py --city-list "https://you.ctrip.com/sight/..." --discovery-pages 5 
 # 导入受限 App 抓包结果
 python app.py --import-capture capture/flows.jsonl
 
+# 购物目录（携程地区 ID，上海=2，0=全球）
+python app.py --shopping-district 2 --discovery-pages 3
+
+# 下载评论里返回的图片（JSONL 路径，上限 20 张不同图片）
+python app.py --download-media data/hotel-xxx.jsonl --media-limit 20
+
 # 手机 UI 补采（设备用 USB 连接，先打开"全部评论"页）
 python app.py --collect --url "https://..." --ui-backend uiautomator2
 ```
@@ -63,7 +70,7 @@ python app.py --collect --url "https://..." --ui-backend uiautomator2
 ## 测试
 
 ```powershell
-python -m unittest discover -s tests     # 53 项，覆盖解析、去重、批处理、抓包、媒体
+python -m unittest discover -s tests     # 57 项，覆盖解析、去重、批处理、抓包、目录发现、图片下载
 ```
 
 回归用例基于真实页面导出的 UI XML / 响应样本，位于 `tests/fixtures/`。
@@ -80,9 +87,10 @@ hotel_public.py     公开详情补充（地址、设施、政策）
 ai_capture.py       酒店 AI 总结采集
 capture_io.py       抓包 JSONL 导入与脱敏
 capture_addon.py    mitmproxy addon
-discovery.py        城市目录发现
+discovery.py        城市目录发现（景点 / 餐饮）
+shopping_discovery.py  购物目录发现（按地区 ID）
 batch.py            持久批处理
-media.py            评论图片下载
+media.py            评论图片下载（Pillow 校验、SHA256 复用）
 tests/              回归测试 + fixtures
 docs/               计划与路线图
 ```
