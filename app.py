@@ -30,7 +30,7 @@ def gui(default_adb, smoke=False):
     # ================================================================ */
     logger.info('开始创建窗口')
     root = tk.Tk()
-    root.title('携程点评采集 · 测试版 0.9')
+    root.title('携程点评采集 · 测试版 0.10')
     root.geometry('900x850')
     frame = ttk.Frame(root, padding=18)
     frame.pack(fill='both', expand=True)

@@ -16,7 +16,7 @@ def main():
     logger.info('开始整理交付文件')
     # 1.1 目录固定在本任务 outputs，不遍历其他用户目录。
     output = Path(__file__).resolve().parents[2] / 'outputs'
-    release = output / '携程采集测试版-0.9'
+    release = output / '携程采集测试版-0.10'
     files = sorted(p for p in release.rglob('*') if p.is_file()
                    and '__pycache__' not in p.parts and p.name != 'SHA256SUMS.json')
     manifest = {p.relative_to(release).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest() for p in files}
@@ -29,14 +29,14 @@ def main():
     # ================================================================ */
     logger.info('开始生成 ZIP')
     # 2.1 ZIP 包含整个目录，保留 EXE 与运行环境相对位置。
-    target = output / '携程采集测试版-0.9.zip'
+    target = output / '携程采集测试版-0.10.zip'
     with ZipFile(target, 'w', ZIP_DEFLATED) as archive:
         for path in files + [manifest_file]:
             archive.write(path, path.relative_to(output).as_posix())
     with ZipFile(target) as archive:
         if archive.testzip() is not None:
             raise RuntimeError('ZIP 完整性检查失败')
-        if '携程采集测试版-0.9/CtripCollector/CtripCollector.exe' not in archive.namelist():
+        if '携程采集测试版-0.10/CtripCollector/CtripCollector.exe' not in archive.namelist():
             raise RuntimeError('ZIP 缺少主程序')
     logger.info('ZIP 检查完成：%s，%s 字节', target, target.stat().st_size)
 

@@ -2,14 +2,14 @@
 
 ![tests](https://github.com/harbinresearcher/ctrip-collector/actions/workflows/tests.yml/badge.svg)
 
-> ⚠️ **开发中，非成品**。当前 `0.9`，只对下面「当前状态」表里标为完成的能力负责。
+> ⚠️ **开发中，非成品**。当前 `0.10`，只对下面「当前状态」表里标为完成的能力负责。
 > 未完成的能力在 [ROADMAP.md](ROADMAP.md) 里列着，不要当成已有功能使用或宣传。
 
 从携程 App / 网页采集**公开可见**的点评类数据，落地 SQLite，导出 CSV / JSONL，带 Tkinter 操作窗口和 CLI。
 
 面向学术研究：**有界、可复现、不抽样**，数量以数据库为准，不以"长时间没有新增"当作全量完成。
 
-## 当前状态（0.9）
+## 当前状态（0.10）
 
 | 能力 | 状态 | 备注 |
 | --- | --- | --- |
