@@ -2,21 +2,22 @@
 
 ![tests](https://github.com/harbinresearcher/ctrip-collector/actions/workflows/tests.yml/badge.svg)
 
-> ⚠️ **开发中，非成品**。当前 `0.10`，只对下面「当前状态」表里标为完成的能力负责。
+> ⚠️ **开发中，非成品**。当前 `0.11`，只对下面「当前状态」表里标为完成的能力负责。
 > 未完成的能力在 [ROADMAP.md](ROADMAP.md) 里列着，不要当成已有功能使用或宣传。
 
 从携程 App / 网页采集**公开可见**的点评类数据，落地 SQLite，导出 CSV / JSONL，带 Tkinter 操作窗口和 CLI。
 
 面向学术研究：**有界、可复现、不抽样**，数量以数据库为准，不以"长时间没有新增"当作全量完成。
 
-## 当前状态（0.10）
+## 当前状态（0.11）
 
 | 能力 | 状态 | 备注 |
 | --- | --- | --- |
 | 网络点评采集（景点 / 餐饮 / 购物） | ✅ 可用 | 真实页面验证过，分页到接口返回空为止 |
 | 酒店浏览器通道 + AI 总结 | ✅ 可用 | 依赖本机 Edge，首次需自行登录 |
-| 景点 / 餐饮 / 购物目录发现 | ✅ 可用 | 购物按地区 ID 发现；酒店目录仍未适配 |
+| 景点 / 餐饮 / 购物 / 酒店目录发现 | ✅ 可用 | 酒店目录用专用 Edge 登录目录监听分页请求；只代表当次日期与筛选条件 |
 | 评论图片下载 | ✅ 可用 | 只取接口明确返回的大图，Pillow 校验 + SHA256 复用 |
+| AI 优选图集 | ⚠️ 开发中（0.12） | 分页与主图匹配已实现，未接 GUI、未续跑，正式包仍 0.11 |
 | 持久批处理与断点续跑 | ✅ 可用 | 中断恢复做过模拟测试，未做真实强杀测试 |
 | 抓包 JSONL 导入 | ✅ 可用 | 不含原始流量，字段按白名单脱敏 |
 | 手机 UI 补采 | ⚠️ 受限 | 机型 / 版本强相关，只作兜底 |
@@ -29,7 +30,7 @@
 | 网络响应 | 酒店、景点、餐饮、购物的点评分页；酒店用本机 Edge 配置目录打开页面，监听响应并顺带取 AI 总结 |
 | 手机 UI | `adb` / `uiautomator2` 读 Android UI XML，按卡片解析，适合网络接口拿不到时的补采 |
 | App 响应导入 | `capture_addon.py`（mitmproxy addon）写 JSONL，`--import-capture` 导入，不保存原始流量 |
-| 目录发现 | 景点/餐饮列表页翻页、购物按地区 ID 拉目录，生成对象清单后可串接采集 |
+| 目录发现 | 景点/餐饮列表页翻页、购物按地区 ID、酒店监听搜索分页，生成清单后可串接采集 |
 | 持久批处理 | `batch.sqlite3` 记录进度，重启跳过已达标对象，中断任务重试 |
 | 图片下载 | 从评论 JSONL 的 `images`/`imageCuttingsList` 取平台返回的大图，CDN 白名单 + 尺寸上限，不猜原图地址 |
 | 打包 | PyInstaller（`CtripCollector.spec` / `package_release.py`） |
@@ -70,7 +71,7 @@ python app.py --collect --url "https://..." --ui-backend uiautomator2
 ## 测试
 
 ```powershell
-python -m unittest discover -s tests     # 57 项，覆盖解析、去重、批处理、抓包、目录发现、图片下载
+python -m unittest discover -s tests     # 90 项，覆盖解析、去重、批处理、抓包、目录发现、图片下载、图集匹配
 ```
 
 回归用例基于真实页面导出的 UI XML / 响应样本，位于 `tests/fixtures/`。
@@ -89,6 +90,8 @@ capture_io.py       抓包 JSONL 导入与脱敏
 capture_addon.py    mitmproxy addon
 discovery.py        城市目录发现（景点 / 餐饮）
 shopping_discovery.py  购物目录发现（按地区 ID）
+hotel_discovery.py  酒店目录发现（Edge 登录目录 + 分页监听）
+gallery_*.py        AI 图集采集与主图匹配（0.12 开发中）
 batch.py            持久批处理
 media.py            评论图片下载（Pillow 校验、SHA256 复用）
 tests/              回归测试 + fixtures
