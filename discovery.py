@@ -102,9 +102,14 @@ def discover_restaurants(url, output, max_pages=5, max_objects=50, stop=None, fe
 
 
 def discover_objects(url, *args, **kwargs):
-    # /* ===== 步骤1：选择目录适配；数据源：入口链接；操作：1) 餐饮路由 2) 景点保留原校验 ===== */
+    # /* ===== 步骤1：选择目录适配；数据源：入口链接；操作：1) 酒店与餐饮路由 2) 景点保留原校验 ===== */
     logger.info('开始选择目录适配')
-    collector = discover_restaurants if '/yougourmet/restaurantlist/' in url else discover_sights
+    # 1.1 酒店仍由专用适配器验证完整城市入口，不根据任意URL数字请求。
+    if url.strip().startswith('https://hotels.ctrip.com/hotel/'):
+        from hotel_discovery import discover_hotels
+        collector = discover_hotels
+    else:
+        collector = discover_restaurants if '/yougourmet/restaurantlist/' in url else discover_sights
     logger.info('目录适配选择完成')
     return collector(url, *args, **kwargs)
 

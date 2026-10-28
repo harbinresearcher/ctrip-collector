@@ -30,7 +30,7 @@ def gui(default_adb, smoke=False):
     # ================================================================ */
     logger.info('开始创建窗口')
     root = tk.Tk()
-    root.title('携程点评采集 · 测试版 0.10')
+    root.title('携程点评采集 · 测试版 0.11')
     root.geometry('900x850')
     frame = ttk.Frame(root, padding=18)
     frame.pack(fill='both', expand=True)
@@ -43,7 +43,7 @@ def gui(default_adb, smoke=False):
     ttk.Radiobutton(modes, text='网络采集（不需要手机）', value='network', variable=mode).pack(side='left')
     ttk.Radiobutton(modes, text='手机评论补采（先打开全部评论）', value='phone', variable=mode).pack(side='left', padx=12)
     ttk.Radiobutton(modes, text='酒店 AI 总结', value='ai', variable=mode).pack(side='left')
-    ttk.Radiobutton(frame, text='城市景点/餐饮目录：填第一页链接，生成对象清单后转入网络模式', value='discover', variable=mode).pack(anchor='w')
+    ttk.Radiobutton(frame, text='城市酒店/景点/餐饮目录：填城市链接，生成对象清单后转入网络模式', value='discover', variable=mode).pack(anchor='w')
     ttk.Radiobutton(frame, text='购物目录：下框填写携程地区数字 ID（上海为 2），生成后转网络模式', value='shopping_discover', variable=mode).pack(anchor='w')
     ttk.Radiobutton(frame, text='导入 App 响应：在下框填写受限抓包 JSONL 文件路径', value='capture', variable=mode).pack(anchor='w')
     ttk.Radiobutton(frame, text='下载评论图片：在下框填写已导出评论 JSONL 路径；数量框为图片上限', value='media', variable=mode).pack(anchor='w')
@@ -223,7 +223,7 @@ def main():
     parser.add_argument('--media-limit', type=int, default=20, help='本次处理的不同图片URL上限')
     parser.add_argument('--capture-ai', action='store_true')
     parser.add_argument('--resource-id', default='')
-    parser.add_argument('--city-list', help='城市景点或餐饮第一页列表链接')
+    parser.add_argument('--city-list', help='城市酒店、景点或餐饮目录链接，酒店示例：https://hotels.ctrip.com/hotel/shanghai2')
     parser.add_argument('--shopping-district', type=int, help='发现购物目录，携程地区ID，上海为2；0表示全球')
     parser.add_argument('--discovery-pages', type=int, default=5)
     parser.add_argument('--max-objects', type=int, default=50)
@@ -256,7 +256,7 @@ def main():
         return
     # 3.0 目录先生成可核对的对象清单；命令行可明确选择接着采集。
     if args.city_list and args.shopping_district is not None:
-        parser.error('餐饮/景点目录与购物目录不能同时运行')
+        parser.error('酒店/餐饮/景点目录与购物目录不能同时运行')
     if args.collect_discovered and not args.city_list and args.shopping_district is None:
         parser.error('--collect-discovered 必须与 --city-list 或 --shopping-district 一起使用')
     if args.city_list or args.shopping_district is not None:
