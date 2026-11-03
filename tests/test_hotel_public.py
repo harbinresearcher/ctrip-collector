@@ -1,8 +1,10 @@
 import json
 import logging
+import io
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from hotel_public import parse_public_hotel
 from network import canonical_url, collect_network
@@ -25,6 +27,49 @@ def fixture(identity=427100):
 
 
 class PublicHotelTests(unittest.TestCase):
+    def test_public_mode_cli_routes_to_snapshot_collector(self):
+        # /* ===== 步骤1：核对命令入口；数据源：酒店链接；操作：1) 选择公开样本 2) 不启动浏览器 ===== */
+        logger.info('开始公开样本命令测试')
+        import app
+        url='https://hotels.ctrip.com/hotels/427100.html'
+        # 1.1 明确指定公开模式时不能落入登录浏览器通道。
+        with tempfile.TemporaryDirectory() as folder, patch('app.collect_public_hotels',return_value={'reason':'queue_exhausted','results':[]}) as collect, patch('app.collect_batch',side_effect=AssertionError('browser')), patch('sys.stdout',new_callable=io.StringIO):
+            with patch('sys.argv',['app.py','--hotel-public','--url',url,'--output',folder]):app.main()
+            self.assertEqual(collect.call_args.args[0],[url])
+        logger.info('公开样本命令测试完成')
+
+    def test_public_snapshot_does_not_overwrite_browser_object(self):
+        # /* ===== 步骤1：保护酒店详情；数据源：既有浏览器结果及公开快照；操作：1) 分开保存 2) 留存评论 ===== */
+        logger.info('开始酒店来源隔离测试')
+        target=parse_public_hotel('https://hotels.ctrip.com/hotels/427100.html',fixture())
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder)
+            original=root/'hotel-427100-object.json'
+            original.write_text('{"ai_summary":"browser data"}',encoding='utf-8')
+            # 1.1 公开快照不能覆盖此前取得的完整浏览器AI数据。
+            result=collect_network(target,root,500,delay=0)
+            self.assertEqual(result['reason'],'public_snapshot_only')
+            self.assertEqual(original.read_text(encoding='utf-8'),'{"ai_summary":"browser data"}')
+            public=root/'hotel-427100-public-object.json'
+            self.assertEqual(json.loads(public.read_text(encoding='utf-8'))['source_method'],'hotel_public_html_snapshot')
+            # 1.2 已有评论达到目标时，依旧明确这是公开快照。
+            again=collect_network(target,root,1,delay=0)
+            self.assertEqual(again['reason'],'public_snapshot_only')
+        logger.info('酒店来源隔离测试完成')
+
+    def test_public_hotel_batch_never_opens_browser(self):
+        # /* ===== 步骤2：核对无需登录入口；数据源：公开酒店样本；操作：1) 处理清单 2) 明确样本状态 ===== */
+        logger.info('开始公开酒店批量测试')
+        from hotel_public_batch import collect_public_hotels
+        target=parse_public_hotel('https://hotels.ctrip.com/hotels/427100.html',fixture())
+        with tempfile.TemporaryDirectory() as folder, patch('hotel_public_batch.load_target',return_value=target):
+            # 2.1 评论最多来自公开页样本，不把5000条平台总数当作采集数量。
+            result=collect_public_hotels([target['url']],folder,500)
+            self.assertEqual(result['reason'],'queue_exhausted')
+            self.assertEqual(result['results'][0]['reason'],'public_snapshot_only')
+            self.assertEqual(result['results'][0]['count'],1)
+            self.assertFalse(result['complete'])
+        logger.info('公开酒店批量测试完成')
     def test_literal_flight_identity_fields_and_no_auth(self):
         # /* ===== 步骤1：核对酒店公开状态；数据源：分块 Flight；操作：1) 纯 JSON 解析 2) 身份核对 3) 凭据排除 ===== */
         logger.info('开始酒店状态检查')

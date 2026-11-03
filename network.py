@@ -263,7 +263,12 @@ def collect_network(target, output, limit=500, stop=None, emit=None, fetch=None,
         before = db.execute('SELECT COUNT(*) FROM network_reviews WHERE object_key=?', (key,)).fetchone()[0]
         saved_count = before
         # 7.1.2 抓包详情单独留证，避免覆盖浏览器此前保存的完整酒店详情。
-        object_name = f'{key}-app-capture-object.json' if report['source_method'] == 'app_proxy_capture' else f'{key}-object.json'
+        if report['source_method'] == 'app_proxy_capture':
+            object_name = f'{key}-app-capture-object.json'
+        elif report['source_method'] == 'hotel_public_html_snapshot':
+            object_name = f'{key}-public-object.json'
+        else:
+            object_name = f'{key}-object.json'
         (output / object_name).write_text(json.dumps(target, ensure_ascii=False, indent=2), encoding='utf-8')
         seen = set()
         repeated = 0
@@ -272,7 +277,7 @@ def collect_network(target, output, limit=500, stop=None, emit=None, fetch=None,
                 report['reason'] = 'cancelled'
                 break
             if saved_count >= limit:
-                report['reason'] = 'target_reached'
+                report['reason'] = 'public_snapshot_only' if report['source_method'] == 'hotel_public_html_snapshot' else 'target_reached'
                 break
             data = fetch(index)
             # 7.1.1 浏览器等待响应期间也可能取消，不把取消误记为空页。
