@@ -12,6 +12,49 @@ REMOTE = '/sdcard/Android/data/ctrip.android.view/cache/CTPictureCache/v2.ols100
 
 
 class GalleryCacheTests(unittest.TestCase):
+    def test_long_session_evicts_old_candidates_without_rereading_them(self):
+        # /* ===== 步骤1：验证长图集预算；数据源：40次逐项缓存增长；操作：1) 保留最多32项 2) 不重复读淘汰项 ===== */
+        logger.info('开始长图集缓存测试')
+        adb=Mock(executable='adb',serial='device')
+        metadata={}
+        def read_file(command, **kwargs):
+            index=int(command[-1].split('/')[-1].split('.')[0])
+            return SimpleNamespace(returncode=0,stdout=f'{index:03}'.encode())
+        # 1.1 每次只新增一个文件，不能因整个会话累计超过32项而失败。
+        with patch('gallery_cache.subprocess.run',side_effect=read_file) as run:
+            with GalleryCandidateSession(adb,{}) as session:
+                for index in range(40):
+                    remote=REMOTE.rsplit('/',1)[0]+f'/{index}.cnt'
+                    metadata[remote]=(3,100+index)
+                    adb.run.return_value='\n'.join(f'{p}|{v[0]}|{v[1]}' for p,v in metadata.items())
+                    paths=session.refresh(Event())
+                    self.assertLessEqual(len(paths),32)
+                    self.assertEqual(len(set(paths)),len(paths))
+                    for p,(meta,local) in session.files.items():
+                        expected=int(p.rsplit('/',1)[-1].split('.')[0])
+                        self.assertEqual(local.read_bytes(),f'{expected:03}'.encode())
+                self.assertEqual(run.call_count,40)
+                self.assertEqual(len(list(Path(session.directory.name).glob('*.bin'))),32)
+                session.refresh(Event())
+                self.assertEqual(run.call_count,40)
+        logger.info('长图集缓存测试完成')
+
+    def test_recent_fallback_reads_only_bounded_old_candidates(self):
+        # /* ===== 步骤1：验证旧缓存补查；数据源：20个未变化缓存；操作：1) 优先近期 2) 最多读取16个 ===== */
+        logger.info('开始旧缓存补查测试')
+        baseline={REMOTE.replace('.cnt',f'{i}.cnt'):(3,100+i) for i in range(20)}
+        adb=Mock(executable='adb',serial='device')
+        adb.run.return_value='\n'.join(f'{p}|{meta[0]}|{meta[1]}' for p,meta in baseline.items())
+        # 1.1 差分没有候选时可查近期旧文件，不将整个缓存纳入。
+        with patch('gallery_cache.subprocess.run',return_value=SimpleNamespace(returncode=0,stdout=b'abc')) as run:
+            with GalleryCandidateSession(adb,baseline) as session:
+                self.assertEqual(session.refresh(Event()),[])
+                paths=session.include_recent(Event())
+                self.assertEqual(len(paths),16)
+                self.assertEqual(run.call_count,16)
+                self.assertEqual(set(session.files),set(sorted(baseline,key=lambda p:baseline[p][1],reverse=True)[:16]))
+        logger.info('旧缓存补查测试完成')
+
     def test_session_reuses_prefetch_across_pages_and_cleans_on_exit(self):
         # /* ===== 步骤1：验证预加载复用；数据源：两页相同缓存元数据；操作：1) 首次读取 2) 第二页复用 ===== */
         logger.info('开始跨页缓存复用验证')

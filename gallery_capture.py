@@ -70,12 +70,22 @@ def capture_current_gallery_frame(adb, baseline, region, output, object_key, con
         with Image.open(io.BytesIO(result.stdout)) as screen:
             if screen.width * screen.height > 20_000_000:
                 raise ValueError('截图尺寸超出限制')
-            saved = save_gallery_frame(screen, paths, before, after, region, output, object_key, confirmed_category)
+            saved = save_gallery_frame(screen, paths, before, after, region, output, object_key, confirmed_category,
+                                       candidate_scope='bounded_session_candidates')
+            # 2.2 无匹配时仅补查有限近期旧缓存，补查结束后重验前台与页码。
+            if saved['status'] == 'no_match' and candidate_session is not None:
+                paths = candidate_session.include_recent(stop)
+                adb.ensure_foreground()
+                after = adb.snapshot()
+                if stop.is_set():
+                    raise InterruptedError('图集采集已取消')
+                saved = save_gallery_frame(screen, paths, before, after, region, output, object_key, confirmed_category,
+                                           candidate_scope='bounded_recent_cache')
         logger.info('当前图集图片核验完成：%s', saved['status'])
         return saved
 
 
-def save_gallery_frame(screen, candidates, before_xml, after_xml, region, output, object_key, confirmed_category):
+def save_gallery_frame(screen, candidates, before_xml, after_xml, region, output, object_key, confirmed_category, *, candidate_scope='provided_candidates'):
     # /* ===== 步骤1：核对页面；数据源：截图前后XML；操作：1) 验证包名和页码 2) 保留人工分类确认边界 ===== */
     logger.info('开始图集页面一致性检查')
     # 1.1 对象只作为调用方声明，分类必须由调用方确认，不能凭标签可见自动推断选中。
@@ -126,7 +136,7 @@ def save_gallery_frame(screen, candidates, before_xml, after_xml, region, output
         # 3.1 每个版本单独通过颜色与细节门槛；仅与最佳候选接近的版本进入待核对目录。
         qualified = [row for row in match['scores'] if row['error'] <= 0.025 and row['detail_verified']
                      and row['error'] - match['scores'][0]['error'] < 0.01]
-        record = {'status': 'ambiguous', 'match': match, 'complete': False, 'original_verified': False,
+        record = {'status': 'ambiguous', 'match': match, 'complete': False, 'original_verified': False, 'candidate_scope': candidate_scope,
                   'object_key': object_key, 'identity_verification': 'operator_declared',
                   'category': confirmed_category, 'category_verification': 'operator_confirmed',
                   'gallery_index': states[0][0], 'gallery_total': states[0][1], 'review_candidates': [],
@@ -156,7 +166,7 @@ def save_gallery_frame(screen, candidates, before_xml, after_xml, region, output
         logger.info('图集待核对版本保存完成：%s个', len(record['review_candidates']))
         return record
     if match['status'] != 'matched':
-        return {'status': match['status'], 'match': match}
+        return {'status': match['status'], 'match': match, 'candidate_scope': candidate_scope}
 
     # /* ===== 步骤3：保存核验文件；数据源：唯一匹配的缓存字节；操作：1) 保存哈希命名文件 2) 保存关联证据 ===== */
     logger.info('开始保存图集匹配文件')
@@ -166,7 +176,7 @@ def save_gallery_frame(screen, candidates, before_xml, after_xml, region, output
     output = Path(output)
     output.mkdir(parents=True, exist_ok=True)
     filename = digest + extension
-    record = {'status': 'saved', 'file': filename, 'sha256': digest, 'bytes': len(data),
+    record = {'status': 'saved', 'file': filename, 'sha256': digest, 'bytes': len(data), 'candidate_scope': candidate_scope,
               'dimensions': dimensions, 'object_key': object_key, 'identity_verification': 'operator_declared',
               'category': confirmed_category, 'category_verification': 'operator_confirmed',
               'gallery_index': states[0][0], 'gallery_total': states[0][1],

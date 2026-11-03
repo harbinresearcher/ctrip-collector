@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from html.parser import HTMLParser
 from pathlib import Path
 from threading import Event
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, unquote_plus, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 
 logger = logging.getLogger(__name__)
@@ -30,6 +30,13 @@ def sanitize(value):
         value = {k: sanitize(v) for k, v in value.items() if k.lower() not in PRIVATE_KEYS}
     elif isinstance(value, list):
         value = [sanitize(v) for v in value]
+    elif isinstance(value, str) and '?' in value and (value.startswith(('https://', 'http://', '/'))):
+        # 1.2 用户主页链接可能把内部标识放在查询参数中；保留其他原始参数及媒体签名。
+        parts = urlsplit(value)
+        query = '&'.join(part for part in parts.query.split('&')
+                         if unquote_plus(part.split('=', 1)[0]).lower() != 'clientauth')
+        if query != parts.query:
+            value = urlunsplit((parts.scheme, parts.netloc, parts.path, query, parts.fragment))
     logger.debug('响应清理完成')
     return value
 
@@ -211,7 +218,7 @@ def export_records(db, object_key, folder):
         writer = csv.writer(cf)
         writer.writerow(['object_key', 'fetched_at', *fields, 'full_json'])
         for raw, fetched_at in rows:
-            data = json.loads(raw)
+            data = sanitize(json.loads(raw))
             jf.write(json.dumps({'object_key': object_key, 'fetched_at': fetched_at, 'data': data}, ensure_ascii=False) + '\n')
             values = [object_key, fetched_at, *[data.get(field) for field in fields], data]
             cells = [json.dumps(v, ensure_ascii=False) if isinstance(v, (dict, list)) else '' if v is None else str(v) for v in values]
@@ -277,6 +284,9 @@ def collect_network(target, output, limit=500, stop=None, emit=None, fetch=None,
             result = data['result']
             if 'items' not in result or not isinstance(result.get('totalCount'), int) or (result['items'] is not None and not isinstance(result['items'], list)):
                 raise ValueError('接口返回未知分页结构，已停止')
+            # 7.1.2 未达到服务端总数却收到null无法证明没有下一页；抓包空批次允许后续批次。
+            if result['items'] is None and result['totalCount'] > saved_count and report['source_method'] != 'app_proxy_capture':
+                raise ValueError('接口评论列表为空值且已存条数低于服务端总数，已停止；不能判断数据采完')
             report['pages'] += 1
             report['server_counts'] = {k: result.get(k) for k in ('totalCount', 'totalHideCount', 'totalCollapseCount')}
             items = result['items'] or []

@@ -4,7 +4,6 @@ import copy
 import json
 import logging
 import re
-import os
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -12,6 +11,7 @@ from threading import Event
 from urllib.parse import urlparse
 
 from network import sanitize
+from browser_context import open_hotel_context
 
 logger = logging.getLogger(__name__)
 
@@ -242,9 +242,8 @@ def discover_hotels(url, output, max_pages=5, max_objects=50, stop=None):
     logger.info('开始打开酒店目录浏览器')
     from playwright.sync_api import sync_playwright
     # 5.1 不复制登录资料到输出目录，目录任务结束后释放浏览器供评论任务使用。
-    profile = Path(os.environ.get('LOCALAPPDATA', str(Path.home()))) / 'CtripCollector/browser-profile'
     with sync_playwright() as pw:
-        context = pw.chromium.launch_persistent_context(str(profile), channel='msedge', headless=False)
+        context = open_hotel_context(pw)
         try:
             page = context.pages[0] if context.pages else context.new_page()
             return discover_hotels_page(page, url, output, max_pages, max_objects, stop)

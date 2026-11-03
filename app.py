@@ -14,10 +14,14 @@ from network import canonical_url, collect_network, load_target
 from hotel_browser import collect_hotel
 from capture_io import import_capture
 from ai_capture import capture_ai
+from gallery_entry import capture_ai_gallery
 from discovery import discover_objects
 from batch import collect_batch
 from media import download_media
 from shopping_discovery import discover_shopping
+from multi_discovery import discover_many
+from region_seeds import discover_regions
+from coverage_report import write_coverage_report
 
 logger = logging.getLogger(__name__)
 HOME = Path(sys.executable).parent if getattr(sys, 'frozen', False) else Path(__file__).parent
@@ -30,12 +34,12 @@ def gui(default_adb, smoke=False):
     # ================================================================ */
     logger.info('开始创建窗口')
     root = tk.Tk()
-    root.title('携程点评采集 · 测试版 0.11')
+    root.title('携程点评采集 · 测试版 0.16')
     root.geometry('900x850')
     frame = ttk.Frame(root, padding=18)
     frame.pack(fill='both', expand=True)
     ttk.Label(frame, text='网络采集：酒店、景点、餐饮、购物。', font=('Microsoft YaHei UI', 13)).pack(anchor='w')
-    ttk.Label(frame, text='酒店会打开 Edge，首次需自行登录；采集评论和网页返回的 AI 总结。').pack(anchor='w', pady=(4, 10))
+    ttk.Label(frame, text='酒店会打开专用浏览器（Edge 或 Chrome），首次需自行登录。').pack(anchor='w', pady=(4, 10))
     mode = tk.StringVar(value='network')
     fast_ui = tk.BooleanVar(value=True)
     modes = ttk.Frame(frame)
@@ -43,10 +47,16 @@ def gui(default_adb, smoke=False):
     ttk.Radiobutton(modes, text='网络采集（不需要手机）', value='network', variable=mode).pack(side='left')
     ttk.Radiobutton(modes, text='手机评论补采（先打开全部评论）', value='phone', variable=mode).pack(side='left', padx=12)
     ttk.Radiobutton(modes, text='酒店 AI 总结', value='ai', variable=mode).pack(side='left')
-    ttk.Radiobutton(frame, text='城市酒店/景点/餐饮目录：填城市链接，生成对象清单后转入网络模式', value='discover', variable=mode).pack(anchor='w')
-    ttk.Radiobutton(frame, text='购物目录：下框填写携程地区数字 ID（上海为 2），生成后转网络模式', value='shopping_discover', variable=mode).pack(anchor='w')
+    ttk.Radiobutton(frame, text='城市酒店/景点/餐饮目录：每行填一个城市链接，生成后转网络模式', value='discover', variable=mode).pack(anchor='w')
+    ttk.Radiobutton(frame, text='购物目录：每行填写一个携程地区数字 ID（上海为 2）', value='shopping_discover', variable=mode).pack(anchor='w')
+    ttk.Radiobutton(frame, text='自动发现地区：酒店目录', value='seeds_hotel', variable=mode).pack(anchor='w')
+    ttk.Radiobutton(frame, text='自动发现地区：景点目录', value='seeds_sight', variable=mode).pack(anchor='w')
+    ttk.Radiobutton(frame, text='自动发现地区：餐饮目录', value='seeds_restaurant', variable=mode).pack(anchor='w')
+    ttk.Radiobutton(frame, text='自动发现地区：购物目录', value='seeds_shopping', variable=mode).pack(anchor='w')
     ttk.Radiobutton(frame, text='导入 App 响应：在下框填写受限抓包 JSONL 文件路径', value='capture', variable=mode).pack(anchor='w')
     ttk.Radiobutton(frame, text='下载评论图片：在下框填写已导出评论 JSONL 路径；数量框为图片上限', value='media', variable=mode).pack(anchor='w')
+    ttk.Radiobutton(frame, text='酒店 AI 图集（试验）：手机先打开住客晒图网格顶部，填写酒店 ID', value='gallery', variable=mode).pack(anchor='w')
+    ttk.Radiobutton(frame, text='统计本地数据覆盖：选择已有采集输出目录', value='coverage', variable=mode).pack(anchor='w')
     ttk.Checkbutton(frame, text='手机使用快速页面读取（uiautomator2；不要同时运行 Mobile MCP）', variable=fast_ui).pack(anchor='w')
     ttk.Label(frame, text='对象详情链接，每行一个（酒店 hotels.ctrip.com；景点 / 餐厅 / 购物 you.ctrip.com）').pack(anchor='w', pady=(8, 2))
     urls_box = tk.Text(frame, height=3, wrap='word')
@@ -54,7 +64,7 @@ def gui(default_adb, smoke=False):
     values = {}
     # 1.1 明确对象标签，避免把不同对象写入同一数据集。
     for label, key, default in [('对象名称（手机模式填写）', 'place', ''), ('酒店 ID（AI 模式填写）', 'resource_id', ''), ('每对象目标累计条数', 'limit', '500'),
-                                ('目录页数上限', 'pages', '5'), ('目录对象上限', 'objects', '50'),
+                                ('目录 / 图集页数上限', 'pages', '5'), ('目录对象 / 地区数量上限', 'objects', '50'),
                                 ('输出目录', 'folder', str(HOME / 'data')), ('ADB 路径', 'adb', default_adb)]:
         row = ttk.Frame(frame)
         row.pack(fill='x', pady=4)
@@ -94,14 +104,19 @@ def gui(default_adb, smoke=False):
                 raise ValueError()
             if selected_mode in ('capture', 'media') and (len(urls) != 1 or not Path(urls[0]).is_file()):
                 raise ValueError()
-            if selected_mode == 'discover' and (len(urls) != 1 or int(values['pages'].get()) < 1 or int(values['objects'].get()) < 1):
+            if selected_mode == 'discover' and (not urls or int(values['pages'].get()) < 1 or int(values['objects'].get()) < 1):
                 raise ValueError()
-            if selected_mode == 'shopping_discover' and (len(urls) != 1 or not urls[0].isdigit() or int(values['pages'].get()) < 1 or int(values['objects'].get()) < 1):
+            if selected_mode == 'shopping_discover' and (not urls or not all(url.isdigit() for url in urls) or int(values['pages'].get()) < 1 or int(values['objects'].get()) < 1):
                 raise ValueError()
             if selected_mode == 'ai' and (kind.get() != 'hotel' or not values['resource_id'].get().strip().isdigit()):
                 raise ValueError()
+            if selected_mode == 'gallery' and (kind.get() != 'hotel' or not values['resource_id'].get().strip().isdigit()
+                                              or int(values['resource_id'].get()) <= 0 or not 1 <= int(values['pages'].get()) <= 500):
+                raise ValueError()
+            if selected_mode.startswith('seeds_') and int(values['objects'].get()) < 1:
+                raise ValueError()
         except ValueError:
-            messagebox.showerror('参数错误', '网络模式填写详情链接；手机模式填写对象名称；AI 模式选择酒店并填写数字酒店 ID。目标条数必须为正整数。')
+            messagebox.showerror('参数错误', '网络模式填写详情链接；手机评论填写对象名称；AI 模式选择酒店并填写正整数酒店 ID。图集页数为1至500。目标条数必须为正整数。')
             return
         selected = {key: value.get().strip() for key, value in values.items()}
         selected_kind = kind.get()
@@ -116,7 +131,18 @@ def gui(default_adb, smoke=False):
             # 2.2 异常和完成消息均送回主线程。
             try:
                 # 2.2.1 网络任务串行读取，不与手机争抢页面。
-                if selected_mode == 'media':
+                if selected_mode == 'coverage':
+                    # 2.2.4 覆盖统计只读取本地数据库，不启动手机或浏览器。
+                    result = write_coverage_report(Path(selected['folder']))
+                    events.put(('log', f"已统计 {len(result['objects'])} 个对象；报告：{result['report_file']}"))
+                    events.put(('log', '覆盖报告只反映已有数据，不代表平台全部数据。'))
+                elif selected_mode.startswith('seeds_'):
+                    # 2.2.3 地区入口来自首页候选；生成后再由用户启动业务目录核验。
+                    seed_kind = selected_mode.removeprefix('seeds_')
+                    result = discover_regions(Path(selected['folder']), seed_kind, int(selected['objects']))
+                    events.put(('log', f"首页找到 {result['total_visible']} 个地区，已生成 {len(result['entries'])} 个待核验入口。"))
+                    events.put(('region_' + seed_kind, '\n'.join(result['entries'])))
+                elif selected_mode == 'media':
                     result = download_media(Path(urls[0]), Path(selected['folder']), target, stop)
                     events.put(('log', json.dumps(result, ensure_ascii=False, indent=2)))
                 elif selected_mode == 'capture':
@@ -125,7 +151,9 @@ def gui(default_adb, smoke=False):
                     events.put(('log', json.dumps(result, ensure_ascii=False, indent=2)))
                 elif selected_mode in ('discover', 'shopping_discover'):
                     finder = discover_shopping if selected_mode == 'shopping_discover' else discover_objects
-                    result = finder(urls[0], Path(selected['folder']), int(selected['pages']), int(selected['objects']), stop)
+                    # 2.2.2 多个地区依次发现；预算分别作用于每个地区。
+                    result = (finder(urls[0], Path(selected['folder']), int(selected['pages']), int(selected['objects']), stop)
+                              if len(urls) == 1 else discover_many(urls, Path(selected['folder']), int(selected['pages']), int(selected['objects']), stop, finder))
                     events.put(('log', json.dumps({k: v for k, v in result.items() if k != 'objects'}, ensure_ascii=False, indent=2)))
                     if result['objects']:
                         events.put(('urls', '\n'.join(obj['url'] for obj in result['objects'])))
@@ -133,6 +161,18 @@ def gui(default_adb, smoke=False):
                     result = collect_batch(urls, Path(selected['folder']), target, collect_url, stop,
                                            lambda msg: events.put(('log', msg)))
                     events.put(('log', json.dumps(result, ensure_ascii=False, indent=2)))
+                elif selected_mode == 'gallery':
+                    # 2.2.2 图集入口自行建立缓存基线，与评论采集共用停止标记和设备清理。
+                    adb = Adb(selected['adb'], ui_backend=selected_backend)
+                    adb.connect()
+                    result = capture_ai_gallery(adb, selected['resource_id'], Path(selected['folder']), stop,
+                                                max_pages=int(selected['pages']))
+                    counts = {status: sum(page['result']['status'] == status for page in result['pages'])
+                              for status in ('saved', 'ambiguous', 'no_match')}
+                    events.put(('log', f"图集结束：{result['status']}；已确认 {counts['saved']} 页，待核对 {counts['ambiguous']} 页，未匹配 {counts['no_match']} 页。"))
+                    events.put(('log', '待核对版本保存在 review 文件夹；本次结果不代表图集已采全。'))
+                    if result.get('error'):
+                        events.put(('log', '错误：' + result['error']))
                 elif selected_mode == 'ai':
                     adb = Adb(selected['adb'], ui_backend=selected_backend)
                     adb.connect()
@@ -164,6 +204,11 @@ def gui(default_adb, smoke=False):
                 urls_box.insert('1.0', text)
                 mode.set('network')
                 text = '对象清单已填入链接框。点开始即可依次采集；目录预算不代表全站覆盖。'
+            elif event.startswith('region_'):
+                urls_box.delete('1.0', 'end')
+                urls_box.insert('1.0', text)
+                mode.set('shopping_discover' if event == 'region_shopping' else 'discover')
+                text = '地区入口已填入链接框。点开始后逐地区发现对象；首页地区不是完整城市清单。'
             display.configure(state='normal')
             display.insert('end', text + '\n')
             display.see('end')
@@ -216,6 +261,7 @@ def main():
     parser.add_argument('--adb', default=str(HOME / 'platform-tools' / 'adb.exe') if (HOME / 'platform-tools' / 'adb.exe').exists() else shutil.which('adb') or 'adb')
     parser.add_argument('--check', action='store_true')
     parser.add_argument('--gui-smoke', action='store_true')
+    parser.add_argument('--coverage', action='store_true', help='统计输出目录内已有网络评论及字段覆盖')
     parser.add_argument('--collect', action='store_true')
     parser.add_argument('--url', action='append', default=[], help='公开点评对象详情链接，可重复指定')
     parser.add_argument('--import-capture', type=Path, help='导入受限 App 点评响应 JSONL')
@@ -223,7 +269,9 @@ def main():
     parser.add_argument('--media-limit', type=int, default=20, help='本次处理的不同图片URL上限')
     parser.add_argument('--capture-ai', action='store_true')
     parser.add_argument('--resource-id', default='')
-    parser.add_argument('--city-list', help='城市酒店、景点或餐饮目录链接，酒店示例：https://hotels.ctrip.com/hotel/shanghai2')
+    parser.add_argument('--city-list', action='append', help='城市目录链接，可重复指定；酒店示例：https://hotels.ctrip.com/hotel/shanghai2')
+    parser.add_argument('--region-seeds', choices=['hotel', 'sight', 'restaurant', 'shopping'], help='从公开首页生成地区入口并发现对象')
+    parser.add_argument('--max-regions', type=int, default=50, help='本次最多处理的首页地区数')
     parser.add_argument('--shopping-district', type=int, help='发现购物目录，携程地区ID，上海为2；0表示全球')
     parser.add_argument('--discovery-pages', type=int, default=5)
     parser.add_argument('--max-objects', type=int, default=50)
@@ -236,9 +284,14 @@ def main():
     parser.add_argument('--max-swipes', type=int, default=1500)
     parser.add_argument('--ui-backend', choices=['adb', 'uiautomator2'], default='uiautomator2')
     args = parser.parse_args()
+    if args.coverage:
+        if args.url or args.url_file or args.city_list or args.region_seeds or args.shopping_district is not None or args.collect or args.capture_ai or args.import_capture or args.download_media:
+            parser.error('--coverage 不能与采集任务同时使用')
+        print(json.dumps(write_coverage_report(args.output), ensure_ascii=False, indent=2))
+        return
     # 3.0.0 图片任务与评论采集分开，避免参数混用触发额外请求。
     if args.download_media:
-        if args.url or args.url_file or args.city_list or args.shopping_district is not None or args.collect or args.capture_ai or args.import_capture:
+        if args.url or args.url_file or args.city_list or args.region_seeds or args.shopping_district is not None or args.collect or args.capture_ai or args.import_capture:
             parser.error('--download-media 不能与其他采集任务同时使用')
         result = download_media(args.download_media, args.output, args.media_limit)
         print(json.dumps(result, ensure_ascii=False, indent=2))
@@ -247,7 +300,7 @@ def main():
         return
     # 3.0.1 离线导入不启动浏览器、不连接手机。
     if args.import_capture:
-        if args.url or args.url_file or args.city_list or args.shopping_district is not None or args.collect or args.capture_ai:
+        if args.url or args.url_file or args.city_list or args.region_seeds or args.shopping_district is not None or args.collect or args.capture_ai:
             parser.error('--import-capture 不能与其他采集任务同时使用')
         result = import_capture(args.import_capture, args.output, args.limit)
         print(json.dumps(result, ensure_ascii=False, indent=2))
@@ -255,14 +308,18 @@ def main():
             raise SystemExit(1)
         return
     # 3.0 目录先生成可核对的对象清单；命令行可明确选择接着采集。
-    if args.city_list and args.shopping_district is not None:
+    if (args.city_list and args.shopping_district is not None) or (args.region_seeds and (args.city_list or args.shopping_district is not None)):
         parser.error('酒店/餐饮/景点目录与购物目录不能同时运行')
-    if args.collect_discovered and not args.city_list and args.shopping_district is None:
+    if args.collect_discovered and not args.city_list and not args.region_seeds and args.shopping_district is None:
         parser.error('--collect-discovered 必须与 --city-list 或 --shopping-district 一起使用')
-    if args.city_list or args.shopping_district is not None:
-        finder = discover_shopping if args.shopping_district is not None else discover_objects
-        entry = args.shopping_district if args.shopping_district is not None else args.city_list
-        result = finder(entry, args.output, args.discovery_pages, args.max_objects)
+    if args.city_list or args.region_seeds or args.shopping_district is not None:
+        finder = discover_shopping if args.shopping_district is not None or args.region_seeds == 'shopping' else discover_objects
+        seed_report = discover_regions(args.output, args.region_seeds, args.max_regions) if args.region_seeds else None
+        entries = seed_report['entries'] if seed_report else ([args.shopping_district] if args.shopping_district is not None else args.city_list)
+        result = (finder(entries[0], args.output, args.discovery_pages, args.max_objects)
+                  if len(entries) == 1 else discover_many(entries, args.output, args.discovery_pages, args.max_objects, threading.Event(), finder))
+        if seed_report:
+            result['region_seed_report'] = seed_report['report_file']
         print(json.dumps(result, ensure_ascii=False, indent=2))
         if result['reason'] == 'error':
             raise SystemExit(1)

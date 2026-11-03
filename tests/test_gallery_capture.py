@@ -23,6 +23,36 @@ def viewer(index=4, package='ctrip.android.view'):
 
 
 class GalleryCaptureTests(unittest.TestCase):
+    def test_old_cache_fallback_recovers_file_and_rechecks_page(self):
+        # /* ===== 步骤1：验证旧缓存补采；数据源：差分为空、近期候选命中；操作：1) 补查后匹配 2) 再验页码 ===== */
+        logger.info('开始旧缓存串接测试')
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            photo = picture()
+            source = root / 'old.png'
+            photo.save(source)
+            screen = Image.new('RGB', (240,500), 'gray')
+            screen.paste(photo,(0,120))
+            buffer = io.BytesIO()
+            screen.save(buffer,format='PNG')
+            adb = Mock(executable='adb',serial='device')
+            adb.snapshot.return_value = viewer()
+            session = Mock(adb=adb,baseline={},scope=None)
+            session.refresh.return_value=[]
+            session.include_recent.return_value=[source]
+            # 1.1 没有缓存变化仍可找到文件，清单明确记录有限近期补查来源。
+            with patch('gallery_capture.subprocess.run', return_value=SimpleNamespace(returncode=0,stdout=buffer.getvalue())):
+                result=capture_current_gallery_frame(adb,{},(0,40,240,400),root/'out','hotel-427100','AI优选',Event(),candidate_session=session)
+                self.assertEqual(result['status'],'saved')
+                self.assertEqual(result['candidate_scope'],'bounded_recent_cache')
+                self.assertEqual(adb.snapshot.call_count,3)
+                # 1.2 补查期间页码变化时不保存。
+                adb.snapshot.side_effect=[viewer(),viewer(),viewer(5)]
+                with self.assertRaises(ValueError):
+                    capture_current_gallery_frame(adb,{},(0,40,240,400),root/'changed','hotel-427100','AI优选',Event(),candidate_session=session)
+                self.assertFalse((root/'changed').exists())
+        logger.info('旧缓存串接测试完成')
+
     def test_ambiguous_versions_are_retained_only_as_review_candidates(self):
         # /* ===== 步骤1：保留歧义版本；数据源：同画面两个编码；操作：1) 不指定唯一图片 2) 隔离待核对文件 ===== */
         logger.info('开始图集多版本保存测试')

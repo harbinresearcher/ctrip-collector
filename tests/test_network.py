@@ -7,7 +7,7 @@ from pathlib import Path
 from threading import Event
 from unittest.mock import patch
 
-from network import collect_network, parse_target, sanitize, shopping_target
+from network import collect_network, export_records, parse_target, sanitize, shopping_target
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +18,51 @@ def page(items, total=3):
 
 
 class NetworkTests(unittest.TestCase):
+    def test_export_removes_profile_identifier_from_older_database_rows(self):
+        # /* ===== 步骤1：核对历史数据导出；数据源：旧数据库；操作：1) 重新清理 2) 保留评论正文 ===== */
+        logger.info('开始历史数据导出测试')
+        with tempfile.TemporaryDirectory() as folder, sqlite3.connect(':memory:') as db:
+            db.execute('CREATE TABLE network_reviews(object_key TEXT, comment_id TEXT, data TEXT, fetched_at TEXT)')
+            data={'content':'正文','userInfo':{'url':'/user?clientAuth=private&view=1'}}
+            db.execute('INSERT INTO network_reviews VALUES(?,?,?,?)',('sight-1','1',json.dumps(data),'now'))
+            # 1.1 历史记录仍存在数据库中，新的导出结果不能再次携带内部标识。
+            jsonl,csv_path=export_records(db,'sight-1',Path(folder))
+            for name in (jsonl,csv_path):
+                text=Path(name).read_text(encoding='utf-8-sig')
+                self.assertNotIn('private',text)
+                self.assertIn('正文',text)
+        logger.info('历史数据导出测试完成')
+
+    def test_nested_profile_urls_do_not_export_client_auth(self):
+        # /* ===== 步骤1：清理主页链接；数据源：评论用户信息；操作：1) 清除内部标识 2) 保留公开链接参数 ===== */
+        logger.info('开始用户主页链接清理测试')
+        # 1.1 同时覆盖绝对路径、应用相对路径和大小写混合参数。
+        data = {'userInfo': {'url': 'https://example.com/user?view=1&clientAuth=private&lang=zh#page',
+                             'mini': '/pages/user?CLIENTAUTH=private&view=1'},
+                'images': [{'url': 'https://example.com/image?width=1200&token=needed'}]}
+        cleaned = sanitize(data)
+        self.assertEqual(cleaned['userInfo']['url'], 'https://example.com/user?view=1&lang=zh#page')
+        self.assertEqual(cleaned['userInfo']['mini'], '/pages/user?view=1')
+        self.assertEqual(cleaned['images'][0]['url'], data['images'][0]['url'])
+        logger.info('用户主页链接清理测试完成')
+
+    def test_null_items_with_positive_total_is_not_a_valid_empty_page(self):
+        # /* ===== 步骤1：核对异常空列表；数据源：接口分页；操作：1) 保留前页 2) 拒绝把未知结构当采集结束 ===== */
+        logger.info('开始异常空列表分页测试')
+        target = {'kind': 'sight', 'resource_id': 12, 'resource_type': 11,
+                  'name': '景区', 'display_total': 20, 'details': {},
+                  'url': 'https://you.ctrip.com/sight/city1/12.html'}
+        # 1.1 正常首批保存后，列表为null且总数大于零不能作为空页终止证据。
+        responses = {1: page([{'commentId': 1, 'content': '已保存'}], 20), 2: page(None, 20)}
+        with tempfile.TemporaryDirectory() as folder:
+            result = collect_network(target, Path(folder), 10, fetch=responses.__getitem__, delay=0)
+            self.assertEqual(result['reason'], 'error')
+            self.assertEqual(result['count'], 1)
+            self.assertIn('列表', result['error'])
+            self.assertFalse(result['complete'])
+            self.assertIn('已保存', Path(result['jsonl']).read_text(encoding='utf-8'))
+        logger.info('异常空列表分页测试完成')
+
     def test_zero_review_shop_without_entry_is_explicit_snapshot(self):
         # /* ===== 步骤0：核对零点评商铺；数据源：成功详情响应；操作：1) 明确零数量 2) 不猜分页类型 ===== */
         logger.info('开始零点评商铺检查')

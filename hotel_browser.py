@@ -1,12 +1,12 @@
 """酒店浏览器响应采集。只保存当前酒店点评，不记录认证请求。"""
 import logging
-import os
 import time
 from pathlib import Path
 from threading import Event
 from urllib.parse import urlparse
 
 from network import canonical_url, collect_network, load_target, sanitize
+from browser_context import open_hotel_context
 
 logger = logging.getLogger(__name__)
 STATE = '() => window.__NEXT_DATA__?.props?.pageProps?.initialState?.preloadedCommentData?.data'
@@ -153,9 +153,8 @@ def collect_hotel(url, output, limit=500, stop=None, emit=None):
     logger.info('开始打开酒店专用浏览器')
     from playwright.sync_api import sync_playwright
     # 4.1 账号状态不放进输出目录或交付包，不读取日常浏览器资料。
-    profile = Path(os.environ.get('LOCALAPPDATA', str(Path.home()))) / 'CtripCollector' / 'browser-profile'
     with sync_playwright() as playwright:
-        context = playwright.chromium.launch_persistent_context(str(profile), channel='msedge', headless=False)
+        context = open_hotel_context(playwright)
         try:
             return collect_hotel_page(context.pages[0] if context.pages else context.new_page(), url, output, limit, stop, emit)
         finally:

@@ -1,5 +1,9 @@
 # 0.12 AI图集文件：路线验证中
 
+2026-11-02：无匹配时补查有限近期旧缓存已串接，补查后重验页码，92项回归通过。真机2页当前AI总数15，均no_match，现场主图有其他App悬浮窗口遮挡，不作为补查验收结论。相关临时截图已删除。等待无遮挡真机复测；正式0.11保留。
+
+2026-10-29：网格启动入口capture_ai_gallery和GUI试验模式已接入，90项回归、窗口smoke和可见布局检查通过。入口真实自动网格→1/30→2/30，page_limit结束；第1旧缓存no_match，第2ambiguous版本落盘。说明GALLERY_USAGE.md。完整GUI点击尚未验收；旧缓存、续跑、独立审查和打包待完成，正式0.11保留。
+
 最新：为GUI准备加入gallery_layout.viewer_region，分页传region=None时逐页自动定位主图区，未知布局停止。88项回归通过；历史4..9六页XML与已知真机区域一致，另有半分辨率合成测试。尚未接GUI，下一步实现网格页取baseline→选AI分类→打开第一张→自动分页的启动流程，避免空baseline导入全缓存。正式包0.11不变。
 
 最新现场验收：用户解锁后自动9→10→11三页通过，page_limit结束；第9saved，第10/11ambiguous版本保存在review，不当成确认图片。新增多版本保留测试，85项回归通过；所有落盘文件哈希、大小、格式复核。证据gallery-batch-device.json和gallery-batch-assets-check.json。旧缓存、GUI、续跑和正式打包仍待做，当前正式包0.11。
