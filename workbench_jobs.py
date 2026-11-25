@@ -102,6 +102,9 @@ def make_job(request, output, adb_path=None, *, adb_serial=None):
             max_pages = request.get(setting, 1)
             if type(max_pages) is not int or not 1 <= max_pages <= 20:
                 raise ValueError(f'{label}采集屏数须为1至20')
+        scan_dishes = request.get('scan_recommended_dishes', False) if mode == 'app_restaurant_detail' else False
+        if type(scan_dishes) is not bool:
+            raise ValueError('继续读取推荐菜的选项必须是布尔值')
         name, folder = name.strip(), Path(output).resolve()
 
         def snapshot_job(stop, emit):
@@ -128,7 +131,8 @@ def make_job(request, output, adb_path=None, *, adb_serial=None):
                         result = capture_restaurant_list(device, folder, name, stop, max_pages=max_pages)
                     elif mode == 'app_restaurant_detail':
                         from app_restaurant_detail import capture_restaurant_detail
-                        result = capture_restaurant_detail(device, folder, name)
+                        scan = {'recommendation_stop': stop} if scan_dishes else {}
+                        result = capture_restaurant_detail(device, folder, name, **scan)
                     elif mode == 'app_shopping_list':
                         from app_shopping_list import capture_shopping_list
                         result = capture_shopping_list(device, folder, name, stop, max_pages=max_pages)

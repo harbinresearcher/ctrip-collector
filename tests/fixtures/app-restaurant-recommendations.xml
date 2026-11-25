@@ -1,0 +1,155 @@
+<screens>
+  <hierarchy>
+    <node resource-id="gm_food_detail_scroll" class="android.widget.ScrollView" package="ctrip.android.view" content-desc="gm_food_detail_scroll" scrollable="true" bounds="[0,0][1080,2337]">
+      <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[0,717][1080,1386]">
+        <node text="Mercato by Jean-Georges意大利餐厅" class="android.widget.TextView" package="ctrip.android.view" bounds="[32,749][824,883]" />
+        <node resource-id="o_gs_newlable" class="android.view.ViewGroup" package="ctrip.android.view" content-desc="o_gs_newlable" bounds="[0,1064][1080,1234]" />
+      </node>
+      <node resource-id="o_gs_tuijiancai" class="android.view.ViewGroup" package="ctrip.android.view" content-desc="o_gs_tuijiancai" bounds="[0,1749][1080,2256]">
+        <node text="推荐菜(8)" class="android.widget.TextView" package="ctrip.android.view" bounds="[35,1772][257,1842]" />
+        <node class="android.widget.HorizontalScrollView" package="ctrip.android.view" bounds="[35,1867][1080,2221]" scrollable="true">
+          <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[35,1867][1080,2221]">
+            <node class="android.view.ViewGroup" package="ctrip.android.view" content-desc="黑松露披萨" bounds="[35,1867][469,2221]">
+              <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[35,1867][452,2152]">
+                                        </node>
+              <node text="黑松露披萨" class="android.widget.TextView" package="ctrip.android.view" bounds="[35,2163][469,2221]" />
+            </node>
+            <node class="android.view.ViewGroup" package="ctrip.android.view" content-desc="脆烤章鱼" bounds="[470,1867][905,2221]">
+              <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[470,1867][888,2152]">
+                                        </node>
+              <node text="脆烤章鱼" class="android.widget.TextView" package="ctrip.android.view" bounds="[470,2163][905,2221]" />
+            </node>
+            <node class="android.view.ViewGroup" package="ctrip.android.view" content-desc="木炭烤加拿大龙虾" bounds="[905,1867][1080,2221]">
+              <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[905,1867][1080,2152]">
+                                        </node>
+              <node text="木炭烤加拿大龙虾" class="android.widget.TextView" package="ctrip.android.view" bounds="[905,2163][1080,2221]" />
+            </node>
+          </node>
+        </node>
+        <node class="android.view.ViewGroup" package="ctrip.android.view" content-desc="推荐菜(8), 查看全部, " clickable="true" bounds="[0,1495][1080,2002]">
+          <node text="查看全部" class="android.widget.TextView" package="ctrip.android.view" clickable="false" bounds="[870,1530][1010,1577]" />
+        </node>
+      </node>
+    </node>
+  </hierarchy>
+  <hierarchy>
+    <node resource-id="gm_food_detail_scroll" class="android.widget.ScrollView" package="ctrip.android.view" content-desc="gm_food_detail_scroll" scrollable="true" bounds="[0,0][1080,2337]">
+      <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[0,717][1080,1386]">
+        <node text="Mercato by Jean-Georges意大利餐厅" class="android.widget.TextView" package="ctrip.android.view" bounds="[32,749][824,883]" />
+        <node resource-id="o_gs_newlable" class="android.view.ViewGroup" package="ctrip.android.view" content-desc="o_gs_newlable" bounds="[0,1064][1080,1234]" />
+      </node>
+      <node resource-id="o_gs_tuijiancai" class="android.view.ViewGroup" package="ctrip.android.view" content-desc="o_gs_tuijiancai" bounds="[0,1749][1080,2256]">
+        <node text="推荐菜(8)" class="android.widget.TextView" package="ctrip.android.view" bounds="[35,1772][257,1842]" />
+        <node class="android.widget.HorizontalScrollView" package="ctrip.android.view" scrollable="true" bounds="[35,1867][1080,2221]">
+          <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[35,1867][1080,2221]">
+            <node class="android.view.ViewGroup" package="ctrip.android.view" content-desc="脆烤章鱼" bounds="[35,1867][409,2221]">
+              <node text="脆烤章鱼" class="android.widget.TextView" package="ctrip.android.view" bounds="[35,2163][409,2221]" />
+            </node>
+            <node class="android.view.ViewGroup" package="ctrip.android.view" content-desc="木炭烤加拿大龙虾" bounds="[409,1867][844,2221]">
+              <node text="木炭烤加拿大龙虾" class="android.widget.TextView" package="ctrip.android.view" bounds="[409,2163][844,2221]" />
+            </node>
+            <node class="android.view.ViewGroup" package="ctrip.android.view" content-desc="带骨M6+和牛肉眼牛排" bounds="[844,1867][1080,2221]">
+              <node text="带骨M6+和牛肉眼牛排" class="android.widget.TextView" package="ctrip.android.view" bounds="[844,2163][1080,2221]" />
+            </node>
+          </node>
+        </node>
+      </node>
+    </node>
+  </hierarchy>
+  <hierarchy>
+    <node resource-id="gm_food_detail_scroll" class="android.widget.ScrollView" package="ctrip.android.view" content-desc="gm_food_detail_scroll" scrollable="true" bounds="[0,0][1080,2337]">
+      <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[0,717][1080,1386]">
+        <node text="Mercato by Jean-Georges意大利餐厅" class="android.widget.TextView" package="ctrip.android.view" bounds="[32,749][824,883]" />
+        <node resource-id="o_gs_newlable" class="android.view.ViewGroup" package="ctrip.android.view" content-desc="o_gs_newlable" bounds="[0,1064][1080,1234]" />
+      </node>
+      <node resource-id="o_gs_tuijiancai" class="android.view.ViewGroup" package="ctrip.android.view" content-desc="o_gs_tuijiancai" bounds="[0,1749][1080,2256]">
+        <node text="推荐菜(8)" class="android.widget.TextView" package="ctrip.android.view" bounds="[35,1772][257,1842]" />
+        <node class="android.widget.HorizontalScrollView" package="ctrip.android.view" scrollable="true" bounds="[35,1867][1080,2221]">
+          <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[35,1867][1080,2221]">
+            <node class="android.view.ViewGroup" package="ctrip.android.view" content-desc="木炭烤加拿大龙虾" bounds="[35,1867][352,2221]">
+              <node text="木炭烤加拿大龙虾" class="android.widget.TextView" package="ctrip.android.view" bounds="[35,2163][352,2221]" />
+            </node>
+            <node class="android.view.ViewGroup" package="ctrip.android.view" content-desc="带骨M6+和牛肉眼牛排" bounds="[352,1867][787,2221]">
+              <node text="带骨M6+和牛肉眼牛排" class="android.widget.TextView" package="ctrip.android.view" bounds="[352,2163][787,2221]" />
+            </node>
+            <node class="android.view.ViewGroup" package="ctrip.android.view" content-desc="木炭烤鲜活石斑鱼" bounds="[787,1867][1080,2221]">
+              <node text="木炭烤鲜活石斑鱼" class="android.widget.TextView" package="ctrip.android.view" bounds="[787,2163][1080,2221]" />
+            </node>
+          </node>
+        </node>
+      </node>
+    </node>
+  </hierarchy>
+  <hierarchy>
+    <node resource-id="gm_food_detail_scroll" class="android.widget.ScrollView" package="ctrip.android.view" content-desc="gm_food_detail_scroll" scrollable="true" bounds="[0,0][1080,2337]">
+      <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[0,717][1080,1386]">
+        <node text="Mercato by Jean-Georges意大利餐厅" class="android.widget.TextView" package="ctrip.android.view" bounds="[32,749][824,883]" />
+        <node resource-id="o_gs_newlable" class="android.view.ViewGroup" package="ctrip.android.view" content-desc="o_gs_newlable" bounds="[0,1064][1080,1234]" />
+      </node>
+      <node resource-id="o_gs_tuijiancai" class="android.view.ViewGroup" package="ctrip.android.view" content-desc="o_gs_tuijiancai" bounds="[0,1749][1080,2256]">
+        <node text="推荐菜(8)" class="android.widget.TextView" package="ctrip.android.view" bounds="[35,1772][257,1842]" />
+        <node class="android.widget.HorizontalScrollView" package="ctrip.android.view" scrollable="true" bounds="[35,1867][1080,2221]">
+          <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[35,1867][1080,2221]">
+            <node class="android.view.ViewGroup" package="ctrip.android.view" content-desc="带骨M6+和牛肉眼牛排" bounds="[35,1867][293,2221]">
+              <node text="带骨M6+和牛肉眼牛排" class="android.widget.TextView" package="ctrip.android.view" bounds="[35,2163][293,2221]" />
+            </node>
+            <node class="android.view.ViewGroup" package="ctrip.android.view" content-desc="木炭烤鲜活石斑鱼" bounds="[293,1867][728,2221]">
+              <node text="木炭烤鲜活石斑鱼" class="android.widget.TextView" package="ctrip.android.view" bounds="[293,2163][728,2221]" />
+            </node>
+            <node class="android.view.ViewGroup" package="ctrip.android.view" content-desc="自制乳清芝士配时令果酱" bounds="[727,1867][1080,2221]">
+              <node text="自制乳清芝士配时令果酱" class="android.widget.TextView" package="ctrip.android.view" bounds="[727,2163][1080,2221]" />
+            </node>
+          </node>
+        </node>
+      </node>
+    </node>
+  </hierarchy>
+  <hierarchy>
+    <node resource-id="gm_food_detail_scroll" class="android.widget.ScrollView" package="ctrip.android.view" content-desc="gm_food_detail_scroll" scrollable="true" bounds="[0,0][1080,2337]">
+      <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[0,717][1080,1386]">
+        <node text="Mercato by Jean-Georges意大利餐厅" class="android.widget.TextView" package="ctrip.android.view" bounds="[32,749][824,883]" />
+        <node resource-id="o_gs_newlable" class="android.view.ViewGroup" package="ctrip.android.view" content-desc="o_gs_newlable" bounds="[0,1064][1080,1234]" />
+      </node>
+      <node resource-id="o_gs_tuijiancai" class="android.view.ViewGroup" package="ctrip.android.view" content-desc="o_gs_tuijiancai" bounds="[0,1749][1080,2256]">
+        <node text="推荐菜(8)" class="android.widget.TextView" package="ctrip.android.view" bounds="[35,1772][257,1842]" />
+        <node class="android.widget.HorizontalScrollView" package="ctrip.android.view" scrollable="true" bounds="[35,1867][1080,2221]">
+          <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[35,1867][1080,2221]">
+            <node class="android.view.ViewGroup" package="ctrip.android.view" content-desc="木炭烤鲜活石斑鱼" bounds="[35,1867][227,2221]">
+              <node text="木炭烤鲜活石斑鱼" class="android.widget.TextView" package="ctrip.android.view" bounds="[35,2163][227,2221]" />
+            </node>
+            <node class="android.view.ViewGroup" package="ctrip.android.view" content-desc="自制乳清芝士配时令果酱" bounds="[226,1867][661,2221]">
+              <node text="自制乳清芝士配时令果酱" class="android.widget.TextView" package="ctrip.android.view" bounds="[226,2163][661,2221]" />
+            </node>
+            <node class="android.view.ViewGroup" package="ctrip.android.view" content-desc="温海鲜色拉配牛油果" bounds="[661,1867][1080,2221]">
+              <node text="温海鲜色拉配牛油果" class="android.widget.TextView" package="ctrip.android.view" bounds="[661,2163][1080,2221]" />
+            </node>
+          </node>
+        </node>
+      </node>
+    </node>
+  </hierarchy>
+  <hierarchy>
+    <node resource-id="gm_food_detail_scroll" class="android.widget.ScrollView" package="ctrip.android.view" content-desc="gm_food_detail_scroll" scrollable="true" bounds="[0,0][1080,2337]">
+      <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[0,717][1080,1386]">
+        <node text="Mercato by Jean-Georges意大利餐厅" class="android.widget.TextView" package="ctrip.android.view" bounds="[32,749][824,883]" />
+        <node resource-id="o_gs_newlable" class="android.view.ViewGroup" package="ctrip.android.view" content-desc="o_gs_newlable" bounds="[0,1064][1080,1234]" />
+      </node>
+      <node resource-id="o_gs_tuijiancai" class="android.view.ViewGroup" package="ctrip.android.view" content-desc="o_gs_tuijiancai" bounds="[0,1749][1080,2256]">
+        <node text="推荐菜(8)" class="android.widget.TextView" package="ctrip.android.view" bounds="[35,1772][257,1842]" />
+        <node class="android.widget.HorizontalScrollView" package="ctrip.android.view" scrollable="true" bounds="[35,1867][1080,2221]">
+          <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[35,1867][1080,2221]">
+            <node class="android.view.ViewGroup" package="ctrip.android.view" content-desc="自制乳清芝士配时令果酱" bounds="[35,1867][191,2221]">
+              <node text="自制乳清芝士配时令果酱" class="android.widget.TextView" package="ctrip.android.view" bounds="[35,2163][191,2221]" />
+            </node>
+            <node class="android.view.ViewGroup" package="ctrip.android.view" content-desc="温海鲜色拉配牛油果" bounds="[191,1867][626,2221]">
+              <node text="温海鲜色拉配牛油果" class="android.widget.TextView" package="ctrip.android.view" bounds="[197,2163][632,2221]" />
+            </node>
+            <node class="android.view.ViewGroup" package="ctrip.android.view" content-desc="牛肝菌裹三文鱼" bounds="[632,1867][1067,2221]">
+              <node text="牛肝菌裹三文鱼" class="android.widget.TextView" package="ctrip.android.view" bounds="[632,2163][1067,2221]" />
+            </node>
+          </node>
+        </node>
+      </node>
+    </node>
+  </hierarchy>
+</screens>

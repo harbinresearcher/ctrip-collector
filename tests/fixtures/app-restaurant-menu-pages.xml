@@ -1,0 +1,132 @@
+<?xml version='1.0' encoding='utf-8'?>
+<frames>
+  <!-- Condensed captures from the Mercato recommendation page. Layout and dish labels preserve actual nodes. -->
+  <hierarchy rotation="0">
+    <node text="推荐菜" class="android.webkit.WebView" package="ctrip.android.view" visible-to-user="true" bounds="[0,0][1080,2339]">
+      <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[0,0][1080,2339]">
+        <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[0,126][1080,244]">
+          <node text="推荐菜" class="android.widget.TextView" package="ctrip.android.view" visible-to-user="true" bounds="[443,157][580,212]" />
+          <node text="(8)" class="android.widget.TextView" package="ctrip.android.view" visible-to-user="true" bounds="[577,157][637,212]" />
+        </node>
+        <node class="android.view.View" package="ctrip.android.view" scrollable="true" visible-to-user="true" bounds="[0,241][1080,2339]">
+          <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[28,283][1052,553]">
+            <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[31,286][296,551]">
+                                    </node>
+            <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[325,317][1050,483]">
+              <node text="黑松露披萨" class="android.widget.TextView" package="ctrip.android.view" visible-to-user="true" bounds="[325,317][1050,370]" />
+            </node>
+          </node>
+          <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[28,593][1052,861]">
+            <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[31,595][296,861]">
+                                    </node>
+            <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[325,624][1050,792]">
+              <node text="脆烤章鱼" class="android.widget.TextView" package="ctrip.android.view" visible-to-user="true" bounds="[325,624][1050,679]" />
+            </node>
+          </node>
+          <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[28,900][1052,1170]">
+            <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[31,903][296,1168]">
+                                    </node>
+            <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[325,934][1050,1099]">
+              <node text="木炭烤加拿大龙虾" class="android.widget.TextView" package="ctrip.android.view" visible-to-user="true" bounds="[325,934][1050,987]" />
+            </node>
+          </node>
+          <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[28,1210][1052,1480]">
+            <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[31,1212][296,1477]">
+                                    </node>
+            <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[325,1241][1050,1409]">
+              <node text="带骨M6+和牛肉眼牛排" class="android.widget.TextView" package="ctrip.android.view" visible-to-user="true" bounds="[325,1241][1050,1296]" />
+            </node>
+          </node>
+          <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[28,1517][1052,1787]">
+            <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[31,1519][296,1785]">
+                                    </node>
+            <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[325,1551][1050,1716]">
+              <node text="木炭烤鲜活石斑鱼" class="android.widget.TextView" package="ctrip.android.view" visible-to-user="true" bounds="[325,1551][1050,1603]" />
+            </node>
+          </node>
+          <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[28,1827][1052,2097]">
+            <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[31,1829][296,2094]">
+                                    </node>
+            <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[325,1858][1050,2026]">
+              <node text="自制乳清芝士配时令果酱" class="android.widget.TextView" package="ctrip.android.view" visible-to-user="true" bounds="[325,1858][1050,1913]" />
+            </node>
+          </node>
+          <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[28,2134][1052,2339]">
+            <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[31,2136][296,2339]">
+                                    </node>
+            <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[325,2168][1050,2333]">
+              <node text="温海鲜色拉配牛油果" class="android.widget.TextView" package="ctrip.android.view" visible-to-user="true" bounds="[325,2168][1050,2220]" />
+              <node text="A light salad…" class="android.widget.TextView" package="ctrip.android.view" visible-to-user="true" bounds="[325,2289][1050,2333]" />
+            </node>
+          </node>
+        </node>
+        <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[0,2205][1080,2339]">
+          <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[0,2226][1080,2323]">
+            <node text="新增推荐菜" class="android.widget.TextView" package="ctrip.android.view" visible-to-user="true" bounds="[477,2247][677,2299]" />
+          </node>
+        </node>
+      </node>
+    </node>
+  </hierarchy>
+  <hierarchy rotation="0">
+    <node text="推荐菜" class="android.webkit.WebView" package="ctrip.android.view" visible-to-user="true" bounds="[0,0][1080,2339]">
+      <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[0,0][1080,2339]">
+        <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[0,126][1080,244]">
+          <node text="推荐菜" class="android.widget.TextView" package="ctrip.android.view" visible-to-user="true" bounds="[443,157][580,212]" />
+          <node text="(8)" class="android.widget.TextView" package="ctrip.android.view" visible-to-user="true" bounds="[577,157][637,212]" />
+        </node>
+        <node class="android.view.View" package="ctrip.android.view" scrollable="true" visible-to-user="true" bounds="[0,241][1080,2339]">
+          <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[28,168][1052,435]">
+            <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[31,168][296,433]">
+                                    </node>
+            <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[325,199][1050,367]">
+              <node text="木炭烤加拿大龙虾" class="android.widget.TextView" package="ctrip.android.view" visible-to-user="true" bounds="[325,199][1050,252]" />
+            </node>
+          </node>
+          <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[28,475][1052,745]">
+            <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[31,477][296,742]">
+                                    </node>
+            <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[325,509][1050,674]">
+              <node text="带骨M6+和牛肉眼牛排" class="android.widget.TextView" package="ctrip.android.view" visible-to-user="true" bounds="[325,509][1050,561]" />
+            </node>
+          </node>
+          <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[28,784][1052,1052]">
+            <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[31,784][296,1050]">
+                                    </node>
+            <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[325,819][1050,984]">
+              <node text="木炭烤鲜活石斑鱼" class="android.widget.TextView" package="ctrip.android.view" visible-to-user="true" bounds="[325,819][1050,871]" />
+            </node>
+          </node>
+          <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[28,1092][1052,1362]">
+            <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[31,1094][296,1359]">
+                                    </node>
+            <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[325,1126][1050,1291]">
+              <node text="自制乳清芝士配时令果酱" class="android.widget.TextView" package="ctrip.android.view" visible-to-user="true" bounds="[325,1126][1050,1178]" />
+            </node>
+          </node>
+          <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[28,1401][1052,1669]">
+            <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[31,1401][296,1669]">
+                                    </node>
+            <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[325,1435][1050,1601]">
+              <node text="温海鲜色拉配牛油果" class="android.widget.TextView" package="ctrip.android.view" visible-to-user="true" bounds="[325,1435][1050,1488]" />
+              <node text="A light salad…" class="android.widget.TextView" package="ctrip.android.view" visible-to-user="true" bounds="[325,1554][1050,1601]" />
+            </node>
+          </node>
+          <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[28,1708][1052,1979]">
+            <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[31,1711][296,1976]">
+                                    </node>
+            <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[325,1743][1050,1908]">
+              <node text="牛肝菌裹三文鱼" class="android.widget.TextView" package="ctrip.android.view" visible-to-user="true" bounds="[325,1743][1050,1795]" />
+            </node>
+          </node>
+          <node text="没有更多了" class="android.widget.TextView" package="ctrip.android.view" visible-to-user="true" bounds="[0,2029][1080,2079]" />
+        </node>
+        <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[0,2205][1080,2339]">
+          <node class="android.view.View" package="ctrip.android.view" visible-to-user="true" bounds="[0,2226][1080,2323]">
+            <node text="新增推荐菜" class="android.widget.TextView" package="ctrip.android.view" visible-to-user="true" bounds="[477,2247][677,2299]" />
+          </node>
+        </node>
+      </node>
+    </node>
+  </hierarchy>
+</frames>

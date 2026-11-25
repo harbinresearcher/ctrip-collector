@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
+from app_restaurant_menu import parse_restaurant_menu
 from core import bounds
 from sight_guide import app_nodes, text
 from sight_snapshot import APP, unique_value
@@ -20,6 +21,7 @@ TIME = r'(?:[01]?[0-9]|2[0-4]):[0-5][0-9]'
 HOURS = re.compile(rf'{TIME}\s*[-–—~至]\s*{TIME}')
 STATUS = {'营业中', '休息中', '已打烊', '暂停营业', '歇业中'}
 FEATURE_LABELS = ('餐厅特色', '亮点', '服务设施')
+MAX_RECOMMENDATION_SCREENS = 20
 
 
 def words(branch):
@@ -28,11 +30,11 @@ def words(branch):
             and (box := bounds(node))[0] < box[2] and box[1] < box[3]]
 
 
-def recommendation_fields(scroll):
+def recommendation_view(scroll, root):
     result = {'dish_count_display': None, 'recommended_dishes': []}
     sections = [node for node in app_nodes(scroll) if node.get('resource-id') == 'o_gs_tuijiancai']
     if len(sections) != 1:
-        return result
+        return result, None, None
     section = sections[0]
     counts = [int(match[1]) for value in words(section)
               if (match := re.fullmatch(r'推荐菜\s*[(（]([0-9]{1,5})[)）]', value))]
@@ -40,10 +42,10 @@ def recommendation_fields(scroll):
         result['dish_count_display'] = counts[0]
     rows = [node for node in app_nodes(section) if node.get('class') == 'android.widget.HorizontalScrollView']
     if len(rows) != 1:
-        return result
+        return result, None, None
     groups = [node for node in rows[0] if node.get('package') == APP]
     if len(groups) != 1:
-        return result
+        return result, None, None
     dishes = []
     for card in groups[0]:
         labels = words(card)
@@ -51,7 +53,21 @@ def recommendation_fields(scroll):
                                 or any(n.get('class') == 'android.widget.ImageView' for n in app_nodes(card))):
             dishes.append(labels[0])
     result['recommended_dishes'] = list(dict.fromkeys(dishes))
-    return result
+    carousel = bounds(rows[0]) if rows[0].get('scrollable') == 'true' else None
+    links = [bounds(node) for parent in app_nodes(section) if parent.get('clickable') == 'true'
+             and '查看全部' in parent.get('content-desc', '').split(', ')
+             for node in parent if text(node) == '查看全部' and node.get('package') == APP
+             and node.get('class') == 'android.widget.TextView']
+    link = None
+    if len(links) == 1:
+        left, top, right, bottom = links[0]
+        x, y = (left + right) // 2, (top + bottom) // 2
+        overlays = [bounds(node) for window in root for node in app_nodes(window)
+                    if node.get('content-desc') == 'gm_food_detail_advertisingFloatIcon']
+        if right - left >= 30 and bottom - top >= 24 and not any(
+                x1 <= x < x2 and y1 <= y < y2 for x1, y1, x2, y2 in overlays):
+            link = (x, y)
+    return result, carousel, link
 
 
 def booking_fields(scroll):
@@ -123,7 +139,7 @@ def header_fields(header):
     return result
 
 
-def parse_restaurant_detail(xml, expected_name):
+def detail_view(xml, expected_name):
     try:
         root = ET.fromstring(xml)
     except ET.ParseError as exc:
@@ -147,17 +163,150 @@ def parse_restaurant_detail(xml, expected_name):
               'raw_hash': hashlib.sha256(xml.encode('utf-8')).hexdigest(),
               'status': 'partial', 'complete': False}
     result.update(header_fields(headers[0]))
-    result.update(recommendation_fields(scroll))
+    recommendations, carousel, menu_link = recommendation_view(scroll, root)
+    result.update(recommendations)
     result['booking_preview'] = booking_fields(scroll)
+    return result, carousel, menu_link
+
+
+def parse_restaurant_detail(xml, expected_name):
+    return detail_view(xml, expected_name)[0]
+
+
+def moved_view(device, stop, action, settle):
+    device.ensure_foreground()
+    if stop.is_set():
+        return None
+    device.run('shell', 'input', *action)
+    if stop.wait(settle):
+        return None
+    xml = device.snapshot()
+    device.ensure_foreground()
+    return None if stop.is_set() else xml
+
+
+def scan_recommendations(device, report, carousel, menu_link, stop):
+    dishes = report['recommended_dishes']
+    previous = dishes.copy()
+    expected = report['dish_count_display']
+    screens = int(bool(dishes))
+    idle_screens = 0
+    method = 'carousel'
+    reason = 'screen_limit'
+    while screens < MAX_RECOMMENDATION_SCREENS:
+        if stop.is_set():
+            reason = 'cancelled'
+            break
+        if dishes and len(dishes) == expected:
+            reason = 'expected_count_reached'
+            break
+        opening_menu = bool(menu_link and dishes and expected)
+        if opening_menu:
+            action = ('tap', *map(str, menu_link))
+            menu_link = None
+        else:
+            if not carousel or not previous:
+                reason = 'no_new_dishes' if method == 'menu' else 'missing_carousel'
+                break
+            left, top, right, bottom = carousel
+            width, height = right - left, bottom - top
+            if width < 180 or height < 100:
+                reason = 'missing_carousel'
+                break
+            if method == 'menu':
+                x = left + width * 60 // 100
+                start, end = top + height * 85 // 100, top + height * 45 // 100
+                action = ('swipe', *map(str, (x, start, x, end)), '530')
+            else:
+                start, end = left + width * 78 // 100, left + width * 35 // 100
+                y = top + height * 62 // 100
+                action = ('swipe', *map(str, (start, y, end, y)), '520')
+        try:
+            xml = moved_view(device, stop, action, 2.3 if opening_menu else .4)
+        except Exception:
+            # ADB and UI automation use different exception types. Keep the verified names on I/O failure.
+            reason = 'device_error'
+            break
+        if xml is None:
+            reason = 'cancelled'
+            break
+
+        if opening_menu or method == 'menu':
+            try:
+                count, visible, list_area = parse_restaurant_menu(xml)
+            except ValueError:
+                if method == 'menu':
+                    reason = 'context_changed'
+                    break
+            else:
+                if count != expected:
+                    reason = 'count_changed'
+                    break
+                if opening_menu and (visible[:len(previous)] != previous
+                                     or len(set(visible)) != len(visible) or len(visible) > count):
+                    reason = 'unverified_transition'
+                    break
+                method, carousel = 'menu', list_area
+                if opening_menu:
+                    screens = 0  # Menu report counts the validated list screens.
+        if method == 'carousel':
+            try:
+                current, carousel, _ = detail_view(xml, report['name'])
+            except ValueError:
+                reason = 'context_changed'
+                break
+            if (report.get('address_display') and current.get('address_display')
+                    and current['address_display'] != report['address_display']):
+                reason = 'context_changed'
+                break
+            if current['dish_count_display'] != expected:
+                reason = 'count_changed'
+                break
+            visible = current['recommended_dishes']
+            if opening_menu and visible != previous:
+                reason = 'unverified_transition'
+                break
+            if opening_menu:
+                continue
+
+        # A suffix/prefix match proves the new window did not jump over cards.
+        overlap = next((count for count in range(min(len(previous), len(visible)), 0, -1)
+                        if previous[-count:] == visible[:count]), 0)
+        additions = visible[overlap:]
+        if not overlap or len(set(visible)) != len(visible) or any(dish in dishes for dish in additions) or (
+                expected is not None and len(dishes) + len(additions) > expected):
+            reason = 'unverified_transition'
+            break
+        dishes.extend(additions)
+        previous = visible
+        screens += 1
+        if len(dishes) == expected:
+            reason = 'expected_count_reached'
+            break
+        idle_screens = 0 if additions else idle_screens + 1
+        if idle_screens >= 2:
+            reason = 'no_new_dishes'
+            break
+
+    result = {'reason': reason, 'screens': screens, 'complete': reason == 'expected_count_reached'}
+    if method == 'menu':
+        result['method'] = 'menu'
     return result
 
 
-def capture_restaurant_detail(device, output, name):
+def capture_restaurant_detail(device, output, name, *, recommendation_stop=None):
     device.ensure_foreground()
     captured = datetime.now(timezone.utc).isoformat()
     xml = device.snapshot()
     device.ensure_foreground()
-    report = parse_restaurant_detail(xml, name)
+    report, carousel, menu_link = detail_view(xml, name)
+    if recommendation_stop is not None:
+        scan = scan_recommendations(device, report, carousel, menu_link, recommendation_stop)
+        report['recommendation_scan'] = scan
+        if scan['reason'] == 'cancelled':
+            report['status'] = 'cancelled'
+        elif scan['reason'] == 'device_error':
+            report.update(status='error', error='Android 页面读取中断，已保存本次核对的菜品。')
     folder = Path(output).resolve()
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / f'app-restaurant-detail-{uuid.uuid4().hex}.json'

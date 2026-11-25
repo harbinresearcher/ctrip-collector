@@ -97,6 +97,20 @@ class JobTests(unittest.TestCase):
                 device.connect.assert_called_once_with()
                 capture.assert_called_once_with(device, output, 'Mercato by Jean-Georges意大利餐厅')
 
+    def test_app_restaurant_detail_forwards_optional_dish_scan(self):
+        request = {'mode': 'app_restaurant_detail', 'name': 'Mercato', 'scan_recommended_dishes': True}
+        with tempfile.TemporaryDirectory() as folder:
+            output = Path(folder).resolve()
+            with patch('workbench_jobs.Adb') as adb, patch('app_restaurant_detail.capture_restaurant_detail') as capture:
+                stop = Event()
+                job = make_job(request, output, 'adb', adb_serial='emulator-5556')
+                self.assertIs(job(stop, lambda _: None), capture.return_value)
+                device = adb.return_value.__enter__.return_value
+                capture.assert_called_once_with(device, output, 'Mercato', recommendation_stop=stop)
+            for invalid in ('true', None, 1):
+                with self.subTest(invalid=invalid), self.assertRaisesRegex(ValueError, '推荐菜'):
+                    make_job({**request, 'scan_recommended_dishes': invalid}, output, 'adb')
+
     def test_sight_gallery_uses_android_job_and_its_own_page_limit(self):
         with tempfile.TemporaryDirectory() as folder:
             output = Path(folder).resolve()

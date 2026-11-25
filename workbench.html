@@ -85,6 +85,10 @@ button{font-weight:500;border-color:#d5d0c5;min-height:44px}button.primary{box-s
 <div class="pair"><div id="limitWrap"><label for="limit">目标点评条数</label><input id="limit" type="number" min="1" max="100000" value="500"></div><div id="pagesWrap" hidden><label for="pages" id="pagesLabel">政策屏数上限</label><input id="pages" type="number" min="1" max="50" value="10" disabled></div></div>
 <div id="hotelPagesWrap" hidden><label id="hotelPagesLabel" for="hotelPages">房型读取屏数上限</label><input id="hotelPages" type="number" min="1" max="20" value="1" disabled><p class="hint">设为 1 只读当前屏；提高上限后，工作台会在当前页面向下滚动。</p></div>
 <div id="restaurantPagesWrap" hidden><label for="restaurantPages">餐厅列表读取屏数上限</label><input id="restaurantPages" type="number" min="1" max="20" value="1" disabled><p class="hint">设为 1 只读当前屏。读取多屏时，保持城市和筛选条件一致。</p></div>
+<div id="restaurantDishesWrap" hidden>
+<label for="scanRecommendedDishes" style="display:flex;align-items:center;gap:9px"><input id="scanRecommendedDishes" type="checkbox" style="width:auto" aria-describedby="restaurantDishesHint" disabled>读取完整推荐菜清单</label>
+<p id="restaurantDishesHint" class="hint">勾选后，请让餐厅名称和推荐菜卡片同时可见，并把推荐菜列表滑到最左端。工作台会尝试打开「查看全部」。入口被遮挡时，沿当前列表横向读取。</p>
+</div>
 <div id="shoppingPagesWrap" hidden><label for="shoppingPages">购物列表读取屏数上限</label><input id="shoppingPages" type="number" min="1" max="20" value="1" disabled><p class="hint">设为 1 只读当前屏。读取多屏时，保持城市和筛选条件一致。</p></div>
 <label id="refreshWrap" style="display:flex;align-items:center;gap:9px"><input id="refreshExisting" type="checkbox" style="width:auto">重新读取已达到目标的对象</label>
 <p id="refreshHint" class="hint">勾选后按本次读取的不同评论计数；已有记录去重，并保留新的字段观察。</p>
@@ -153,6 +157,10 @@ function showReviewOptions(){
   if(reviews)$('phoneHint').textContent=verifiedTitle?'在手机或模拟器打开该'+verifiedTitle+'的全部点评。程序会核对页面标题，数字 ID 需由你核对。':'打开该对象的全部点评列表，并核对名称和数字 ID。';
 }
 $('mode').addEventListener('change',showReviewOptions);$('appKind').addEventListener('change',showReviewOptions);
+$('mode').addEventListener('change',()=>{
+  const active=$('mode').value==='app_restaurant_detail';
+  $('restaurantDishesWrap').hidden=$('scanRecommendedDishes').disabled=!active;
+});
 logger.info('操作名称绑定完成');
 const deviceCopy={
   not_configured:['工作台未配置安卓设备','请从支持安卓采集的入口打开工作台。'],
@@ -276,7 +284,7 @@ async function submitOcr(){
   const state=await response.json();
   if(!response.ok)throw Error(state.error||'无法开始识别');
 }
-$('task').onsubmit=async e=>{e.preventDefault();pending=true;$('start').disabled=true;$('formError').textContent='';try{const mode=$('mode').value;if(mode==='screenshot_ocr'){await submitOcr();return}await api('/api/start',{mode,urls:$('urls').value.split('\n').map(s=>s.trim()).filter(Boolean),name:mode==='app_page_fields'?$('pageFieldName').value:$('name').value,field_archive_run:mode==='app_page_fields'?$('fieldArchiveRun').value:'',field_labels:mode==='app_page_fields'?$('fieldLabels').value.split('\n').map(label=>label.trim()).filter(Boolean):[],limit:Number($('limit').value),refresh:$('refreshExisting').checked,expand_sight_ai:mode==='sight_ai',save_sight_gallery_thumbnails:mode==='sight_ai'&&$('sightGallery').checked,save_review_thumbnails:mode==='app_reviews'&&$('appKind').value==='hotel'&&$('reviewThumbnails').checked,save_visible_ai:mode==='app_reviews'&&$('appKind').value==='hotel'&&$('reviewAi').checked,expand_reviews:mode==='app_reviews'&&$('appKind').value==='hotel'&&$('reviewExpand').checked,gallery_start_page:mode==='app_gallery'&&$('galleryStart').value!==''?Number($('galleryStart').value):null,gallery_display_fallback:mode==='app_gallery'&&$('galleryFallback').checked,resume_sight_gallery_run:mode==='sight_gallery'?$('sightGalleryResume').value:'',max_pages:Number($('pages').value),hotel_max_pages:['app_hotel','app_hotel_list'].includes(mode)?Number($('hotelPages').value):1,restaurant_max_pages:mode==='app_restaurant_list'?Number($('restaurantPages').value):1,shopping_max_pages:mode==='app_shopping_list'?Number($('shoppingPages').value):1,kind:mode==='auto_discovery'?$('discoveryKind').value:$('appKind').value,resource_id:$('resourceId').value,max_swipes:Number($('swipes').value),max_regions:Number($('regions').value),max_objects:Number($('objects').value),discovery_pages:Number($('discoveryPages').value),collect_discovered:mode==='resume_discovery'?$('resumeCollect').checked:$('collectDiscovered').checked,report_file:$('reportFile').value,graph_report:$('graphReport').value,graph_visits:Number($('graphVisits').value),source_file:$('sourceFile').value,media_limit:Number($('mediaLimit').value),capture_file:$('captureFile').value})}catch(error){$('formError').textContent=error.message}finally{pending=false;await refresh()}};
+$('task').onsubmit=async e=>{e.preventDefault();pending=true;$('start').disabled=true;$('formError').textContent='';try{const mode=$('mode').value;if(mode==='screenshot_ocr'){await submitOcr();return}await api('/api/start',{mode,urls:$('urls').value.split('\n').map(s=>s.trim()).filter(Boolean),name:mode==='app_page_fields'?$('pageFieldName').value:$('name').value,field_archive_run:mode==='app_page_fields'?$('fieldArchiveRun').value:'',field_labels:mode==='app_page_fields'?$('fieldLabels').value.split('\n').map(label=>label.trim()).filter(Boolean):[],limit:Number($('limit').value),refresh:$('refreshExisting').checked,expand_sight_ai:mode==='sight_ai',save_sight_gallery_thumbnails:mode==='sight_ai'&&$('sightGallery').checked,save_review_thumbnails:mode==='app_reviews'&&$('appKind').value==='hotel'&&$('reviewThumbnails').checked,save_visible_ai:mode==='app_reviews'&&$('appKind').value==='hotel'&&$('reviewAi').checked,expand_reviews:mode==='app_reviews'&&$('appKind').value==='hotel'&&$('reviewExpand').checked,gallery_start_page:mode==='app_gallery'&&$('galleryStart').value!==''?Number($('galleryStart').value):null,gallery_display_fallback:mode==='app_gallery'&&$('galleryFallback').checked,resume_sight_gallery_run:mode==='sight_gallery'?$('sightGalleryResume').value:'',max_pages:Number($('pages').value),hotel_max_pages:['app_hotel','app_hotel_list'].includes(mode)?Number($('hotelPages').value):1,restaurant_max_pages:mode==='app_restaurant_list'?Number($('restaurantPages').value):1,...(mode==='app_restaurant_detail'?{scan_recommended_dishes:$('scanRecommendedDishes').checked}:{}),shopping_max_pages:mode==='app_shopping_list'?Number($('shoppingPages').value):1,kind:mode==='auto_discovery'?$('discoveryKind').value:$('appKind').value,resource_id:$('resourceId').value,max_swipes:Number($('swipes').value),max_regions:Number($('regions').value),max_objects:Number($('objects').value),discovery_pages:Number($('discoveryPages').value),collect_discovered:mode==='resume_discovery'?$('resumeCollect').checked:$('collectDiscovered').checked,report_file:$('reportFile').value,graph_report:$('graphReport').value,graph_visits:Number($('graphVisits').value),source_file:$('sourceFile').value,media_limit:Number($('mediaLimit').value),capture_file:$('captureFile').value})}catch(error){$('formError').textContent=error.message}finally{pending=false;await refresh()}};
 $('stop').onclick=async()=>{try{await api('/api/stop',{});await refresh()}catch(error){$('formError').textContent=error.message}};
 $('download').onclick=()=>{if(!lastResult)return;const url=URL.createObjectURL(new Blob([JSON.stringify(lastResult,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='采集报告.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
 logger.info('工作台表单绑定完成');
@@ -577,11 +585,26 @@ function renderRestaurantDetail(box,result){
   line([result.opening_status_display,result.opening_hours_display]);
   line([result.address_display,result.nearby_display]);
   for(const [label,value] of Object.entries(result.features||{}))if(value)line([label+' '+value]);
-  const dishes=result.recommended_dishes||[];
-  if(dishes.length||Number.isInteger(result.dish_count_display)){
+  const dishes=result.recommended_dishes||[], scan=result.recommendation_scan;
+  if(dishes.length||Number.isInteger(result.dish_count_display)||scan){
     const heading=document.createElement('h4');heading.textContent='推荐菜';panel.append(heading);
-    line([Number.isInteger(result.dish_count_display)&&'页面显示 '+result.dish_count_display+' 道','本屏读到 '+dishes.length+' 道']);
+    line([Number.isInteger(result.dish_count_display)&&'页面显示 '+result.dish_count_display+' 道',
+          (scan?'本次读到 ':'本屏读到 ')+dishes.length+' 道']);
     line(dishes);
+    if(scan){
+      const reasons={
+        missing_carousel:'当前屏没有可读取的推荐菜列表',
+        cancelled:'已停止并保存已读内容',
+        no_new_dishes:'没有读到新的推荐菜',
+        screen_limit:'达到读取屏数上限',
+        context_changed:'无法确认页面仍是同一家餐厅',
+        unverified_transition:'前后两屏的菜品顺序无法衔接',
+        count_changed:'推荐菜展示数量发生变化',
+        device_error:'设备读取中断'
+      };
+      line([scan.method==='menu'&&'推荐菜清单',Number.isInteger(scan.screens)&&'核对 '+scan.screens+' 屏',
+            scan.complete?'已读到页面显示的推荐菜总数':reasons[scan.reason]||'推荐菜读取已停止']);
+    }
   }
   const booking=result.booking_preview||{};
   const bookingFields=[booking.earliest_display,booking.party_size_display,...(booking.time_slots_display||[]),booking.booked_count_display];
