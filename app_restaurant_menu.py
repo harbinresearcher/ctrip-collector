@@ -57,10 +57,15 @@ def parse_restaurant_menu(xml) -> tuple[int, list[str], tuple[int, int, int, int
 
     pages = [node for node in root.iter('node') if app_view(node, WEB_VIEW)
              and text(node) == MENU_TITLE and visible_bounds(node)]
-    if len(pages) != 1 or len(pages[0]) != 1:
+    if len(pages) != 1:
         raise ValueError('未核验到推荐菜专页')
-    layout = pages[0][0]
-    if not app_view(layout, VIEW) or len(layout) < 2:
+    # H5 页面会在同一 WebView 下再挂一个 0 尺寸节点（真机为 [0,0][0,0]），
+    # 只按可见的布局子节点定位，避免把额外节点当成布局变化。
+    layouts = [child for child in pages[0] if app_view(child, VIEW) and visible_bounds(child)]
+    if len(layouts) != 1:
+        raise ValueError('未核验到推荐菜专页')
+    layout = layouts[0]
+    if len(layout) < 2:
         raise ValueError('推荐菜专页缺少列表')
     header, listing = layout[:2]
     header_box, list_box = visible_bounds(header), visible_bounds(listing)

@@ -27,6 +27,22 @@ class RestaurantMenuTests(unittest.TestCase):
         xml = FIRST.replace('脆烤章鱼', '黑松露披萨')
         self.assertEqual(parse_restaurant_menu(xml)[1], [DISHES[0], DISHES[0], *DISHES[2:7]])
 
+    def test_zero_sized_sibling_inside_the_webview_keeps_the_layout(self):
+        # 真机 dump 里标题 WebView 下多一个 [0,0][0,0] 的隐藏节点，不能当作布局变化。
+        tree = ET.fromstring(FIRST)
+        webview = tree.find(".//node[@class='android.webkit.WebView'][@text='推荐菜']")
+        hidden = ET.SubElement(webview, 'node')
+        hidden.set('package', 'ctrip.android.view')
+        hidden.set('class', 'android.view.View')
+        hidden.set('bounds', '[0,0][0,0]')
+        ET.SubElement(hidden, 'node').set('bounds', '[0,0][0,0]')
+        self.assertEqual(parse_restaurant_menu(ET.tostring(tree, 'unicode'))[0], 8)
+        # 布局子节点全部不可见时仍然拒绝，不凭猜测选一个。
+        for node in webview.findall("node[@class='android.view.View']"):
+            node.set('bounds', '[0,0][0,0]')
+        with self.assertRaises(ValueError):
+            parse_restaurant_menu(ET.tostring(tree, 'unicode'))
+
     def test_malformed_xml_and_unproven_layout_are_rejected(self):
         for xml in (
             '<hierarchy',
