@@ -130,6 +130,24 @@ with patch.object(ThreadingHTTPServer, 'serve_forever', interrupted):
             self.assertEqual(marker.read_text(encoding='utf-8'), 'saved')
         logger.info('服务关闭保存测试完成')
 
+    def test_favicon_request_has_no_404_noise(self):
+        # /* ===== 步骤1：核对图标请求；数据源：浏览器默认请求；操作：1) 返回空响应 2) 不写错误日志 ===== */
+        logger.info('开始图标请求测试')
+        with TemporaryDirectory() as folder:
+            server = create_server(folder, port=0)
+            thread = Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                conn = http.client.HTTPConnection('127.0.0.1', server.server_port, timeout=3)
+                conn.request('GET', '/favicon.ico')
+                response = conn.getresponse()
+                self.assertEqual(response.status, 204)
+                self.assertEqual(response.read(), b'')
+            finally:
+                server.shutdown()
+                server.server_close()
+        logger.info('图标请求测试完成')
+
     def test_origin_validation_and_real_status(self):
         # /* ===== 步骤1：核验本地接口；数据源：真实HTTP请求；操作：1) 状态读取 2) 拒绝外站控制 ===== */
         logger.info('开始工作台HTTP测试')

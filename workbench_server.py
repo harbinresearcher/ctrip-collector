@@ -105,6 +105,11 @@ def create_server(output, adb_path=None, port=8765, *, adb_serial=None):
             logger.info('开始读取工作台状态')
             if not self.local_request():
                 self.reply(403, {'error': '仅允许本地工作台访问'})
+            elif self.path == '/favicon.ico':
+                # 1.0 浏览器每次打开都会要图标；明确回空响应，避免控制台与日志里的 404 噪音。
+                self.send_response(204)
+                self.send_header('Content-Length', '0')
+                self.end_headers()
             elif self.path == '/':
                 # 1.1 只提供固定工作台页面，不开放任意本地文件路径。
                 body = Path(__file__).with_name('workbench.html').read_bytes()
