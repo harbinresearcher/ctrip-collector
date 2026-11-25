@@ -31,6 +31,12 @@ def verified_target(result, hashes, output, limit):
     # /* ===== 步骤2：核对重启证据；数据源：数据库和文件；操作：1) 核对条数 2) 核对导出摘要 ===== */
     logger.info('开始核对批任务完成证据')
     valid = False
+    # 2.1 旧餐饮网络结果不能证明已检查升级后的网页通道。
+    if (result.get('object_key', '').startswith('restaurant-')
+            and result.get('source_method') in {'public_comment_api', 'public_restaurant_poi_api'}
+            and result.get('restaurant_request_revision') != 2):
+        logger.info('餐饮请求已升级，需要重新核验')
+        return False
     try:
         if result.get('reason') == 'target_reached' and not result.get('error') and not result.get('export_error'):
             database = output / 'network.sqlite3'
@@ -44,17 +50,20 @@ def verified_target(result, hashes, output, limit):
     return valid
 
 
-def collect_batch(urls, output, limit, collector, stop=None, emit=None):
+def collect_batch(urls, output, limit, collector, stop=None, emit=None, *, refresh=False):
     # /* ===== 步骤3：建立持久任务；数据源：用户清单；操作：1) 去重 2) 按目标条数隔离状态 ===== */
     logger.info('开始批量任务')
     if limit < 1:
         raise ValueError('目标条数必须大于零')
+    if type(refresh) is not bool:
+        raise ValueError('刷新选项必须为布尔值')
     urls = list(dict.fromkeys(canonical_url(url) for url in urls))
     output = Path(output).resolve()
     output.mkdir(parents=True, exist_ok=True)
     stop, emit = stop or Event(), emit or logger.info
     report = {'total': len(urls), 'processed': 0, 'skipped': 0, 'reason': 'queue_exhausted',
-              'complete': False, 'results': [], 'error': '', 'task_database': str(output / 'batch.sqlite3')}
+              'complete': False, 'results': [], 'reused_results': [], 'error': '', 'refresh_requested': refresh,
+              'task_database': str(output / 'batch.sqlite3')}
     with closing(sqlite3.connect(output / 'batch.sqlite3', timeout=30)) as db:
         db.execute('CREATE TABLE IF NOT EXISTS tasks (url TEXT, target INTEGER, status TEXT, result TEXT, hashes TEXT, updated_at TEXT, PRIMARY KEY(url,target))')
         db.commit()
@@ -65,15 +74,19 @@ def collect_batch(urls, output, limit, collector, stop=None, emit=None):
                 break
             row = db.execute('SELECT result,hashes FROM tasks WHERE url=? AND target=? AND status=?',
                              (url, limit, 'target_reached')).fetchone()
-            if row and verified_target(json.loads(row[0]), json.loads(row[1]), output, limit):
+            saved = json.loads(row[0]) if row and not refresh else None
+            if saved and verified_target(saved, json.loads(row[1]), output, limit):
                 report['skipped'] += 1
+                report['reused_results'].append(saved)
                 emit('已核验已有数据，跳过：' + url)
                 continue
             now = datetime.now(timezone.utc).isoformat()
             with db:
                 db.execute('INSERT OR REPLACE INTO tasks VALUES (?,?,?,?,?,?)', (url, limit, 'running', '{}', '{}', now))
             try:
-                result = collector(url, output, limit, stop, emit)
+                # 3.1.1 显式刷新跳过旧完成证据，并传递刷新语义给底层采集器。
+                result = (collector(url, output, limit, stop, emit, refresh=True) if refresh
+                          else collector(url, output, limit, stop, emit))
             except Exception as exc:
                 result = {'reason': 'error', 'error': str(exc), 'export_error': '', 'complete': False}
             hashes = {}

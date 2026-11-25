@@ -35,7 +35,7 @@ def gui(default_adb, smoke=False):
     # ================================================================ */
     logger.info('开始创建窗口')
     root = tk.Tk()
-    root.title('携程点评采集 · 测试版 0.19')
+    root.title('携程点评采集 · 测试版 0.21')
     root.geometry('900x850')
     frame = ttk.Frame(root, padding=18)
     frame.pack(fill='both', expand=True)
@@ -277,7 +277,12 @@ def main():
     # ================================================================ */
     logger.info('开始启动程序')
     parser = argparse.ArgumentParser(description='携程公开点评网络采集与 Android 补采测试版')
-    parser.add_argument('--adb', default=str(HOME / 'platform-tools' / 'adb.exe') if (HOME / 'platform-tools' / 'adb.exe').exists() else shutil.which('adb') or 'adb')
+    bundled_adb = HOME / 'platform-tools' / 'adb.exe'
+    parser.add_argument('--adb', default=str(bundled_adb) if bundled_adb.is_file() else shutil.which('adb'))
+    parser.add_argument('--workbench', action='store_true', help='启动本机采集工作台并打开浏览器')
+    parser.add_argument('--port', type=int, help='工作台端口，默认 8765，设为 0 时自动选择')
+    parser.add_argument('--no-browser', action='store_true', help='运行工作台时只显示本地访问地址')
+    parser.add_argument('--adb-serial', help='工作台使用的 Android 设备编号，例如 emulator-5554')
     parser.add_argument('--check', action='store_true')
     parser.add_argument('--gui-smoke', action='store_true')
     parser.add_argument('--coverage', action='store_true', help='统计输出目录内已有网络评论及字段覆盖')
@@ -305,6 +310,27 @@ def main():
     parser.add_argument('--max-swipes', type=int, default=1500)
     parser.add_argument('--ui-backend', choices=['adb', 'uiautomator2'], default='uiautomator2')
     args = parser.parse_args()
+    if args.workbench:
+        if any((args.check, args.gui_smoke, args.coverage, args.hotel_public, args.collect, args.url,
+                args.url_file, args.import_capture, args.download_media, args.capture_ai, args.city_list,
+                args.region_seeds, args.resume_regions, args.shopping_district is not None, args.collect_discovered)):
+            parser.error('--workbench 不能与其他运行模式同时使用')
+        if args.adb_serial and not args.adb:
+            parser.error('请使用 --adb 指定 ADB 路径，或将 ADB 加入 PATH')
+        port = 8765 if args.port is None else args.port
+        if not 0 <= port <= 65535:
+            parser.error('--port 须在 0 至 65535 之间')
+        from workbench_server import serve_workbench
+
+        try:
+            serve_workbench(args.output, args.adb, port, adb_serial=args.adb_serial,
+                            open_browser=not args.no_browser)
+        except OSError as exc:
+            parser.exit(1, f'工作台启动失败：{exc}\n')
+        return
+    if args.adb_serial is not None or args.port is not None or args.no_browser:
+        parser.error('--adb-serial、--port 和 --no-browser 需要使用 --workbench')
+    args.adb = args.adb or 'adb'
     if args.coverage:
         if args.url or args.url_file or args.city_list or args.region_seeds or args.resume_regions or args.hotel_public or args.shopping_district is not None or args.collect or args.capture_ai or args.import_capture or args.download_media:
             parser.error('--coverage 不能与采集任务同时使用')
@@ -393,7 +419,3 @@ if __name__ == '__main__':
             stream.reconfigure(encoding='utf-8', errors='replace')
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
     main()
-
-
-
-

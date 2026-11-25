@@ -18,6 +18,53 @@ def page(items, total=3):
 
 
 class NetworkTests(unittest.TestCase):
+    def test_failed_first_object_replace_distinguishes_observation_from_saved_content(self):
+        # /* ===== 步骤1：核验首次保存；数据源：旧对象和新观察；操作：1) 模拟替换失败 2) 区分观察与落盘 ===== */
+        logger.info('开始首次对象替换失败测试')
+        target = {'kind':'hotel','resource_id':123,'name':'酒店','url':'https://hotels.ctrip.com/hotels/123.html',
+                  'display_total':1,'ai_summary':{'status':'response_captured','content':{'text':'新总结'}}}
+        with tempfile.TemporaryDirectory() as folder:
+            # 1.1 有旧文件时，不能把新观察当成已经保存在旧文件里。
+            old = Path(folder)/'hotel-123-object.json'
+            old.write_text('{"previous":true}', encoding='utf-8')
+            original = Path.replace
+            def failed(path, destination):
+                if str(destination).endswith('hotel-123-object.json'):
+                    raise OSError('simulated replace failure')
+                return original(path, destination)
+            with patch.object(Path, 'replace', failed):
+                report = collect_network(target, folder, limit=1, fetch=lambda _: page([], 0))
+            self.assertEqual(report['reason'], 'error')
+            self.assertIs(report.get('object_saved'), False)
+            self.assertEqual(report['ai_summary_status'], 'not_saved')
+            self.assertEqual(report.get('ai_summary_observed_status'), 'response_captured')
+            persisted = list(Path(folder).glob('hotel-123-report-*.json'))
+            self.assertEqual(json.loads(persisted[0].read_text('utf-8'))['ai_summary_status'], 'not_saved')
+            self.assertEqual(json.loads(old.read_text('utf-8')), {'previous':True})
+        logger.info('首次对象替换失败测试完成')
+
+    def test_interrupted_object_write_preserves_previous_file(self):
+        # /* ===== 步骤1：核验对象写入；数据源：旧对象和新快照；操作：1) 模拟半写失败 2) 保留旧文件 ===== */
+        logger.info('开始对象原子保存测试')
+        target = {'kind':'hotel','resource_id':123,'name':'酒店','url':'https://hotels.ctrip.com/hotels/123.html',
+                  'display_total':2,'source_method':'app_proxy_capture'}
+        with tempfile.TemporaryDirectory() as folder:
+            # 1.1 写入时突然失败，不得截断旧对象。
+            old = Path(folder)/'hotel-123-app-capture-object.json'
+            old.write_text('{"previous":true}', encoding='utf-8')
+            real = Path.write_text
+            def interrupted(path, data, *args, **kwargs):
+                if path.name.startswith('hotel-123-app-capture-object.json'):
+                    path.write_bytes(b'{"partial":')
+                    raise OSError('simulated interrupted write')
+                return real(path, data, *args, **kwargs)
+            with patch.object(Path, 'write_text', interrupted):
+                report = collect_network(target, folder, limit=2, fetch=lambda _: page([], 0))
+            self.assertEqual(report['reason'], 'error')
+            self.assertEqual(json.loads(old.read_text(encoding='utf-8')), {'previous':True})
+            self.assertEqual(list(Path(folder).glob('*.tmp')), [])
+        logger.info('对象原子保存测试完成')
+
     def test_export_removes_profile_identifier_from_older_database_rows(self):
         # /* ===== 步骤1：核对历史数据导出；数据源：旧数据库；操作：1) 重新清理 2) 保留评论正文 ===== */
         logger.info('开始历史数据导出测试')

@@ -1,0 +1,120 @@
+<hierarchy>
+  <node class="android.widget.ScrollView" package="ctrip.android.view" bounds="[0,0][1080,2337]">
+    <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[0,0][1080,2143]">
+      <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[0,0][1080,605]">
+        <node class="android.widget.HorizontalScrollView" package="ctrip.android.view" bounds="[0,0][1080,605]">
+          <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[0,0][1080,605]">
+            <node resource-id="shopPOI_headPictureModule_exp" class="android.view.ViewGroup" package="ctrip.android.view" content-desc="shopPOI_headPictureModule_exp" bounds="[0,0][1080,605]">
+              <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[0,0][1080,605]">
+                <node class="android.widget.FrameLayout" package="ctrip.android.view" bounds="[0,0][1080,605]">
+                  <node resource-id="ctrip.android.view:id/a" class="android.widget.FrameLayout" package="ctrip.android.view" bounds="[0,0][1080,605]">
+                    <node class="android.widget.FrameLayout" package="ctrip.android.view" bounds="[0,0][1080,605]">
+                      <node resource-id="ctrip.android.view:id/a" class="android.widget.ImageView" package="ctrip.android.view" bounds="[0,0][1080,605]" />
+                    </node>
+                    <node class="android.widget.FrameLayout" package="ctrip.android.view" bounds="[0,0][1080,605]">
+                      <node class="android.view.View" package="ctrip.android.view" bounds="[0,0][1080,605]" />
+                      <node class="android.widget.FrameLayout" package="ctrip.android.view" bounds="[0,0][1080,605]">
+                        <node class="android.widget.RelativeLayout" package="ctrip.android.view" bounds="[0,0][1080,605]">
+                          <node resource-id="ctrip.android.view:id/a" class="android.widget.FrameLayout" package="ctrip.android.view" bounds="[0,0][1080,605]">
+                            <node resource-id="ctrip.android.view:id/a" class="android.widget.ImageView" package="ctrip.android.view" bounds="[0,0][1080,605]" />
+                          </node>
+                          <node class="android.widget.LinearLayout" package="ctrip.android.view" bounds="[0,0][1080,605]">
+                            <node class="android.view.View" package="ctrip.android.view" bounds="[0,0][1080,605]" />
+                          </node>
+                          <node resource-id="ctrip.android.view:id/a" class="android.widget.FrameLayout" package="ctrip.android.view" bounds="[0,0][1080,605]" />
+                          <node text="非Wi-Fi播放，请注意流量消耗" resource-id="ctrip.android.view:id/a" class="android.widget.TextView" package="ctrip.android.view" bounds="[245,239][834,366]" />
+                        </node>
+                      </node>
+                    </node>
+                  </node>
+                </node>
+                <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[0,0][1080,605]">
+                  <node resource-id="image" class="android.widget.ImageView" package="ctrip.android.view" content-desc="image" bounds="[477,239][603,366]" />
+                </node>
+              </node>
+            </node>
+          </node>
+        </node>
+      </node>
+      <node resource-id="shopPOI_headPictureModule_morePicExp" class="android.view.ViewGroup" package="ctrip.android.view" content-desc="shopPOI_headPictureModule_morePicExp" bounds="[35,479][165,547]">
+        <node text="相册" class="android.widget.TextView" package="ctrip.android.view" bounds="[56,493][114,532]" />
+        <node text="" class="android.widget.TextView" package="ctrip.android.view" bounds="[114,497][143,528]" />
+      </node>
+      <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[0,570][1080,1239]">
+        <node class="android.view.View" package="ctrip.android.view" bounds="[0,570][1080,1239]" />
+        <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[35,570][1045,1239]">
+          <node text="比斯特上海购物村" class="android.widget.TextView" package="ctrip.android.view" bounds="[35,605][547,691]" />
+          <node resource-id="shopPOI_moreReviewsExp" class="android.view.ViewGroup" package="ctrip.android.view" content-desc="shopPOI_moreReviewsExp" bounds="[35,714][392,779]">
+            <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[35,714][157,779]" />
+            <node class="android.view.View" package="ctrip.android.view" bounds="[35,714][157,779]" />
+            <node text="4.7" class="android.widget.TextView" package="ctrip.android.view" bounds="[49,716][111,775]" />
+            <node text="分" class="android.widget.TextView" package="ctrip.android.view" bounds="[111,724][143,767]" />
+            <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[158,716][392,776]" />
+            <node text="683条点评" class="android.widget.TextView" package="ctrip.android.view" bounds="[170,722][335,769]" />
+            <node text="" class="android.widget.TextView" package="ctrip.android.view" bounds="[335,728][379,762]" />
+          </node>
+          <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[392,719][581,775]">
+            <node class="android.view.View" package="ctrip.android.view" bounds="[404,719][521,775]" />
+            <node text="优享购" class="android.widget.TextView" package="ctrip.android.view" bounds="[404,723][521,770]" />
+            <node text="" class="android.widget.TextView" package="ctrip.android.view" bounds="[528,725][569,768]" />
+          </node>
+          <node resource-id="shopPOI_moreBasicInfoExp" class="android.view.ViewGroup" package="ctrip.android.view" content-desc="shopPOI_moreBasicInfoExp" bounds="[35,801][1045,871]">
+            <node text="营业中  10:00-22:00开放 | 奥特莱斯 · 香水 · 时装" class="android.widget.TextView" package="ctrip.android.view" bounds="[35,812][1012,859]" />
+            <node text="" class="android.widget.TextView" package="ctrip.android.view" bounds="[1010,817][1045,854]" />
+          </node>
+          <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[35,894][1045,992]" />
+          <node resource-id="image" class="android.widget.ImageView" package="ctrip.android.view" content-desc="image" bounds="[58,917][132,969]" />
+          <node text="· 全年享折扣优惠，4A级景区" class="android.widget.TextView" package="ctrip.android.view" bounds="[156,919][1024,966]" />
+          <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[35,1015][1045,1203]">
+            <node class="android.widget.ImageView" package="ctrip.android.view" bounds="[35,1015][1045,1203]" />
+          </node>
+          <node resource-id="shopPOI_brandEnterExp" class="android.view.ViewGroup" package="ctrip.android.view" content-desc="shopPOI_brandEnterExp" bounds="[35,1041][196,1177]">
+            <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[35,1041][171,1177]">
+              <node resource-id="image" class="android.widget.ImageView" package="ctrip.android.view" content-desc="image" bounds="[36,1041][171,1177]" />
+            </node>
+          </node>
+          <node resource-id="shopPOI_mapExp" class="android.view.ViewGroup" package="ctrip.android.view" content-desc="shopPOI_mapExp" bounds="[216,1051][1022,1167]">
+            <node text="上海市浦东新区申迪东路88号" class="android.widget.TextView" package="ctrip.android.view" bounds="[216,1051][927,1103]" />
+            <node text="距国际旅游度假区1路区间购物村东站369m" class="android.widget.TextView" package="ctrip.android.view" bounds="[216,1103][927,1167]" />
+            <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[956,1057][1008,1109]" />
+            <node text="" class="android.widget.TextView" package="ctrip.android.view" bounds="[965,1065][997,1099]" />
+            <node text="地图" class="android.widget.TextView" package="ctrip.android.view" bounds="[950,1117][1014,1160]" />
+          </node>
+        </node>
+      </node>
+      <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[0,1239][1080,1615]">
+        <node resource-id="C_GO_POI_module_exposure" class="android.view.ViewGroup" package="ctrip.android.view" content-desc="C_GO_POI_module_exposure" bounds="[0,1262][1080,1615]" />
+        <node text="优惠卡券" class="android.widget.TextView" package="ctrip.android.view" bounds="[35,1299][243,1369]" />
+        <node text="(1)" class="android.widget.TextView" package="ctrip.android.view" bounds="[243,1303][298,1362]" />
+        <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[821,1308][1046,1360]">
+          <node text="更多优惠券" class="android.widget.TextView" package="ctrip.android.view" bounds="[821,1308][1011,1360]" />
+          <node text="" class="android.widget.TextView" package="ctrip.android.view" bounds="[1011,1315][1046,1352]" />
+        </node>
+        <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[35,1407][1045,1585]">
+          <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[35,1407][1045,1579]" />
+          <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[35,1436][832,1549]">
+            <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[70,1440][116,1486]" />
+            <node text="会" class="android.widget.TextView" package="ctrip.android.view" bounds="[77,1441][109,1484]" />
+            <node text="100元现金券等多重权益" class="android.widget.TextView" package="ctrip.android.view" bounds="[130,1436][805,1495]" />
+            <node text="携程黄金贵宾及以上可享" class="android.widget.TextView" package="ctrip.android.view" bounds="[129,1502][805,1549]" />
+          </node>
+          <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[833,1439][1012,1547]">
+            <node class="android.view.View" package="ctrip.android.view" bounds="[833,1439][1012,1504]" />
+            <node text="免费领取" class="android.widget.TextView" package="ctrip.android.view" bounds="[852,1448][992,1495]" />
+            <node text="已领586" class="android.widget.TextView" package="ctrip.android.view" bounds="[869,1512][975,1547]" />
+          </node>
+        </node>
+      </node>
+      <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[0,1615][1080,1913]">
+        <node text="暂无点评" class="android.widget.TextView" package="ctrip.android.view" bounds="[35,1675][243,1745]" />
+        <node resource-id="shopPOI_CommentWritingExp" class="android.view.ViewGroup" package="ctrip.android.view" content-desc="shopPOI_CommentWritingExp" bounds="[35,1783][1045,1875]">
+          <node text="快来发表第一条评论～" class="android.widget.TextView" package="ctrip.android.view" bounds="[35,1803][415,1855]" />
+          <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[810,1783][1045,1875]" />
+          <node text="" class="android.widget.TextView" package="ctrip.android.view" bounds="[851,1809][889,1849]" />
+          <node text="写点评" class="android.widget.TextView" package="ctrip.android.view" bounds="[902,1803][1016,1855]" />
+        </node>
+      </node>
+      <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[0,1884][1080,2143]" />
+    </node>
+  </node>
+</hierarchy>

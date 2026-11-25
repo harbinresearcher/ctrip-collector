@@ -1,0 +1,83 @@
+{
+  "kind": "restaurant",
+  "url": "https://you.ctrip.com/yougourmet/restdetail/datong275/108786.html",
+  "resource_id": 8639,
+  "resource_type": 12,
+  "poi_id": 108786,
+  "name": "凤临阁",
+  "display_total": 672,
+  "ai_summary": {
+    "status": "not_captured"
+  },
+  "details": {
+    "commentScore": 4.4,
+    "openTime": "休息中 11:00-14:00, 17:00-20:30",
+    "address": "古城街道鼓楼西街与华严街交叉口(近华严寺)",
+    "introduction": "餐馆复古的外观和内饰显得古色古香和典雅，菜品以山西菜为主，过油肉、糖醋丸子、猪头肉和黄焖鸡块是招牌菜。该餐馆是《游龙戏凤》的取景地。",
+    "averagePrice": 85,
+    "foods": [
+      "浑源凉粉",
+      "沙棘黄米凉糕",
+      "老大同过油肉",
+      "糖醋丸子",
+      "纯羊杂",
+      "养生葫芦丝",
+      "三鲜百花烧麦",
+      "刀削面",
+      "百花盛放烧卖",
+      "凤趴窝",
+      "羊肉百花烧麦",
+      "糖醋里脊",
+      "豆馅油糕",
+      "百花盛放烧麦",
+      "自制酸奶",
+      "什锦火锅",
+      "家常煮莜面鱼鱼",
+      "盐煎羊肉",
+      "现榨沙棘汁",
+      "髓油馅油糕"
+    ],
+    "cuisines": [
+      {
+        "name": "山西菜"
+      }
+    ],
+    "phones": [
+      "test-only field excluded from export"
+    ]
+  },
+  "comment_info": {
+    "scores": [
+      {
+        "name": "口味",
+        "score": 4.4
+      },
+      {
+        "name": "环境",
+        "score": 4.5
+      },
+      {
+        "name": "服务",
+        "score": 4.3
+      }
+    ],
+    "commentHotTags": [
+      {
+        "tagContent": "最新",
+        "commentCount": 0
+      },
+      {
+        "tagContent": "视频/图片",
+        "commentCount": 34
+      },
+      {
+        "tagContent": "好评",
+        "commentCount": 51
+      },
+      {
+        "tagContent": "差评",
+        "commentCount": 5
+      }
+    ]
+  }
+}

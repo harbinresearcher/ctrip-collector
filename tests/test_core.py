@@ -1,7 +1,9 @@
 import csv
+import copy
 import logging
 import tempfile
 import unittest
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from core import parse_reviews, Store
@@ -11,6 +13,32 @@ FIXTURES = Path(__file__).parent / 'fixtures'
 
 
 class CoreTests(unittest.TestCase):
+    def test_mixed_window_excludes_foreign_review_cards(self):
+        # /* ===== 步骤1：核验评论来源；数据源：真实页面的混合窗口；操作：1) 加入外部卡片 2) 仅保留携程 ===== */
+        logger.info('开始混合窗口评论检查')
+        root = ET.fromstring((FIXTURES / 'hotel-comments2.xml').read_text('utf-8'))
+        expected = parse_reviews(ET.tostring(root, encoding='unicode'), 'hotel')
+        # 1.1 其他应用也有同形状卡片时，不能计入携程评论。
+        foreign = copy.deepcopy(next(root.iter('node')))
+        for node in foreign.iter('node'):
+            node.set('package', 'other.app')
+        root.append(foreign)
+        rows = parse_reviews(ET.tostring(root, encoding='unicode'), 'hotel')
+        self.assertEqual(rows, expected)
+        logger.info('混合窗口评论检查完成')
+
+    def test_foreign_score_cannot_complete_ctrip_card(self):
+        # /* ===== 步骤1：核验评分来源；数据源：真实卡片的受控变体；操作：1) 换评分所属应用 2) 拒绝拼接 ===== */
+        logger.info('开始混合窗口评分检查')
+        root = ET.fromstring((FIXTURES / 'hotel-comments2.xml').read_text('utf-8'))
+        # 1.1 其他应用的评分不能与携程日期和正文拼成一条评论。
+        for node in root.iter('node'):
+            if node.get('text') == '5.0':
+                node.set('package', 'other.app')
+        rows = parse_reviews(ET.tostring(root, encoding='unicode'), 'hotel')
+        self.assertEqual(rows, [])
+        logger.info('混合窗口评分检查完成')
+
     def test_missing_author_is_not_invented_from_date(self):
         logger.info('开始检查半张评论卡片')
         # 1.0 作者已滑出结构时不能把入住月份当作作者。

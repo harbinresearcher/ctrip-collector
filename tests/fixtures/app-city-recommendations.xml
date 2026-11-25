@@ -1,0 +1,147 @@
+<hierarchy>
+  <!--Anonymized App capture. Only the public labels and layout used in the parser tests remain.-->
+  <node package="ctrip.android.view" class="android.widget.FrameLayout" bounds="[0,0][1440,3200]">
+    <node package="ctrip.android.view" class="android.widget.FrameLayout" bounds="[0,0][1440,3200]">
+      <node package="ctrip.android.view" class="android.widget.ImageView" bounds="[0,0][1440,3200]" />
+    </node>
+    <node package="ctrip.android.view" class="android.widget.LinearLayout" bounds="[0,0][1440,3140]">
+      <node package="ctrip.android.view" class="android.widget.FrameLayout" bounds="[0,0][1440,3140]">
+        <node package="ctrip.android.view" class="android.widget.FrameLayout" bounds="[0,0][1440,3140]">
+          <node package="ctrip.android.view" class="android.widget.FrameLayout" bounds="[0,0][1440,3140]">
+            <node package="ctrip.android.view" class="android.widget.FrameLayout" bounds="[0,0][1440,3140]">
+              <node package="ctrip.android.view" class="android.widget.LinearLayout" bounds="[0,0][1440,3140]">
+                <node package="ctrip.android.view" class="android.widget.FrameLayout" bounds="[0,0][1440,3140]">
+                  <node package="ctrip.android.view" class="android.widget.FrameLayout" bounds="[0,0][1440,3140]">
+                    <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[0,0][1440,3140]">
+                      <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[0,0][1440,3140]">
+                        <node package="ctrip.android.view" class="android.widget.Button" bounds="[45,229][136,320]">
+                          <node package="ctrip.android.view" class="android.widget.TextView" bounds="[45,229][136,320]" />
+                        </node>
+                        <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[165,203][1155,345]">
+                          <node package="ctrip.android.view" class="android.widget.ImageView" bounds="[208,240][275,308]" />
+                          <node package="ctrip.android.view" class="android.widget.TextView" bounds="[291,237][1112,309]" text="抚松" />
+                        </node>
+                        <node package="ctrip.android.view" class="android.widget.Button" bounds="[1184,228][1275,319]">
+                          <node package="ctrip.android.view" class="android.widget.TextView" bounds="[1184,228][1275,319]" />
+                        </node>
+                        <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[1275,191][1440,356]">
+                          <node package="ctrip.android.view" class="android.widget.FrameLayout" bounds="[1275,191][1440,356]">
+                            <node package="ctrip.android.view" class="android.widget.FrameLayout" bounds="[1275,191][1440,356]">
+                              <node package="ctrip.android.view" class="android.widget.LinearLayout" bounds="[1320,211][1395,336]">
+                                <node package="ctrip.android.view" class="android.widget.ImageView" bounds="[1320,211][1395,285]" />
+                                <node package="ctrip.android.view" class="android.widget.TextView" bounds="[1320,285][1395,336]" />
+                              </node>
+                            </node>
+                          </node>
+                        </node>
+                        <node package="ctrip.android.view" class="android.widget.ScrollView" bounds="[0,379][1440,3140]">
+                          <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[0,379][1440,2572]">
+                            <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[45,424][447,533]" resource-id="gs_searchlist_view_changecity" />
+                            <node package="ctrip.android.view" class="android.widget.Button" bounds="[45,424][340,533]" content-desc="抚松">
+                              <node package="ctrip.android.view" class="android.widget.TextView" bounds="[45,424][311,533]" />
+                            </node>
+                            <node package="ctrip.android.view" class="android.widget.TextView" bounds="[341,445][448,513]" />
+                            <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[0,564][1440,696]" resource-id="gs_searchlist_view_tradeportal" />
+                            <node package="ctrip.android.view" class="android.widget.HorizontalScrollView" bounds="[0,564][1440,696]">
+                              <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[0,564][1440,696]">
+                                <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[45,564][287,696]" resource-id="gs_searchlist_view_tradeportal_item">
+                                  <node package="ctrip.android.view" class="android.widget.ImageView" bounds="[76,600][136,660]" />
+                                  <node package="ctrip.android.view" class="android.widget.TextView" bounds="[149,593][256,665]" />
+                                </node>
+                                <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[317,564][559,696]" resource-id="gs_searchlist_view_tradeportal_item">
+                                  <node package="ctrip.android.view" class="android.widget.ImageView" bounds="[348,600][408,660]" />
+                                  <node package="ctrip.android.view" class="android.widget.TextView" bounds="[421,593][528,665]" />
+                                </node>
+                                <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[588,564][959,696]" resource-id="gs_searchlist_view_tradeportal_item">
+                                  <node package="ctrip.android.view" class="android.widget.ImageView" bounds="[619,600][679,660]" />
+                                  <node package="ctrip.android.view" class="android.widget.TextView" bounds="[692,593][927,665]" />
+                                </node>
+                                <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[988,564][1283,696]" resource-id="gs_searchlist_view_tradeportal_item">
+                                  <node package="ctrip.android.view" class="android.widget.ImageView" bounds="[1019,600][1079,660]" />
+                                  <node package="ctrip.android.view" class="android.widget.TextView" bounds="[1092,593][1252,665]" />
+                                </node>
+                                <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[1313,564][1440,696]" resource-id="gs_searchlist_view_tradeportal_item">
+                                  <node package="ctrip.android.view" class="android.widget.ImageView" bounds="[1344,600][1404,660]" />
+                                  <node package="ctrip.android.view" class="android.widget.TextView" bounds="[1417,593][1440,665]" />
+                                </node>
+                              </node>
+                            </node>
+                            <node package="ctrip.android.view" class="android.widget.TextView" bounds="[44,785][1440,872]" text="必看推荐" />
+                            <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[0,904][1440,1332]" resource-id="gs_searchlist_view_mustsees" />
+                            <node package="ctrip.android.view" class="android.widget.HorizontalScrollView" bounds="[0,904][1440,1332]">
+                              <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[0,904][1440,1332]">
+                                <node package="ctrip.android.view" class="android.widget.Button" bounds="[45,904][555,1332]" content-desc="长白山西景区" resource-id="gs_searchlist_view_mustsees_item">
+                                  <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[47,905][553,1288]">
+                                    <node package="ctrip.android.view" class="android.widget.ImageView" bounds="[47,905][553,1288]" />
+                                  </node>
+                                  <node package="ctrip.android.view" class="android.view.View" bounds="[47,1029][553,1329]" />
+                                  <node package="ctrip.android.view" class="android.widget.TextView" bounds="[77,1168][437,1240]" text="长白山西景区" />
+                                  <node package="ctrip.android.view" class="android.widget.ImageView" bounds="[77,1240][220,1300]" />
+                                </node>
+                                <node package="ctrip.android.view" class="android.widget.Button" bounds="[585,904][1095,1332]" content-desc="讷殷古城" resource-id="gs_searchlist_view_mustsees_item">
+                                  <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[587,905][1093,1288]">
+                                    <node package="ctrip.android.view" class="android.widget.ImageView" bounds="[587,905][1093,1288]" />
+                                  </node>
+                                  <node package="ctrip.android.view" class="android.view.View" bounds="[587,1029][1093,1329]" />
+                                  <node package="ctrip.android.view" class="android.widget.TextView" bounds="[617,1228][863,1300]" text="讷殷古城" />
+                                  <node package="ctrip.android.view" class="android.widget.ImageView" bounds="[861,1235][1004,1295]" />
+                                </node>
+                                <node package="ctrip.android.view" class="android.widget.Button" bounds="[1125,904][1440,1332]" content-desc="长白山景区" resource-id="gs_searchlist_view_mustsees_item">
+                                  <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[1127,905][1440,1288]">
+                                    <node package="ctrip.android.view" class="android.widget.ImageView" bounds="[1127,905][1440,1288]" />
+                                  </node>
+                                  <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[1127,905][1240,987]">
+                                    <node package="ctrip.android.view" class="android.widget.TextView" bounds="[1141,917][1224,973]" text="周边" />
+                                  </node>
+                                  <node package="ctrip.android.view" class="android.view.View" bounds="[1127,1029][1440,1329]" />
+                                  <node package="ctrip.android.view" class="android.widget.TextView" bounds="[1157,1228][1440,1300]" text="长白山景区" />
+                                </node>
+                              </node>
+                            </node>
+                            <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[0,1329][1440,1517]" resource-id="gs_searchlist_view_contentportal" />
+                            <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[45,1329][495,1517]" resource-id="gs_searchlist_view_contentportal_item" />
+                            <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[45,1360][465,1519]">
+                              <node package="ctrip.android.view" class="android.widget.ImageView" bounds="[76,1409][351,1469]" />
+                            </node>
+                            <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[496,1329][947,1517]" resource-id="gs_searchlist_view_tripplanner" />
+                            <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[496,1360][916,1519]">
+                              <node package="ctrip.android.view" class="android.widget.ImageView" bounds="[527,1409][823,1469]" />
+                            </node>
+                            <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[945,1329][1395,1517]" resource-id="gs_searchlist_view_tripplanner_nearby" />
+                            <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[0,1517][1440,2572]" />
+                            <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[945,1360][1395,1519]">
+                              <node package="ctrip.android.view" class="android.widget.ImageView" bounds="[976,1409][1311,1469]" />
+                            </node>
+                            <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[45,1608][295,1687]" />
+                            <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[45,1717][705,2572]" />
+                            <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[736,1717][1396,2572]" />
+                          </node>
+                        </node>
+                        <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[0,2728][1440,2937]">
+                          <node package="ctrip.android.view" class="android.widget.FrameLayout" bounds="[417,2728][1024,2937]">
+                            <node package="ctrip.android.view" class="android.widget.FrameLayout" bounds="[417,2728][1024,2908]">
+                              <node package="ctrip.android.view" class="android.widget.LinearLayout" bounds="[417,2728][1024,2908]">
+                                <node package="ctrip.android.view" class="android.widget.ImageView" bounds="[469,2773][559,2863]" />
+                                <node package="ctrip.android.view" class="android.widget.TextView" bounds="[559,2780][980,2856]" />
+                              </node>
+                              <node package="ctrip.android.view" class="android.widget.FrameLayout" bounds="[417,2728][436,2747]">
+                                <node package="ctrip.android.view" class="android.widget.FrameLayout" bounds="[417,2728][436,2747]" />
+                              </node>
+                              <node package="ctrip.android.view" class="android.view.View" bounds="[432,2743][1009,2893]" />
+                            </node>
+                          </node>
+                        </node>
+                      </node>
+                    </node>
+                  </node>
+                </node>
+              </node>
+            </node>
+          </node>
+        </node>
+      </node>
+    </node>
+    <node package="ctrip.android.view" class="android.widget.FrameLayout" bounds="[0,0][1,1]" />
+    <node package="ctrip.android.view" class="android.view.View" bounds="[0,3140][1440,3200]" />
+  </node>
+</hierarchy>

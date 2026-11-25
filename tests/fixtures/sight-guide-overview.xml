@@ -1,0 +1,165 @@
+<hierarchy>
+  <!--Anonymized App capture. Only the public labels and layout used in the parser tests remain.-->
+  <node package="ctrip.android.view" class="android.widget.FrameLayout" bounds="[0,0][1440,3200]" visible-to-user="true">
+    <node package="ctrip.android.view" class="android.widget.FrameLayout" bounds="[0,0][1440,3200]" visible-to-user="true">
+      <node package="ctrip.android.view" class="android.widget.ImageView" bounds="[0,0][1440,3200]" visible-to-user="true" />
+    </node>
+    <node package="ctrip.android.view" class="android.widget.LinearLayout" bounds="[0,0][1440,3140]" visible-to-user="true">
+      <node package="ctrip.android.view" class="android.widget.FrameLayout" bounds="[0,0][1440,3140]" visible-to-user="true">
+        <node package="ctrip.android.view" class="android.widget.FrameLayout" bounds="[0,0][1440,3140]" visible-to-user="true">
+          <node package="ctrip.android.view" class="android.widget.FrameLayout" bounds="[0,0][1440,3140]" visible-to-user="true">
+            <node package="ctrip.android.view" class="android.widget.FrameLayout" bounds="[0,0][1440,3140]" visible-to-user="true">
+              <node package="ctrip.android.view" class="android.widget.LinearLayout" bounds="[0,0][1440,3140]" visible-to-user="true">
+                <node package="ctrip.android.view" class="android.widget.FrameLayout" bounds="[0,0][1440,3140]" visible-to-user="true">
+                  <node package="ctrip.android.view" class="android.widget.FrameLayout" bounds="[0,0][1440,3140]" visible-to-user="true">
+                    <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[0,0][1440,3140]" visible-to-user="true">
+                      <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[0,0][1440,3140]" visible-to-user="true">
+                        <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[0,0][1440,327]" visible-to-user="true">
+                          <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[0,0][1440,327]" visible-to-user="true">
+                            <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[37,199][128,289]" visible-to-user="true">
+                              <node package="ctrip.android.view" class="android.widget.TextView" bounds="[37,199][128,289]" visible-to-user="true" />
+                            </node>
+                            <node package="ctrip.android.view" class="android.widget.TextView" bounds="[165,201][1125,287]" visible-to-user="true" text="长白山西景区" />
+                            <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[1155,161][1245,327]" visible-to-user="true">
+                              <node package="ctrip.android.view" class="android.widget.TextView" bounds="[1155,197][1245,288]" visible-to-user="true" />
+                            </node>
+                            <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[1305,161][1395,327]" visible-to-user="true">
+                              <node package="ctrip.android.view" class="android.widget.TextView" bounds="[1305,197][1395,288]" visible-to-user="true" />
+                            </node>
+                          </node>
+                        </node>
+                        <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[0,327][1440,492]" visible-to-user="true" />
+                        <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[0,327][360,492]" visible-to-user="true" content-desc="图片/视频">
+                          <node package="ctrip.android.view" class="android.widget.TextView" bounds="[53,371][305,447]" visible-to-user="true" />
+                        </node>
+                        <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[360,327][720,492]" visible-to-user="true">
+                          <node package="ctrip.android.view" class="android.widget.TextView" bounds="[412,367][668,452]" visible-to-user="true" />
+                          <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[476,456][604,472]" visible-to-user="true">
+                            <node package="ctrip.android.view" class="android.view.View" bounds="[476,456][604,472]" visible-to-user="true" />
+                          </node>
+                        </node>
+                        <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[720,327][1080,492]" visible-to-user="true" content-desc="必看指南">
+                          <node package="ctrip.android.view" class="android.widget.TextView" bounds="[785,371][1015,447]" visible-to-user="true" />
+                        </node>
+                        <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[1080,327][1440,492]" visible-to-user="true">
+                          <node package="ctrip.android.view" class="android.widget.TextView" bounds="[1145,371][1375,447]" visible-to-user="true" />
+                        </node>
+                        <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[0,492][1440,3140]" visible-to-user="true">
+                          <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[0,492][1440,2913]" visible-to-user="true">
+                            <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[0,492][1440,641]" visible-to-user="true" resource-id="gs_sightmoredetail_navlist" />
+                            <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[0,492][1440,641]" visible-to-user="true">
+                              <node package="ctrip.android.view" class="android.widget.HorizontalScrollView" bounds="[0,492][1291,641]" visible-to-user="true">
+                                <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[0,492][1291,641]" visible-to-user="true">
+                                  <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[37,523][203,613]" visible-to-user="true">
+                                    <node package="ctrip.android.view" class="android.widget.TextView" bounds="[75,537][165,597]" visible-to-user="true" />
+                                  </node>
+                                  <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[279,523][535,613]" visible-to-user="true">
+                                    <node package="ctrip.android.view" class="android.widget.TextView" bounds="[316,537][497,597]" visible-to-user="true" />
+                                  </node>
+                                  <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[609,523][988,613]" visible-to-user="true">
+                                    <node package="ctrip.android.view" class="android.widget.TextView" bounds="[647,537][951,597]" visible-to-user="true" />
+                                  </node>
+                                  <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[1064,523][1291,613]" visible-to-user="true">
+                                    <node package="ctrip.android.view" class="android.widget.TextView" bounds="[1101,537][1283,597]" visible-to-user="true" />
+                                  </node>
+                                  <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[1291,523][1395,613]" visible-to-user="true">
+                                    <node package="ctrip.android.view" class="android.widget.TextView" bounds="[1291,537][1432,597]" visible-to-user="true" />
+                                  </node>
+                                </node>
+                              </node>
+                              <node package="ctrip.android.view" class="android.view.View" bounds="[1215,492][1440,641]" visible-to-user="true" />
+                              <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[1215,492][1440,641]" visible-to-user="true">
+                                <node package="ctrip.android.view" class="android.widget.TextView" bounds="[1319,528][1395,604]" visible-to-user="true" />
+                              </node>
+                            </node>
+                            <node package="ctrip.android.view" class="android.widget.ScrollView" bounds="[0,643][1440,2913]" visible-to-user="true">
+                              <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[0,643][1440,2913]" visible-to-user="true">
+                                <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[0,643][1440,2913]" visible-to-user="true" />
+                                <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[45,703][1395,853]" visible-to-user="true">
+                                  <node package="ctrip.android.view" class="android.widget.TextView" bounds="[92,747][183,807]" visible-to-user="true" />
+                                  <node package="ctrip.android.view" class="android.widget.ImageView" bounds="[207,748][267,808]" visible-to-user="true" />
+                                  <node package="ctrip.android.view" class="android.widget.TextView" bounds="[280,755][447,800]" visible-to-user="true" />
+                                  <node package="ctrip.android.view" class="android.widget.TextView" bounds="[561,747][652,807]" visible-to-user="true" />
+                                  <node package="ctrip.android.view" class="android.widget.ImageView" bounds="[675,748][735,808]" visible-to-user="true" />
+                                  <node package="ctrip.android.view" class="android.widget.TextView" bounds="[749,755][880,800]" visible-to-user="true" />
+                                  <node package="ctrip.android.view" class="android.widget.TextView" bounds="[1013,747][1104,807]" visible-to-user="true" />
+                                  <node package="ctrip.android.view" class="android.widget.ImageView" bounds="[1127,748][1187,808]" visible-to-user="true" />
+                                  <node package="ctrip.android.view" class="android.widget.TextView" bounds="[1201,755][1327,800]" visible-to-user="true" />
+                                </node>
+                                <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[0,913][1440,2224]" visible-to-user="true" resource-id="gs_sightmoredetail_view_opentime" />
+                                <node package="ctrip.android.view" class="android.widget.TextView" bounds="[45,969][285,1060]" visible-to-user="true" />
+                                <node package="ctrip.android.view" class="android.widget.TextView" bounds="[300,980][557,1048]" visible-to-user="true" text="今日已闭园" />
+                                <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[1063,963][1395,1068]" visible-to-user="true" />
+                                <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[1071,971][1229,1061]" visible-to-user="true">
+                                  <node package="ctrip.android.view" class="android.widget.TextView" bounds="[1100,981][1199,1049]" visible-to-user="true" />
+                                </node>
+                                <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[1229,971][1388,1061]" visible-to-user="true">
+                                  <node package="ctrip.android.view" class="android.widget.TextView" bounds="[1259,981][1357,1049]" visible-to-user="true" />
+                                </node>
+                                <node package="ctrip.android.view" class="android.widget.TextView" bounds="[45,1116][529,1196]" visible-to-user="true" text="建议时长约0.5-1天" />
+                                <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[45,1196][1395,1580]" visible-to-user="true">
+                                  <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[45,1241][1395,1580]" visible-to-user="true">
+                                    <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[49,1245][1391,1412]" visible-to-user="true" />
+                                    <node package="ctrip.android.view" class="android.widget.TextView" bounds="[93,1289][208,1365]" visible-to-user="true" text="全年" />
+                                    <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[49,1412][1391,1577]" visible-to-user="true" />
+                                    <node package="ctrip.android.view" class="android.widget.TextView" bounds="[93,1456][892,1532]" visible-to-user="true" text="07:30-17:00开放（13:30停止入园）" />
+                                  </node>
+                                </node>
+                                <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[45,1641][1395,1876]" visible-to-user="true" />
+                                <node package="ctrip.android.view" class="android.widget.TextView" bounds="[91,1687][1351,1831]" visible-to-user="true" text="景区根据天气变化及客流量营业时间或有调整，详情以景区现场公示为准。" />
+                                <node package="ctrip.android.view" class="android.widget.TextView" bounds="[45,1935][1068,2015]" visible-to-user="true" text="* 以上信息为当地时间，仅供参考，具体以当日公示为准" />
+                                <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[45,2075][492,2164]" visible-to-user="true">
+                                  <node package="ctrip.android.view" class="android.widget.ImageView" bounds="[73,2092][129,2148]" visible-to-user="true" />
+                                  <node package="ctrip.android.view" class="android.widget.TextView" bounds="[129,2084][464,2155]" visible-to-user="true" />
+                                </node>
+                                <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[523,2075][848,2164]" visible-to-user="true">
+                                  <node package="ctrip.android.view" class="android.widget.ImageView" bounds="[551,2092][607,2148]" visible-to-user="true" />
+                                  <node package="ctrip.android.view" class="android.widget.TextView" bounds="[607,2084][820,2155]" visible-to-user="true" />
+                                </node>
+                                <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[0,2224][1440,2913]" visible-to-user="true" resource-id="gs_sightmoredetail_view_ticket">
+                                  <node package="ctrip.android.view" class="android.widget.TextView" bounds="[45,2273][449,2364]" visible-to-user="true" />
+                                  <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[45,2412][1395,2771]" visible-to-user="true">
+                                    <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[49,2416][1391,2596]" visible-to-user="true" />
+                                    <node package="ctrip.android.view" class="android.widget.TextView" bounds="[93,2465][323,2541]" visible-to-user="true" />
+                                    <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[1105,2449][1348,2559]" visible-to-user="true">
+                                      <node package="ctrip.android.view" class="android.widget.TextView" bounds="[1152,2451][1300,2556]" visible-to-user="true" />
+                                    </node>
+                                    <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[49,2596][1391,2767]" visible-to-user="true" />
+                                    <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[49,2596][1391,2767]" visible-to-user="true" />
+                                    <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[95,2641][1348,2721]" visible-to-user="true">
+                                      <node package="ctrip.android.view" class="android.widget.TextView" bounds="[95,2641][376,2721]" visible-to-user="true" text="门票¥190起" />
+                                    </node>
+                                  </node>
+                                  <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[45,2800][1395,2913]" visible-to-user="true" />
+                                  <node package="ctrip.android.view" class="android.widget.TextView" bounds="[89,2844][1349,2913]" visible-to-user="true" text="补充说明：景区交通车另收费，详情以景区现场公示为准" />
+                                </node>
+                                <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[0,2913][1440,3095]" visible-to-user="true" resource-id="gs_sightmoredetail_view_preferential" />
+                              </node>
+                            </node>
+                            <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[1167,2355][1425,2613]" visible-to-user="true">
+                              <node package="ctrip.android.view" class="android.widget.ImageView" bounds="[1167,2355][1425,2613]" visible-to-user="true" />
+                              <node package="ctrip.android.view" class="android.widget.TextView" bounds="[1184,2524][1409,2584]" visible-to-user="true" />
+                            </node>
+                          </node>
+                        </node>
+                        <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[0,2913][1440,3140]" visible-to-user="true">
+                          <node package="ctrip.android.view" class="android.widget.TextView" bounds="[45,3008][80,3084]" visible-to-user="true" />
+                          <node package="ctrip.android.view" class="android.widget.TextView" bounds="[87,2971][253,3096]" visible-to-user="true" />
+                          <node package="ctrip.android.view" class="android.widget.TextView" bounds="[260,3000][317,3076]" visible-to-user="true" />
+                          <node package="ctrip.android.view" class="android.view.ViewGroup" bounds="[348,2945][1395,3111]" visible-to-user="true" resource-id="gs_sightmoredetail_view_book">
+                            <node package="ctrip.android.view" class="android.view.View" bounds="[348,2945][1395,3111]" visible-to-user="true" />
+                            <node package="ctrip.android.view" class="android.widget.TextView" bounds="[749,2985][1005,3071]" visible-to-user="true" />
+                          </node>
+                        </node>
+                      </node>
+                    </node>
+                  </node>
+                </node>
+              </node>
+            </node>
+          </node>
+        </node>
+      </node>
+    </node>
+  </node>
+</hierarchy>

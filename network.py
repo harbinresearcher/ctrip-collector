@@ -1,5 +1,6 @@
 """公开点评响应采集；不使用登录凭据，不绕过验证。"""
 import csv
+import hashlib
 import json
 import logging
 import re
@@ -128,6 +129,15 @@ def load_target(url):
         comments = post_json('https://m.ctrip.com/restapi/soa2/11557/GetTalentNoteAndCommentList',
                              {'PoiID': info['PoiId'], 'head': HEAD})
         target = shopping_target(url, overview, comments)
+        # 4.0.1 独立保留点评概览中的评分维度与页面样本；异常不覆盖已验证的主体对象。
+        from shopping_snapshot import extract_shopping_review_snapshot
+        try:
+            target['shopping_review_overview'] = extract_shopping_review_snapshot(
+                url, overview, comments, info['PoiId'], datetime.now(timezone.utc).isoformat())
+            target['shopping_review_overview_status'] = 'captured'
+        except (ValueError, TypeError, KeyError) as exc:
+            target['shopping_review_overview_status'] = 'unavailable'
+            target['shopping_review_overview_error'] = str(exc)
         logger.info('购物详情读取完成')
         return target
     # 4.1 无登录状态，不读取个人浏览器 Cookie。
@@ -179,6 +189,17 @@ def post_json(url, payload):
     return data
 
 
+def uses_restaurant_poi(target):
+    # /* ===== 步骤1：选择餐饮通道；数据源：已校验对象映射；操作：1) 限定业务 2) 核对正整数POI ===== */
+    logger.info('开始核对餐饮POI通道')
+    # 1.1 抓包及公开快照保留原通道，不改变导入报告。
+    poi = target.get('poi_id')
+    selected = (target.get('kind') == 'restaurant' and type(poi) is int and poi > 0
+                and target.get('source_method', 'public_comment_api') == 'public_comment_api')
+    logger.info('餐饮POI通道核对完成：%s', selected)
+    return selected
+
+
 def fetch_page(target, page_index):
     # /* ===== 步骤5：请求一页点评；数据源：公开接口；操作：1) 固定排序及大小 2) 不自动绕过错误 ===== */
     logger.info('开始请求第 %s 页', page_index)
@@ -192,6 +213,10 @@ def fetch_page(target, page_index):
                        'pageIndex': page_index, 'pageSize': 20, 'resourceId': target['resource_id'],
                        'resourceType': target['resource_type'], 'sortType': 3,
                        'sourceType': 1, 'starType': 0}, 'head': HEAD}
+    # 5.2 使用已实测网页请求，避免旧资源通道漏掉可见折叠点评。
+    if uses_restaurant_poi(target):
+        payload['arg'] = {'poiId': target['poi_id'], 'sortType': 3, 'commentTagId': 0,
+                          'pageIndex': page_index, 'pageSize': 10, 'sourceType': 1}
     request = Request(ENDPOINT, data=json.dumps(payload).encode(),
                       headers={'Content-Type': 'application/json'})
     with urlopen(request, timeout=30) as response:
@@ -230,11 +255,70 @@ def export_records(db, object_key, folder):
     return str(jsonl), str(csv_path)
 
 
-def collect_network(target, output, limit=500, stop=None, emit=None, fetch=None, delay=0.8, max_pages=10000):
+def merge_review_fields(previous, incoming):
+    # /* ===== 步骤1：补全已保存评论；数据源：同 ID 的不同观察；操作：1) 填补空字段 2) 保留冲突原值 ===== */
+    logger.info('开始合并评论可补全字段')
+    # 1.1 只补空值、缺失键与明确的文本或列表前缀扩展；其他冲突交给观察历史。
+    def merge(old, new):
+        if old is None:
+            return new
+        if type(old) is type(new) and old in ('', [], {}):
+            return new
+        if isinstance(old, dict) and isinstance(new, dict):
+            result = dict(old)
+            for key, value in new.items():
+                result[key] = merge(old[key], value) if key in old else value
+            return result
+        if isinstance(old, str) and isinstance(new, str) and new.startswith(old):
+            return new
+        if isinstance(old, list) and isinstance(new, list) and new[:len(old)] == old:
+            return new
+        return old
+
+    result = merge(previous, incoming)
+    logger.info('评论可补全字段合并完成')
+    return result
+
+
+def save_review_observation(db, object_key, comment_id, data, fetched_at, source_method):
+    # /* ===== 步骤1：留存原始观察；数据源：清洗后的单次评论；操作：1) 计算内容摘要 2) 按来源去重 ===== */
+    logger.info('开始保存评论观察')
+    # 1.1 摘要只用于同来源内容去重，原始观察与主记录分别保存。
+    cleaned = sanitize(data)
+    canonical = json.dumps(cleaned, sort_keys=True, ensure_ascii=False)
+    digest = hashlib.sha256(canonical.encode('utf-8')).hexdigest()
+    db.execute('INSERT OR IGNORE INTO network_review_observations VALUES (?,?,?,?,?,?)',
+               (object_key, comment_id, source_method, digest, canonical, fetched_at))
+    logger.info('评论观察保存完成')
+
+
+def export_review_observations(db, object_key, folder):
+    # /* ===== 步骤1：导出评论观察；数据源：已提交数据库；操作：1) 流式写入 2) 原子替换 ===== */
+    logger.info('开始导出评论观察')
+    path = folder / f'{object_key}-observations.jsonl'
+    temporary = path.with_name(path.name + '.' + uuid.uuid4().hex + '.tmp')
+    try:
+        # 1.1 独立文件保留每次不同内容与来源，避免把补全后主记录误认为单次响应。
+        with temporary.open('w', encoding='utf-8') as stream:
+            rows = db.execute('SELECT comment_id, source_method, data, fetched_at FROM network_review_observations WHERE object_key=? ORDER BY rowid', (object_key,))
+            for identity, source, raw, fetched_at in rows:
+                stream.write(json.dumps({'object_key': object_key, 'comment_id': identity, 'source_method': source,
+                                         'fetched_at': fetched_at, 'data': sanitize(json.loads(raw))},
+                                        ensure_ascii=False) + '\n')
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
+    logger.info('评论观察导出完成')
+    return str(path)
+
+
+def collect_network(target, output, limit=500, stop=None, emit=None, fetch=None, delay=0.8, max_pages=10000, *, refresh=False):
     # /* ===== 步骤7：分页持久化；数据源：指定对象；操作：1) 按服务端 ID 去重 2) 中止仍留报告 ===== */
     logger.info('开始网络采集')
     if limit < 1 or max_pages < 1:
         raise ValueError('目标条数和页数必须大于零')
+    if type(refresh) is not bool:
+        raise ValueError('刷新选项必须为布尔值')
     stop = stop or Event()
     emit = emit or logger.info
     fetch = fetch or (lambda index: fetch_page(target, index))
@@ -244,21 +328,40 @@ def collect_network(target, output, limit=500, stop=None, emit=None, fetch=None,
     started = time.monotonic()
     stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
     report = {'object_key': key, 'name': target['name'], 'source_url': target['url'],
-              'source_method': target.get('source_method', 'public_comment_api'),
+              'source_method': 'public_restaurant_poi_api' if uses_restaurant_poi(target) else target.get('source_method', 'public_comment_api'),
               'target': limit, 'display_total': target['display_total'], 'server_counts': {},
               'complete': False, 'reason': 'capture_exhausted' if target.get('source_method') == 'app_proxy_capture' else 'page_budget_reached',
               'error': '', 'export_error': '',
-              'pages': 0, 'count': 0, 'new_count': 0, 'jsonl': None, 'csv': None,
+              'pages': 0, 'count': 0, 'new_count': 0, 'read_unique': 0,
+              'jsonl': None, 'csv': None, 'observations_jsonl': None,
               'sort_type': None if target['kind'] == 'hotel' else 3,
-              'page_size': target.get('page_size') if target['kind'] == 'hotel' else 20,
+              'page_size': target.get('page_size') if target['kind'] == 'hotel' else 10 if uses_restaurant_poi(target) else 20,
               'ai_summary_status': target.get('ai_summary', {}).get('status', 'not_captured'),
+              'object_saved': False,
               'limitations': ['网页公开响应不等于 App 全量；隐藏、折叠及不同来源计数不得相加冒充总量。',
                               '首批目标条数受平台排序影响，不能保证无抽样偏差。',
-                              '图片视频保留返回元数据与链接；未下载媒体文件。']}
+                              '图片视频保留返回元数据与链接；未下载媒体文件。',
+                              '主评论可合并补全字段；不同原始观察及其来源另存在观察文件。']}
     db = sqlite3.connect(output / 'network.sqlite3')
+    # 7.0 新餐饮通道必须实际读取目标数量，旧库累计条数不能替代通道核验。
+    refresh_poi = uses_restaurant_poi(target)
+    # 7.0.1 显式刷新按本次不同评论 ID 计目标，旧库已达标也要读取新来源。
+    count_current_run = refresh or refresh_poi
+    report['target_scope'] = 'current_run' if count_current_run else 'stored_total'
+    report['refresh_requested'] = refresh
+    if target['kind'] == 'restaurant':
+        report['restaurant_request_revision'] = 2
+    if target['kind'] in {'sight', 'restaurant', 'shopping'} and report['source_method'] != 'app_proxy_capture':
+        from public_poi_profile import project_profile
+        try:
+            report['public_profile'] = project_profile(target, target['url'])
+        except (ValueError, TypeError, KeyError, AttributeError):
+            logger.warning('未能整理公开对象资料，继续点评采集', exc_info=True)
+            report['public_profile_status'] = 'unavailable'
     try:
         # 7.1 保持与旧 UI 数据库隔离，禁止猜测两个来源的评论身份。
         db.execute('CREATE TABLE IF NOT EXISTS network_reviews (object_key TEXT, comment_id TEXT, data TEXT NOT NULL, fetched_at TEXT NOT NULL, PRIMARY KEY(object_key,comment_id))')
+        db.execute('CREATE TABLE IF NOT EXISTS network_review_observations (object_key TEXT NOT NULL, comment_id TEXT NOT NULL, source_method TEXT NOT NULL, data_hash TEXT NOT NULL, data TEXT NOT NULL, fetched_at TEXT NOT NULL, PRIMARY KEY(object_key,comment_id,source_method,data_hash))')
         db.commit()
         before = db.execute('SELECT COUNT(*) FROM network_reviews WHERE object_key=?', (key,)).fetchone()[0]
         saved_count = before
@@ -269,14 +372,22 @@ def collect_network(target, output, limit=500, stop=None, emit=None, fetch=None,
             object_name = f'{key}-public-object.json'
         else:
             object_name = f'{key}-object.json'
-        (output / object_name).write_text(json.dumps(target, ensure_ascii=False, indent=2), encoding='utf-8')
+        # 7.1.3 先写唯一临时文件并替换；中断不能截断上一次对象详情。
+        object_path = output / object_name
+        temporary_object = object_path.with_name(object_path.name + '.' + uuid.uuid4().hex + '.tmp')
+        try:
+            temporary_object.write_text(json.dumps(target, ensure_ascii=False, indent=2), encoding='utf-8')
+            temporary_object.replace(object_path)
+            report['object_saved'] = True
+        finally:
+            temporary_object.unlink(missing_ok=True)
         seen = set()
         repeated = 0
         for index in range(1, max_pages + 1):
             if stop.is_set():
                 report['reason'] = 'cancelled'
                 break
-            if saved_count >= limit:
+            if (len(seen) if count_current_run else saved_count) >= limit:
                 report['reason'] = 'public_snapshot_only' if report['source_method'] == 'hotel_public_html_snapshot' else 'target_reached'
                 break
             data = fetch(index)
@@ -290,7 +401,7 @@ def collect_network(target, output, limit=500, stop=None, emit=None, fetch=None,
             if 'items' not in result or not isinstance(result.get('totalCount'), int) or (result['items'] is not None and not isinstance(result['items'], list)):
                 raise ValueError('接口返回未知分页结构，已停止')
             # 7.1.2 未达到服务端总数却收到null无法证明没有下一页；抓包空批次允许后续批次。
-            if result['items'] is None and result['totalCount'] > saved_count and report['source_method'] != 'app_proxy_capture':
+            if result['items'] is None and result['totalCount'] > (len(seen) if count_current_run else saved_count) and report['source_method'] != 'app_proxy_capture':
                 raise ValueError('接口评论列表为空值且已存条数低于服务端总数，已停止；不能判断数据采完')
             report['pages'] += 1
             report['server_counts'] = {k: result.get(k) for k in ('totalCount', 'totalHideCount', 'totalCollapseCount')}
@@ -307,21 +418,48 @@ def collect_network(target, output, limit=500, stop=None, emit=None, fetch=None,
             # 7.2 一页事务，先校验全部 ID，再保存；避免半页无效响应污染数据。
             if any(not item.get('commentId') for item in items):
                 raise ValueError('响应缺少稳定评论 ID，已停止')
+            # 7.2.0 常规网页评论若明确提供资源 ID，须与当前对象一致；缺失或零值不能推断身份。
+            if target['kind'] in {'sight', 'restaurant', 'shopping'}:
+                for item in items:
+                    resource_id = item.get('resourceId')
+                    # 7.2.1 数字字符串同样具有明确身份；零值和缺失仍不能判定。
+                    numeric_id = (str(resource_id) if type(resource_id) is int and resource_id > 0 else
+                                  resource_id.lstrip('0') if isinstance(resource_id, str)
+                                  and re.fullmatch(r'[0-9]+', resource_id) else '')
+                    if numeric_id and numeric_id != str(target['resource_id']):
+                        raise ValueError('评论响应包含其他对象，已停止')
             with db:
                 for item in items:
                     identity = str(item['commentId'])
-                    if saved_count >= limit:
+                    if (len(seen) if count_current_run else saved_count) >= limit:
                         break
                     seen.add(identity)
+                    clean_item = sanitize(item)
                     cursor = db.execute('INSERT OR IGNORE INTO network_reviews VALUES (?,?,?,?)',
-                                        (key, identity, json.dumps(sanitize(item), ensure_ascii=False), fetched_at))
+                                        (key, identity, json.dumps(clean_item, ensure_ascii=False), fetched_at))
                     saved_count += cursor.rowcount
+                    if not cursor.rowcount:
+                        # 7.2.1 旧库尚无观察历史时先留原值；冲突字段不覆盖。
+                        raw, original_time = db.execute('SELECT data, fetched_at FROM network_reviews WHERE object_key=? AND comment_id=?',
+                                                        (key, identity)).fetchone()
+                        previous = sanitize(json.loads(raw))
+                        if not db.execute('SELECT 1 FROM network_review_observations WHERE object_key=? AND comment_id=? LIMIT 1',
+                                          (key, identity)).fetchone():
+                            save_review_observation(db, key, identity, previous, original_time, 'historical_unknown')
+                        merged = merge_review_fields(previous, clean_item)
+                        if merged != previous:
+                            merged['_collector_field_merge'] = True
+                            db.execute('UPDATE network_reviews SET data=? WHERE object_key=? AND comment_id=?',
+                                       (json.dumps(merged, ensure_ascii=False), key, identity))
+                    # 7.2.2 每种不同来源和内容单独留证，重复请求不会增加观察数。
+                    save_review_observation(db, key, identity, clean_item, fetched_at, report['source_method'])
+            report['read_unique'] = len(seen)
             repeated = repeated + 1 if len(seen) == old_seen else 0
             emit(f"{target['name']}：第 {index} 页，本次读取 {len(seen)} 个不同评论 ID")
             if report['source_method'] == 'hotel_public_html_snapshot':
                 report['reason'] = 'public_snapshot_only'
                 break
-            if saved_count >= limit:
+            if (len(seen) if count_current_run else saved_count) >= limit:
                 report['reason'] = 'target_reached'
                 break
             if repeated >= 3 and report['source_method'] != 'app_proxy_capture':
@@ -340,10 +478,14 @@ def collect_network(target, output, limit=500, stop=None, emit=None, fetch=None,
         # 7.3 导出被占用时保留已提交数据库和错误报告。
         try:
             report['jsonl'], report['csv'] = export_records(db, key, output)
+            report['observations_jsonl'] = export_review_observations(db, key, output)
         except OSError as exc:
             report['export_error'] = str(exc)
         finally:
             db.close()
+        # 7.3.1 浏览器回调可能在翻页时发现 AI 总结，以最后成功保存的对象状态为准。
+        report['ai_summary_observed_status'] = target.get('ai_summary', {}).get('status', 'not_captured')
+        report['ai_summary_status'] = report['ai_summary_observed_status'] if report['object_saved'] else 'not_saved'
         report['elapsed_seconds'] = round(time.monotonic() - started, 3)
         (output / f'{key}-report-{stamp}.json').write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
         logger.info('网络采集结束：%s', report['reason'])

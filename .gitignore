@@ -28,6 +28,14 @@ outputs/
 
 # 本地工具与凭据
 platform-tools/
+browser-profile*/
+capture/
+captures/
+raw/
+*.apk
+*.pem
+*.p12
+*.pfx
 *.mitm
 *.har
 .env

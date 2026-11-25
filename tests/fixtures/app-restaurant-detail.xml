@@ -1,0 +1,182 @@
+<hierarchy>
+  <node resource-id="gm_food_detail_scroll" class="android.widget.ScrollView" package="ctrip.android.view" content-desc="gm_food_detail_scroll" bounds="[0,0][1080,2337]">
+    <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[0,0][1080,2337]">
+      <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[0,0][1080,1407]">
+        <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[0,0][1080,770]">
+          <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[32,628][524,691]">
+            <node resource-id="o_gourmet_detail_cover" class="android.view.ViewGroup" package="ctrip.android.view" content-desc="o_gourmet_detail_cover" bounds="[35,628][145,691]">
+              <node text="封面" class="android.widget.TextView" package="ctrip.android.view" bounds="[35,630][145,689]" />
+            </node>
+            <node resource-id="o_gourmet_detail_highlights" class="android.view.ViewGroup" package="ctrip.android.view" content-desc="o_gourmet_detail_highlights" bounds="[145,628][262,691]">
+              <node text="亮点" class="android.widget.TextView" package="ctrip.android.view" bounds="[145,630][256,689]" />
+            </node>
+            <node class="android.view.ViewGroup" package="ctrip.android.view" content-desc="o_gm_photo_featured" bounds="[261,628][371,691]">
+              <node text="精选" resource-id="o_gm_photo_featured" class="android.widget.TextView" package="ctrip.android.view" content-desc="o_gm_photo_featured" bounds="[261,630][371,689]" />
+            </node>
+            <node resource-id="o_gs_photoall" class="android.view.ViewGroup" package="ctrip.android.view" content-desc="o_gs_photoall" bounds="[371,628][500,691]">
+              <node text="相册" class="android.widget.TextView" package="ctrip.android.view" bounds="[371,630][470,689]" />
+              <node text="" class="android.widget.TextView" package="ctrip.android.view" bounds="[468,644][500,675]" />
+            </node>
+          </node>
+          <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[534,628][784,691]">
+            <node resource-id="o_gs_lvpaiall" class="android.view.ViewGroup" package="ctrip.android.view" content-desc="o_gs_lvpaiall" bounds="[555,628][761,691]">
+              <node text="达人晒图" class="android.widget.TextView" package="ctrip.android.view" bounds="[555,630][731,689]" />
+              <node text="" class="android.widget.TextView" package="ctrip.android.view" bounds="[729,644][761,675]" />
+            </node>
+          </node>
+        </node>
+        <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[0,0][1080,770]">
+          <node class="android.widget.HorizontalScrollView" package="ctrip.android.view" bounds="[0,0][1080,770]">
+            <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[0,0][1080,770]">
+              <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[0,0][1080,770]">
+                <node resource-id="gm_food_detail_photo_0" class="android.widget.ImageView" package="ctrip.android.view" content-desc="gm_food_detail_photo_0" bounds="[0,0][1080,770]" />
+              </node>
+            </node>
+          </node>
+        </node>
+        <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[0,717][1080,1386]">
+          <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[0,717][1080,1386]">
+            <node text="Mercato by Jean-Georges意大利餐厅" class="android.widget.TextView" package="ctrip.android.view" bounds="[32,749][824,883]" />
+            <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[32,893][1049,946]">
+              <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[32,896][96,942]">
+                <node text="4.3" class="android.widget.TextView" package="ctrip.android.view" bounds="[32,898][96,939]" />
+              </node>
+              <node text="好" class="android.widget.TextView" package="ctrip.android.view" bounds="[107,895][142,942]" />
+              <node class="android.view.ViewGroup" package="ctrip.android.view" content-desc="470条点评, " bounds="[165,893][365,946]">
+                <node text="470条点评" class="android.widget.TextView" package="ctrip.android.view" bounds="[165,895][330,942]" />
+                <node text="" class="android.widget.TextView" package="ctrip.android.view" bounds="[331,902][365,937]" />
+              </node>
+              <node text="人均¥600" class="android.widget.TextView" package="ctrip.android.view" bounds="[387,896][535,943]" />
+              <node text="西餐" class="android.widget.TextView" package="ctrip.android.view" bounds="[557,895][627,942]" />
+            </node>
+            <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[32,963][1049,1064]">
+              <node class="android.view.ViewGroup" package="ctrip.android.view" content-desc=".., 铂金, " bounds="[55,986][235,1041]">
+                <node text=".." class="android.widget.TextView" package="ctrip.android.view" bounds="[66,994][101,1031]" />
+                <node text="铂金" class="android.widget.TextView" package="ctrip.android.view" bounds="[127,989][191,1036]" />
+                <node text="" class="android.widget.TextView" package="ctrip.android.view" bounds="[192,995][229,1030]" />
+              </node>
+              <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[247,986][817,1041]">
+                <node class="android.view.ViewGroup" package="ctrip.android.view" content-desc="gm_food_detail_koubeiRankingIcon, 上海美食必打卡榜 No.17, gm_food_detail_koubeiRankingArrowIcon" bounds="[247,986][817,1041]">
+                  <node resource-id="gm_food_detail_koubeiRankingIcon" class="android.widget.ImageView" package="ctrip.android.view" content-desc="gm_food_detail_koubeiRankingIcon" bounds="[247,986][377,1041]" />
+                  <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[377,986][817,1041]">
+                    <node text="上海美食必打卡榜 No.17" class="android.widget.TextView" package="ctrip.android.view" bounds="[377,986][773,1041]" />
+                    <node text="" resource-id="gm_food_detail_koubeiRankingArrowIcon" class="android.widget.TextView" package="ctrip.android.view" content-desc="gm_food_detail_koubeiRankingArrowIcon" bounds="[761,996][816,1031]" />
+                  </node>
+                </node>
+              </node>
+              <node resource-id="o_gm_yanbang" class="android.view.ViewGroup" package="ctrip.android.view" content-desc="o_gm_yanbang" bounds="[828,967][1025,1059]">
+                <node text=" 6人验榜" class="android.widget.TextView" package="ctrip.android.view" bounds="[986,989][994,1035]" />
+                <node text="" class="android.widget.TextView" package="ctrip.android.view" bounds="[993,1000][1025,1031]" />
+              </node>
+            </node>
+            <node resource-id="o_gs_newlable" class="android.view.ViewGroup" package="ctrip.android.view" content-desc="o_gs_newlable" bounds="[0,1064][1080,1234]" />
+            <node class="android.widget.HorizontalScrollView" package="ctrip.android.view" bounds="[0,1064][1080,1234]">
+              <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[32,1087][1080,1211]">
+                <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[32,1087][252,1211]">
+                  <node text="" class="android.widget.TextView" package="ctrip.android.view" bounds="[58,1102][96,1142]" />
+                  <node text="休息中" class="android.widget.TextView" package="ctrip.android.view" bounds="[107,1100][212,1144]" />
+                  <node text="17:30-22:00" class="android.widget.TextView" package="ctrip.android.view" bounds="[58,1155][227,1198]" />
+                </node>
+                <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[268,1087][508,1211]">
+                  <node text="" class="android.widget.TextView" package="ctrip.android.view" bounds="[294,1102][332,1142]" />
+                  <node text="餐厅特色" class="android.widget.TextView" package="ctrip.android.view" bounds="[343,1100][483,1144]" />
+                  <node text="江景" class="android.widget.TextView" package="ctrip.android.view" bounds="[294,1155][484,1198]" />
+                </node>
+                <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[525,1087][705,1211]">
+                  <node text=".." class="android.widget.TextView" package="ctrip.android.view" bounds="[551,1102][589,1142]" />
+                  <node text="亮点" class="android.widget.TextView" package="ctrip.android.view" bounds="[600,1100][670,1144]" />
+                  <node text="名人名厨" class="android.widget.TextView" package="ctrip.android.view" bounds="[551,1155][679,1198]" />
+                </node>
+                <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[720,1087][1080,1211]">
+                  <node text="" class="android.widget.TextView" package="ctrip.android.view" bounds="[746,1108][784,1148]" />
+                  <node text="服务设施" class="android.widget.TextView" package="ctrip.android.view" bounds="[795,1106][935,1150]" />
+                  <node text="空调开放 | 等位区 | 免费Wi-Fi" class="android.widget.TextView" package="ctrip.android.view" bounds="[746,1161][1080,1196]" />
+                </node>
+              </node>
+            </node>
+            <node class="android.view.ViewGroup" package="ctrip.android.view" content-desc="中山东一路3号外滩三号6楼, 距123路中山东一路广东路站108m，步行1min" bounds="[32,1238][810,1382]">
+              <node text="中山东一路3号外滩三号6楼" class="android.widget.TextView" package="ctrip.android.view" bounds="[32,1261][810,1305]" />
+              <node text="距123路中山东一路广东路站108m，步行1min" class="android.widget.TextView" package="ctrip.android.view" bounds="[32,1315][810,1359]" />
+            </node>
+            <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[988,1064][1080,1242]">
+              <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[988,1064][1080,1093]">
+                                      </node>
+              <node class="android.view.ViewGroup" package="ctrip.android.view" content-desc=".." bounds="[988,1093][1080,1216]">
+                <node text=".." class="android.widget.TextView" package="ctrip.android.view" bounds="[1016,1134][1054,1174]" />
+              </node>
+              <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[988,1214][1080,1242]">
+                                      </node>
+            </node>
+            <node class="android.view.ViewGroup" package="ctrip.android.view" content-desc="gm_food_detail_navigationIcon, 导航" bounds="[842,1257][906,1363]">
+              <node text=".." resource-id="gm_food_detail_navigationIcon" class="android.widget.TextView" package="ctrip.android.view" content-desc="gm_food_detail_navigationIcon" bounds="[856,1264][891,1301]" />
+              <node text="导航" class="android.widget.TextView" package="ctrip.android.view" bounds="[842,1320][906,1363]" />
+            </node>
+            <node class="android.view.ViewGroup" package="ctrip.android.view" content-desc="gm_food_detail_phoneIcon, 电话" bounds="[980,1257][1044,1363]">
+              <node text=".." resource-id="gm_food_detail_phoneIcon" class="android.widget.TextView" package="ctrip.android.view" content-desc="gm_food_detail_phoneIcon" bounds="[991,1261][1032,1304]" />
+              <node text="电话" class="android.widget.TextView" package="ctrip.android.view" bounds="[980,1320][1044,1363]" />
+            </node>
+          </node>
+        </node>
+        <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[870,625][1043,838]">
+                                </node>
+      </node>
+      <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[0,1407][1080,1728]">
+        <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[0,1407][1080,1728]">
+          <node class="android.view.ViewGroup" package="ctrip.android.view" content-desc="1382人已订" bounds="[6,1430][1074,1485]">
+            <node text="1382人已订" class="android.widget.TextView" package="ctrip.android.view" bounds="[860,1433][1045,1480]" />
+          </node>
+          <node class="android.view.ViewGroup" package="ctrip.android.view" content-desc="最早2026-11-26可订, ·, 2, 人用餐" bounds="[6,1508][1074,1590]">
+            <node text="最早2026-11-26可订" class="android.widget.TextView" package="ctrip.android.view" bounds="[35,1508][435,1567]" />
+            <node text="·" class="android.widget.TextView" package="ctrip.android.view" bounds="[446,1511][456,1563]" />
+            <node text="2" class="android.widget.TextView" package="ctrip.android.view" bounds="[468,1508][493,1567]" />
+            <node text="人用餐" class="android.widget.TextView" package="ctrip.android.view" bounds="[498,1514][603,1561]" />
+          </node>
+          <node class="android.widget.HorizontalScrollView" package="ctrip.android.view" bounds="[35,1590][801,1699]">
+            <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[35,1590][605,1699]">
+              <node class="android.view.ViewGroup" package="ctrip.android.view" content-desc="17:30" bounds="[35,1593][213,1696]">
+                <node text="17:30" class="android.widget.TextView" package="ctrip.android.view" bounds="[68,1615][179,1674]" />
+              </node>
+              <node class="android.view.ViewGroup" package="ctrip.android.view" content-desc="18:00" bounds="[231,1593][410,1696]">
+                <node text="18:00" class="android.widget.TextView" package="ctrip.android.view" bounds="[264,1615][375,1674]" />
+              </node>
+              <node class="android.view.ViewGroup" package="ctrip.android.view" content-desc="18:30" bounds="[427,1593][605,1696]">
+                <node text="18:30" class="android.widget.TextView" package="ctrip.android.view" bounds="[460,1615][571,1674]" />
+              </node>
+            </node>
+          </node>
+          <node class="android.view.ViewGroup" package="ctrip.android.view" content-desc="立即订座" bounds="[825,1593][1046,1696]">
+            <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[825,1593][1046,1696]">
+              <node text="立即订座" class="android.widget.TextView" package="ctrip.android.view" bounds="[859,1618][1011,1670]" />
+            </node>
+          </node>
+        </node>
+      </node>
+      <node resource-id="o_gs_tuijiancai" class="android.view.ViewGroup" package="ctrip.android.view" content-desc="o_gs_tuijiancai" bounds="[0,1749][1080,2256]">
+        <node class="android.view.ViewGroup" package="ctrip.android.view" content-desc="推荐菜(8), 查看全部, " bounds="[0,1749][1080,2256]">
+          <node text="推荐菜(8)" class="android.widget.TextView" package="ctrip.android.view" bounds="[35,1772][257,1842]" />
+          <node text="查看全部" class="android.widget.TextView" package="ctrip.android.view" bounds="[870,1784][1010,1831]" />
+          <node text="" class="android.widget.TextView" package="ctrip.android.view" bounds="[1010,1790][1045,1824]" />
+          <node class="android.widget.HorizontalScrollView" package="ctrip.android.view" bounds="[35,1867][1080,2221]">
+            <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[35,1867][1080,2221]">
+              <node class="android.view.ViewGroup" package="ctrip.android.view" content-desc="黑松露披萨" bounds="[35,1867][469,2221]">
+                <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[35,1867][452,2152]">
+                                        </node>
+                <node text="黑松露披萨" class="android.widget.TextView" package="ctrip.android.view" bounds="[35,2163][469,2221]" />
+              </node>
+              <node class="android.view.ViewGroup" package="ctrip.android.view" content-desc="脆烤章鱼" bounds="[470,1867][905,2221]">
+                <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[470,1867][888,2152]">
+                                        </node>
+                <node text="脆烤章鱼" class="android.widget.TextView" package="ctrip.android.view" bounds="[470,2163][905,2221]" />
+              </node>
+              <node class="android.view.ViewGroup" package="ctrip.android.view" content-desc="木炭烤加拿大龙虾" bounds="[905,1867][1080,2221]">
+                <node class="android.view.ViewGroup" package="ctrip.android.view" bounds="[905,1867][1080,2152]">
+                                        </node>
+                <node text="木炭烤加拿大龙虾" class="android.widget.TextView" package="ctrip.android.view" bounds="[905,2163][1080,2221]" />
+              </node>
+            </node>
+          </node>
+        </node>
+      </node>
+    </node>
+  </node>
+</hierarchy>

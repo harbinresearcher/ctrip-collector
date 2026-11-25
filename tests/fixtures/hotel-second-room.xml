@@ -1,0 +1,46 @@
+<node text="" resource-id="htl_x_dtl_rmlist_mbRmCard_exposure" class="android.view.ViewGroup" package="ctrip.android.view" bounds="[31,2759][1409,3140]">
+  <node text="" resource-id="htl_hoteldetail_roomList_RoomImage_qmgwge" class="android.view.ViewGroup" package="ctrip.android.view" bounds="[77,2805][384,3140]">
+    <node text="" resource-id="" class="android.view.ViewGroup" package="ctrip.android.view" bounds="[77,2805][384,3140]">
+      <node text="" resource-id="" class="android.widget.ImageView" package="ctrip.android.view" bounds="[77,2805][384,3140]" />
+    </node>
+    <node text="" resource-id="htl_x_dtl_rmlist_rmCard_videoPlayBt_exposure" class="android.view.ViewGroup" package="ctrip.android.view" bounds="[261,3080][307,3127]" />
+    <node text="" resource-id="" class="android.view.ViewGroup" package="ctrip.android.view" bounds="[276,3088][296,3119]" />
+    <node text="" resource-id="" class="android.view.ViewGroup" package="ctrip.android.view" bounds="[315,3080][361,3127]" />
+    <node text="4" resource-id="" class="android.widget.TextView" package="ctrip.android.view" bounds="[315,3080][361,3127]" />
+  </node>
+  <node text="" resource-id="" class="android.view.ViewGroup" package="ctrip.android.view" bounds="[423,2805][1363,3140]">
+    <node text="" resource-id="" class="android.view.ViewGroup" package="ctrip.android.view" bounds="[423,2805][1283,2883]">
+      <node text="锦华高级房-大床" resource-id="" class="android.widget.TextView" package="ctrip.android.view" bounds="[423,2805][1283,2883]" />
+    </node>
+    <node text="" resource-id="" class="android.view.ViewGroup" package="ctrip.android.view" bounds="[1283,2805][1363,2883]">
+      <node text="󱮕" resource-id="" class="android.widget.TextView" package="ctrip.android.view" bounds="[1301,2816][1363,2881]" />
+    </node>
+    <node text="" resource-id="" class="android.view.ViewGroup" package="ctrip.android.view" bounds="[423,2905][1177,2968]">
+      <node text="1张1.8米大床" resource-id="" class="android.widget.TextView" package="ctrip.android.view" bounds="[423,2905][697,2968]" />
+      <node text="36㎡" resource-id="" class="android.widget.TextView" package="ctrip.android.view" bounds="[716,2905][823,2968]" />
+      <node text="2人入住" resource-id="" class="android.widget.TextView" package="ctrip.android.view" bounds="[843,2905][1013,2968]" />
+      <node text="2-6层" resource-id="" class="android.widget.TextView" package="ctrip.android.view" bounds="[1032,2905][1159,2968]" />
+    </node>
+    <node text="" resource-id="" class="android.view.ViewGroup" package="ctrip.android.view" bounds="[423,2992][1363,3053]">
+      <node text="" resource-id="" class="android.view.ViewGroup" package="ctrip.android.view" bounds="[423,2992][527,3053]">
+        <node text="浴缸" resource-id="" class="android.widget.TextView" package="ctrip.android.view" bounds="[436,2995][513,3048]" />
+      </node>
+      <node text="" resource-id="" class="android.view.ViewGroup" package="ctrip.android.view" bounds="[543,2992][725,3053]">
+        <node text="部分禁烟" resource-id="" class="android.widget.TextView" package="ctrip.android.view" bounds="[556,2995][711,3048]" />
+      </node>
+    </node>
+    <node text="" resource-id="" class="android.view.ViewGroup" package="ctrip.android.view" bounds="[423,3076][1363,3140]" />
+    <node text="" resource-id="htl_x_dtl_rmlist_rmCard_promotionBt_exposure" class="android.view.ViewGroup" package="ctrip.android.view" bounds="[1005,2996][1363,3140]">
+      <node text="¥526" resource-id="" class="android.widget.TextView" package="ctrip.android.view" bounds="[1040,3024][1140,3071]" />
+      <node text="" resource-id="" class="android.widget.TextView" package="ctrip.android.view" bounds="[1040,3043][1140,3047]" />
+      <node text="¥489起" resource-id="" class="android.widget.TextView" package="ctrip.android.view" bounds="[1155,2996][1363,3077]" />
+      <node text="" resource-id="" class="android.view.View" package="ctrip.android.view" bounds="[1005,3089][1223,3140]" />
+      <node text="特惠一口价" resource-id="" class="android.widget.TextView" package="ctrip.android.view" bounds="[1005,3093][1199,3140]" />
+      <node text="" resource-id="" class="android.view.ViewGroup" package="ctrip.android.view" bounds="[1211,3089][1213,3099]" />
+      <node text="" resource-id="" class="android.view.ViewGroup" package="ctrip.android.view" bounds="[1211,3107][1213,3116]" />
+      <node text="" resource-id="" class="android.view.ViewGroup" package="ctrip.android.view" bounds="[1211,3124][1213,3133]" />
+      <node text="" resource-id="" class="android.view.ViewGroup" package="ctrip.android.view" bounds="[1224,3089][1363,3140]" />
+      <node text="优惠37" resource-id="" class="android.widget.TextView" package="ctrip.android.view" bounds="[1229,3093][1352,3140]" />
+    </node>
+  </node>
+</node>

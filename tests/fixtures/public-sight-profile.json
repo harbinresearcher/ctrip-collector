@@ -1,0 +1,143 @@
+{
+  "kind": "sight",
+  "url": "https://you.ctrip.com/sight/tianjin154/112796.html",
+  "resource_id": 112796,
+  "resource_type": 66,
+  "poi_id": 10559411,
+  "name": "海河游船",
+  "display_total": 4888,
+  "ai_summary": {
+    "status": "sample",
+    "sections": [
+      "test-only text excluded from export"
+    ]
+  },
+  "details": {
+    "commentScore": 4.8,
+    "address": "天津市河北区李公祠大街永乐码头(大悲院)（具体登船地点请留意各船次信息）",
+    "districtName": "天津",
+    "rankingDesc": "2026中国100夜游必打卡景点",
+    "openInfo": {
+      "openTime": "全年 10:00-21:00开放",
+      "openStatus": "今日已闭园",
+      "latelyOpenTime": "明天10:00-21:00开放",
+      "playSpendTime": "1-2小时",
+      "openDateRuleInfo": [
+        {
+          "dateDesc": "全年",
+          "openWeekRuleInfo": [
+            {
+              "weekDesc": "10:00-21:00开放"
+            }
+          ]
+        }
+      ]
+    },
+    "policyInfoList": [
+      {
+        "name": "婴儿票",
+        "policyDesc": "年龄1周岁(不含)以下，凭身份证、户口本或出生证明等有效证件（在各乘船码头检票处领取免费婴儿票，每名成人仅限携带2名1周岁以下婴儿（婴儿无座位）），免费"
+      },
+      {
+        "name": "幼儿票",
+        "policyDesc": "年龄1周岁（含）-5周岁（含），凭身份证、户口本或出生证明等有效证件（乘船时须由成年人陪同），优惠"
+      },
+      {
+        "name": "儿童",
+        "policyDesc": "年龄6周岁（含）-13周岁（含），凭身份证、户口本或出生证明等有效证件，半价"
+      },
+      {
+        "name": "学生",
+        "policyDesc": "年龄14周岁（含）-17周岁（含）(检票时须出示有效证件)，优惠"
+      },
+      {
+        "name": "老人",
+        "policyDesc": "年龄65周岁（含）以上，凭身份证原件，优惠"
+      },
+      {
+        "name": "残疾人",
+        "policyDesc": "持有效残疾证的残障人士，优惠"
+      },
+      {
+        "name": "军人",
+        "policyDesc": "持有效军官证、士兵证的现役军人，凭有效证件，优惠"
+      },
+      {
+        "name": "消防员",
+        "policyDesc": "持有消防员证的消防员，凭有效证件，优惠"
+      }
+    ]
+  },
+  "comment_info": {
+    "scores": [
+      {
+        "name": "景色",
+        "score": 4.8
+      },
+      {
+        "name": "趣味",
+        "score": 4.7
+      },
+      {
+        "name": "性价比",
+        "score": 4.7
+      }
+    ],
+    "commentHotTags": [
+      {
+        "tagContent": "好评",
+        "commentCount": 3798
+      },
+      {
+        "tagContent": "消费后评价",
+        "commentCount": 3804
+      },
+      {
+        "tagContent": "差评",
+        "commentCount": 67
+      }
+    ],
+    "subCommentHotTags": [
+      {
+        "tagContent": "领略海河两岸的美景",
+        "commentCount": 23
+      },
+      {
+        "tagContent": "景色优美",
+        "commentCount": 9
+      },
+      {
+        "tagContent": "讲解细致",
+        "commentCount": 5
+      },
+      {
+        "tagContent": "遛娃好去处",
+        "commentCount": 5
+      },
+      {
+        "tagContent": "饱览天津历史风貌",
+        "commentCount": 4
+      },
+      {
+        "tagContent": "建筑有特色",
+        "commentCount": 3
+      },
+      {
+        "tagContent": "很安全",
+        "commentCount": 2
+      },
+      {
+        "tagContent": "值得再来",
+        "commentCount": 2
+      },
+      {
+        "tagContent": "水质好",
+        "commentCount": 1
+      },
+      {
+        "tagContent": "拍照很赞",
+        "commentCount": 1
+      }
+    ]
+  }
+}

@@ -1,5 +1,6 @@
-"""从酒店住客图集网格启动AI优选图片采集。"""
+"""从酒店住客图集网格或当前大图启动AI优选图片采集。"""
 import logging
+import re
 import xml.etree.ElementTree as ET
 
 from ai_capture import parse_gallery
@@ -7,21 +8,35 @@ from core import bounds
 from gallery_batch import collect_gallery_pages
 from gallery_cache import cache_snapshot
 from gallery_capture import gallery_position
+from gallery_layout import viewer_region
 
 logger = logging.getLogger(__name__)
 
 
-def capture_ai_gallery(adb, resource_id, output, stop, *, max_pages=30):
+def capture_ai_gallery(adb, resource_id, output, stop, *, max_pages=30, save_display_fallback=False, start_page=None):
     # /* ===== 步骤1：验证网格入口；数据源：用户打开的住客图集；操作：1) 验证酒店ID 2) 点击前记录缓存 ===== */
     logger.info('开始准备AI图集采集')
-    if not resource_id.isdigit() or int(resource_id) <= 0 or not 1 <= max_pages <= 500:
+    if (not isinstance(resource_id, str) or not re.fullmatch(r'[0-9]{1,20}', resource_id)
+            or int(resource_id) <= 0 or type(max_pages) is not int or not 1 <= max_pages <= 500):
         raise ValueError('请填写正整数酒店ID和1至500页采集上限')
+    if start_page is not None and (type(start_page) is not int or not 1 <= start_page <= 1000000):
+        raise ValueError('起始页码须为正整数')
     if stop.is_set():
         raise InterruptedError('图集采集已取消')
     adb.ensure_foreground()
     xml = adb.snapshot()
+    if start_page is not None:
+        position = gallery_position(xml, 'AI优选')
+        if position[0] != start_page:
+            raise ValueError(f'手机当前页码为 {position[0]}/{position[1]}，与填写的起始页不一致')
+        viewer_region(xml, 'AI优选')
+        baseline = cache_snapshot(adb)
+        logger.info('AI图集从已打开的大图第%s页开始读取', position[0])
+        return collect_gallery_pages(adb, baseline, None, output, 'hotel-' + str(int(resource_id)), 'AI优选',
+                                     stop, max_pages=max_pages, save_display_fallback=save_display_fallback,
+                                     expected_start=position)
     metadata = parse_gallery(xml)
-    nodes = list(ET.fromstring(xml).iter('node'))
+    nodes = [node for node in ET.fromstring(xml).iter('node') if node.get('package') == 'ctrip.android.view']
     labels = [n for n in nodes if n.get('text', '').strip() == f"AI优选 {metadata['selected_count']}"]
     if len(labels) != 1:
         raise ValueError('请打开住客晒图网格，并让AI优选分类可见')
@@ -45,7 +60,7 @@ def capture_ai_gallery(adb, resource_id, output, stop, *, max_pages=30):
     adb.ensure_foreground()
     xml = adb.snapshot()
     metadata = parse_gallery(xml)
-    nodes = list(ET.fromstring(xml).iter('node'))
+    nodes = [node for node in ET.fromstring(xml).iter('node') if node.get('package') == 'ctrip.android.view']
     windows = [bounds(n) for n in nodes if n.get('class') == 'android.widget.FrameLayout' and bounds(n)[:2] == [0,0]]
     if not windows:
         raise ValueError('无法识别图集网格窗口')
@@ -64,4 +79,5 @@ def capture_ai_gallery(adb, resource_id, output, stop, *, max_pages=30):
     if gallery_position(adb.snapshot(),'AI优选') != (1,metadata['selected_count']):
         raise ValueError('打开的不是AI图集首张，请回到网格顶部后重试')
     logger.info('AI图集首张已打开')
-    return collect_gallery_pages(adb,baseline,None,output,'hotel-'+resource_id,'AI优选',stop,max_pages=max_pages)
+    return collect_gallery_pages(adb, baseline, None, output, 'hotel-' + str(int(resource_id)), 'AI优选', stop,
+                                 max_pages=max_pages, save_display_fallback=save_display_fallback)

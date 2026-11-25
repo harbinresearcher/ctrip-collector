@@ -15,6 +15,22 @@ logger = logging.getLogger(__name__)
 
 
 class GalleryBatchTests(unittest.TestCase):
+    def test_current_viewer_position_must_remain_the_same_before_capture(self):
+        logger.info('开始验证续采开始页二次核对')
+        adb = Mock()
+        adb.snapshot.return_value = viewer(8)
+        with tempfile.TemporaryDirectory() as folder, \
+             patch('gallery_batch.GalleryCandidateSession', return_value=nullcontext(Mock())), \
+             patch('gallery_batch.capture_current_gallery_frame') as capture:
+            result = collect_gallery_pages(adb, {}, (0, 40, 240, 400), folder, 'hotel-1',
+                                           'AI优选', Event(), expected_start=(9, 30))
+            self.assertEqual(result['status'], 'error')
+            self.assertEqual(result['pages'], [])
+            self.assertEqual(result['entry_mode'], 'current_viewer')
+            capture.assert_not_called()
+            adb.run.assert_not_called()
+        logger.info('续采开始页二次核对完成')
+
     def test_automatic_region_is_derived_from_current_page(self):
         # /* ===== 步骤1：验证自动主图区；数据源：当前布局；操作：1) 不传坐标 2) 使用识别结果采集 ===== */
         logger.info('开始分页自动布局测试')

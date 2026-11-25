@@ -1,0 +1,1103 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>旅迹 · 采集工作台</title>
+<style>
+:root{color-scheme:light;--paper:#f6f4ed;--ink:#302f2b;--muted:#747168;--line:#ddd9cf;--accent:#ad5139}*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.6 system-ui,"Microsoft YaHei",sans-serif}button,input,select,textarea{font:inherit}header{height:84px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 5vw}.brand{font:26px Georgia,"Songti SC",serif;letter-spacing:3px}.tag{font-size:12px;color:var(--muted)}main{max-width:1260px;margin:auto;padding:56px 40px}h1{font:normal 46px/1.25 Georgia,"Noto Serif CJK SC","SimSun",serif;margin:14px 0 18px}h2{font:normal 23px Georgia,"SimSun",serif;margin:0}.intro{max-width:650px;color:var(--muted);margin-bottom:38px}.layout{display:grid;grid-template-columns:1.1fr 1fr;gap:38px}.panel{min-width:0;border:1px solid var(--line);border-radius:15px;background:#fcfbf7;padding:30px;box-shadow:0 8px 30px #302f2b04}.heading{flex-wrap:wrap;display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:25px}.badge{border:1px solid var(--line);border-radius:30px;padding:4px 12px;font-size:12px}label{display:block;font-size:13px;margin:20px 0 8px}input,select,textarea{width:100%;border:1px solid #d4cfc3;border-radius:7px;background:#fffefa;color:var(--ink);padding:11px 13px;outline:none}textarea{resize:vertical;min-height:120px}input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px #ad513918}.hint{font-size:12px;color:var(--muted);margin:7px 0}.pair{display:grid;grid-template-columns:1fr 1fr;gap:18px}.actions{display:flex;gap:10px;margin-top:25px}button{white-space:nowrap;flex-shrink:0;border:1px solid var(--line);border-radius:8px;padding:11px 20px;cursor:pointer;background:transparent;color:var(--ink);transition:background .18s,transform .18s}button:hover:enabled{background:#eee9df;transform:translateY(-1px)}button.primary{background:var(--accent);border-color:var(--accent);color:white}button.primary:hover:enabled{background:#93422e}button:disabled{opacity:.45;cursor:default}.stream{min-height:230px;max-height:350px;overflow:auto;padding:12px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);white-space:pre-wrap;font-size:13px;color:#625e55}.empty{color:var(--muted);padding:42px 0}.error{color:#9d302a;white-space:pre-wrap}.result{white-space:pre-wrap;overflow:auto;max-height:280px;font:12px/1.7 ui-monospace,monospace}.footer{margin-top:28px;font-size:12px;color:var(--muted)}[hidden]{display:none!important}.running:before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--accent);margin-right:6px;animation:pulse 1.6s infinite}@keyframes pulse{50%{opacity:.3}}@media(max-width:760px){header{height:65px}main{padding:30px 18px}.layout{grid-template-columns:1fr;gap:20px}h1{font-size:34px}.panel{padding:22px}.pair{grid-template-columns:1fr}}@media(prefers-reduced-motion:reduce){*,*:before{animation:none!important;transition:none!important}}
+/* 工作台视觉层：保留功能顺序，突出输入、运行状态与可读的数据记录。 */
+:root{--paper:#f5f2eb;--ink:#292823;--muted:#625f57;--line:#d9d4c8;--accent:#a94d37}
+body{background:var(--paper);font-family:system-ui,"Microsoft YaHei",sans-serif;-webkit-font-smoothing:antialiased}
+::selection{background:#ecd2c3;color:#292823}
+header{background:#f9f7f1;padding-inline:max(5vw,24px)}
+.brand{color:#40382f;letter-spacing:2px}.brand .tag{margin-left:7px;letter-spacing:2.2px}
+main{padding-top:48px}h1{font-size:clamp(34px,3.2vw,46px);letter-spacing:.015em}.intro{line-height:1.85}
+.layout{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);align-items:start;gap:24px}
+.panel{border-color:#ded9ce;background:#fdfcf8;box-shadow:0 10px 32px rgba(67,51,34,.035);padding:32px}
+.panel h2{font-size:24px;line-height:1.35}.heading{margin-bottom:22px}.badge{color:#514d44;background:#f6f3ec;padding:5px 12px}
+label{font-weight:600;color:#4d4941;letter-spacing:.01em}input,select,textarea{border-color:#d3cdbf;background:#fffefa;caret-color:var(--accent)}
+input::placeholder,textarea::placeholder{color:#716e66;opacity:1}
+input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible,summary:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.hint{font-size:13px;line-height:1.65}.actions{flex-wrap:wrap}
+button{font-weight:500;border-color:#d5d0c5;min-height:44px}button.primary{box-shadow:0 4px 12px rgba(134,61,41,.14)}
+.stream{border-color:#e4dfd4;background:#faf8f2;padding:16px;border-radius:8px;overflow-wrap:anywhere}
+.empty{padding:32px 0}.error:not(:empty){padding:10px 12px;background:#fbefeb;border-radius:7px}
+#previewSource{max-width:480px}#previewNotice{color:var(--muted);font-size:13px}
+#previewItems article>p:not(.hint){line-height:1.85;max-width:85ch}
+#previewItems details{margin:18px 0 14px;padding:14px 16px;background:#f7f4ed;border:1px solid #e7e1d6;border-radius:9px}
+#previewItems summary,#details summary{cursor:pointer;font-weight:600;color:#51483e}
+#previewItems details>div{padding:0 8px 0 0}
+#previewItems details>div .hint{margin:0;padding:8px 0;border-top:1px solid #e6e0d4;overflow-wrap:anywhere}
+#previewItems details button{margin:10px 8px 0 0;white-space:normal}
+.result{overflow-wrap:anywhere}.footer{line-height:1.7}
+.graph-index{margin:22px 0;padding:18px;border:1px solid #e6dbce;border-radius:10px;background:#faf6ef}
+.graph-index h3{margin:0 0 8px;font-size:19px}.graph-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:14px 0}
+.graph-metrics div{border-top:2px solid #ce9c86;padding-top:8px;color:var(--muted);font-size:12px}.graph-metrics strong{display:block;color:var(--accent);font-size:21px;font-variant-numeric:tabular-nums}
+.graph-filters{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:12px}.graph-filters input,.graph-filters select{min-width:0;width:100%}
+.graph-list{list-style:none;margin:12px 0;padding:0}.graph-list li{padding:9px 0;border-top:1px solid #e9ded1;overflow-wrap:anywhere}.graph-list small{display:block;color:var(--muted);margin-top:3px}
+.graph-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.graph-transfer{margin-top:12px;width:100%}
+@media(max-width:440px){.graph-filters{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:760px){header{padding-inline:18px}main{padding:30px 18px}h1{font-size:clamp(26px,7.4vw,32px)}.layout{grid-template-columns:minmax(0,1fr);gap:18px}.panel{padding:22px}.pair{grid-template-columns:1fr}.brand .tag{letter-spacing:1px}}
+@media(max-width:360px){header>.tag{max-width:100px;text-align:right;line-height:1.4}.actions button{flex:1 1 auto}}
+.device-strip{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:11px 14px;margin:16px 0 6px;border:1px solid var(--line);border-radius:9px;background:#f9f6ee}
+.device-strip .device-title{font-size:13px;display:flex;align-items:center;gap:7px}
+.device-strip .device-title::before{content:"";width:8px;height:8px;border-radius:50%;background:#ab7247;flex:none}
+.device-strip[data-state="foreground"] .device-title::before{background:#4f795b}
+.device-strip[data-state="checking"] .device-title::before{background:#8d8577}
+.device-strip p{font-size:12px;margin:2px 0 0;color:#5e5a50}
+.device-strip button{padding:5px 10px;font-size:12px;background:transparent;color:var(--ink);border:1px solid #beb6a8;white-space:nowrap}
+.device-strip button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.gallery-thumbnails{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,108px),1fr));gap:10px;margin:12px 0}
+.gallery-thumbnails figure{min-width:0;margin:0;background:var(--surface,#fff);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.gallery-thumbnails img{display:block;width:100%;aspect-ratio:1;object-fit:contain;background:#eee9df}
+.gallery-thumbnails figcaption{font-size:12px;padding:7px 8px;overflow-wrap:anywhere}
+.ocr-frame{position:relative;display:inline-block;max-width:100%;overflow:hidden;background:#eee8dd;border:1px solid var(--line);border-radius:10px;cursor:crosshair;touch-action:none}
+.ocr-frame img{display:block;max-width:100%;max-height:480px;height:auto;pointer-events:none;user-select:none}
+.ocr-selection{position:absolute;pointer-events:none;outline:2px solid #fff;border:2px solid var(--accent);box-shadow:0 0 0 800px #1b170d55}
+.ocr-text{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.65;padding:14px;border-radius:10px;background:#fffcf5;border:1px solid var(--line)}
+</style></head><body>
+<header><div class="brand">旅迹 <span class="tag">FIELDNOTES</span></div><span class="tag">本地采集工作台 · 开发中</span></header>
+<main><span class="tag">从一个目的地，开始整理。</span><h1>让旅行数据，有迹可循。</h1><p class="intro">选择对象与采集方式，将可取得的详情、点评与政策保存在本机。每次采集，都保留来源与完整性说明。</p>
+<div class="layout"><section class="panel"><h2>新建采集</h2><form id="task">
+<label for="mode">采集方式</label><select id="mode"><optgroup label="网页采集"><option value="reviews">对象点评 · 网络采集</option><option value="hotel_public">酒店公开样本 · 无需登录</option><option value="public_poi_profile">景点、餐饮与购物公开资料</option></optgroup><optgroup label="发现点评对象"><option value="auto_discovery">自动发现地区和点评对象</option><option value="resume_discovery">继续地区目录任务</option><option value="related_discovery">发现餐厅周边推荐对象</option><option value="related_sight">发现景点周边推荐对象</option><option value="related_graph">沿景点推荐逐层发现</option></optgroup><optgroup label="手机 App 采集"><option value="app_page_fields">App 页面字段自选</option><option value="app_city">城市必看推荐 · Android</option><option value="app_hotel_list">酒店搜索结果 · Android</option><option value="app_hotel">酒店当前详情 · Android</option><option value="app_restaurant_list">城市美食列表 · Android</option><option value="app_restaurant_detail">餐厅当前详情 · Android</option><option value="app_shopping_list">城市购物列表 · Android</option><option value="app_shopping_detail">购物地点当前详情 · Android</option><option value="app_reviews">手机评论 · Android</option><option value="app_ai">酒店 AI 总结 · Android</option><option value="sight_ai">景点 AI 总结 · Android</option><option value="app_gallery">酒店 AI 图集 · Android</option><option value="sight_gallery">景点 AI 图集 · Android</option><option value="sight_detail">景点当前详情 · Android</option><option value="sight_guide">景点必看指南 · Android</option><option value="sight_policy">景点优待政策 · Android</option></optgroup><optgroup label="整理已有数据"><option value="media">下载评论图片</option><option value="video_media">下载评论视频</option><option value="capture_import">导入已筛选 App 响应</option><option value="screenshot_ocr">读取 App 截图文字</option><option value="ai_replay">重读已保存的 AI 总结</option><option value="sight_review_replay">重读景点点评原始页面</option><option value="coverage">检查本地字段覆盖</option></optgroup></select>
+<div id="links"><label for="urls">携程详情链接</label><textarea id="urls" placeholder="每行粘贴一个酒店、景点、餐厅或购物详情链接"></textarea><p id="linksHint" class="hint">酒店完整点评可能需要在专用浏览器中登录。</p></div>
+<div id="phone" hidden>
+<div id="deviceStrip" class="device-strip" data-state="checking">
+  <div role="status"><strong id="deviceTitle" class="device-title">检查设备</strong><p id="deviceDetail">请选择 App 采集方式。</p></div>
+  <button id="recheckDevice" type="button">重新检查</button>
+</div>
+<label for="name" id="phoneNameLabel">对象名称</label><input id="name" placeholder="与手机页面标题完全一致"><p class="hint" id="phoneHint">保持手机解锁并打开对应页面。</p><div id="appDetails" hidden><label for="appKind">对象类型</label><select id="appKind"><option value="hotel">酒店</option><option value="sight">景点</option><option value="restaurant">餐厅</option><option value="shopping">购物地点</option></select><div id="idField"><label for="resourceId">携程对象数字 ID</label><input id="resourceId" inputmode="numeric" placeholder="酒店或景点详情链接中的数字 ID"><p class="hint">ID 用于隔离不同对象，由操作者核对；程序尚不能确认当前手机页面属于该 ID。</p></div><div id="swipesField"><label for="swipes">手机评论滚动次数上限</label><input id="swipes" type="number" min="1" max="10000" value="1500"></div></div></div>
+<div id="ocrForm" hidden>
+<label for="ocrFile">携程截图</label><input id="ocrFile" type="file" accept="image/png,image/jpeg">
+<p class="hint">拖动鼠标框选要读的区域。未框选时读取整张。</p>
+<div id="ocrFrame" class="ocr-frame" hidden><img id="ocrImage" alt="待识别的截图"><div id="ocrSelection" class="ocr-selection" hidden></div></div>
+<div class="actions"><button id="resetOcrRegion" type="button" hidden>读取整张</button></div>
+<p id="ocrRegionNote" class="hint" role="status"></p>
+</div>
+<div id="pageFieldsForm" hidden>
+<label for="fieldArchiveRun">页面来源</label><select id="fieldArchiveRun"><option value="">当前手机屏幕</option></select>
+<p id="fieldSourcesNote" class="hint" role="status"></p>
+<label for="pageFieldName">页面上显示的名称</label><input id="pageFieldName" maxlength="100" placeholder="例如：长白山西景区">
+<label for="fieldLabels">要采集的页面标签</label><textarea id="fieldLabels" placeholder="每行一个，例如游玩建议或营业时间"></textarea>
+<p class="hint">照抄标签，不用填写冒号。可以读取「标签：值」或同一小区域里的标签与值。</p>
+</div>
+<div id="discovery" hidden><label for="discoveryKind">对象类型</label><select id="discoveryKind"><option value="sight">景点</option><option value="restaurant">餐饮</option><option value="shopping">购物</option><option value="hotel">酒店</option></select><p class="hint">从携程首页读取可见地区，逐地区查找对象。首页不代表全部地区。</p><div class="pair"><div><label for="regions">地区上限</label><input id="regions" type="number" min="1" max="1000" value="2"></div><div><label for="objects">每地区对象上限</label><input id="objects" type="number" min="1" max="1000" value="10"></div></div><label for="discoveryPages">每地区目录页数上限</label><input id="discoveryPages" type="number" min="1" max="100" value="2"><label style="display:flex;align-items:center;gap:9px"><input id="collectDiscovered" type="checkbox" style="width:auto">发现后继续采集对象点评</label><p class="hint">酒店使用公开样本，点评可能不完整。其他对象按目标条数采集。</p></div>
+<div id="resume" hidden><label for="reportFile">继续上次地区目录</label><select id="reportFile"><option value="">请先刷新文件列表</option></select><p class="hint">沿用报告中的地区和预算，已验证的地区会跳过。报告不代表全平台覆盖。</p><label style="display:flex;align-items:center;gap:9px"><input id="resumeCollect" type="checkbox" style="width:auto">续跑后采集已发现对象的点评</label></div>
+<div id="graph" hidden><label for="graphVisits">本次访问景点上限</label><input id="graphVisits" type="number" min="1" max="100" value="5"><label for="graphReport">续跑已有队列</label><select id="graphReport"><option value="">从头开始</option></select><p class="hint">按页面推荐逐层发现，支持续跑；续跑时请填写原来的起始景点链接。结果不代表全部对象。</p></div>
+<div id="media" hidden><label for="sourceFile">对象评论文件</label><select id="sourceFile"><option value="">请先采集对象点评</option></select><label id="mediaLabel" for="mediaLimit">图片数量上限</label><input id="mediaLimit" type="number" min="1" max="100000" value="20"><p id="mediaHint" class="hint">下载评论中携程返回的图片版本，不保证是原图，也不等于 AI 优选图集。</p></div><div id="coverageInfo" hidden><p class="hint">查当前目录已保存的网页点评、App 评论、AI 总结、图集和景点详情。不同来源分开统计，无需连接手机。</p></div><div id="captureImport" hidden><label for="captureFile">已筛选的 App 响应文件或历史归档</label><select id="captureFile"><option value="">请先准备受限响应文件</option></select><p class="hint">筛选后的 JSONL 可放入当前输出目录的 captures 文件夹；也可直接选择历史归档并提高目标条数。此功能只导入文件，不会自动抓包；原始 HAR 或未筛选流量不能直接导入。</p></div><button id="reloadFiles" type="button" hidden>刷新文件列表</button>
+<div class="pair"><div id="limitWrap"><label for="limit">目标点评条数</label><input id="limit" type="number" min="1" max="100000" value="500"></div><div id="pagesWrap" hidden><label for="pages" id="pagesLabel">政策屏数上限</label><input id="pages" type="number" min="1" max="50" value="10" disabled></div></div>
+<div id="hotelPagesWrap" hidden><label id="hotelPagesLabel" for="hotelPages">房型读取屏数上限</label><input id="hotelPages" type="number" min="1" max="20" value="1" disabled><p class="hint">设为 1 只读当前屏；提高上限后，工作台会在当前页面向下滚动。</p></div>
+<div id="restaurantPagesWrap" hidden><label for="restaurantPages">餐厅列表读取屏数上限</label><input id="restaurantPages" type="number" min="1" max="20" value="1" disabled><p class="hint">设为 1 只读当前屏。读取多屏时，保持城市和筛选条件一致。</p></div>
+<div id="shoppingPagesWrap" hidden><label for="shoppingPages">购物列表读取屏数上限</label><input id="shoppingPages" type="number" min="1" max="20" value="1" disabled><p class="hint">设为 1 只读当前屏。读取多屏时，保持城市和筛选条件一致。</p></div>
+<label id="refreshWrap" style="display:flex;align-items:center;gap:9px"><input id="refreshExisting" type="checkbox" style="width:auto">重新读取已达到目标的对象</label>
+<p id="refreshHint" class="hint">勾选后按本次读取的不同评论计数；已有记录去重，并保留新的字段观察。</p>
+<div id="galleryFallbackWrap" hidden><label for="galleryFallback"><input id="galleryFallback" type="checkbox" style="width:auto">缓存无法匹配时，补录稳定的图集画面</label><p class="hint">补录图片带有独立标记，只保留查看区裁图，画质取决于手机显示。</p></div>
+<div id="galleryStartWrap" hidden><label for="galleryStart">从哪一页开始</label><input id="galleryStart" type="number" min="1" max="1000000" placeholder="留空则从网格顶部开始"><p class="hint" id="galleryStartHint">如果已在大图查看页，填写手机显示的当前页码。</p></div>
+<div id="sightGalleryResumeWrap" hidden><label for="sightGalleryResume">图集起点</label><select id="sightGalleryResume" disabled><option value="">从图集第一页开始</option></select></div>
+<div id="reviewExpandWrap" hidden><label for="reviewExpand"><input id="reviewExpand" type="checkbox" style="width:auto">尝试展开酒店长评</label><p class="hint">每屏尝试一条；核对同一卡片后单独保存新增正文，采集会多一次页面检查。</p></div>
+<div id="reviewAiWrap" hidden><label for="reviewAi"><input id="reviewAi" type="checkbox" style="width:auto">同时保存首屏 AI 总结</label><p class="hint">请从酒店点评顶部开始。保存首屏可读总结，并按本次读到的不同点评计数。若只看到折叠版，结果会标为部分。</p></div>
+<div id="sightGalleryWrap" hidden><label for="sightGallery"><input id="sightGallery" type="checkbox" style="width:auto">同时保存景点晒图缩略图</label><p class="hint">把当前屏完整可见的晒图方格裁成 PNG，可预览并下载 ZIP。</p></div>
+<div id="reviewThumbnailsWrap" hidden><label for="reviewThumbnails"><input id="reviewThumbnails" type="checkbox" style="width:auto">保存点评缩略图</label><p class="hint">只裁剪卡片上完整可见的格子，最多保存 300 张。此选项按本次读到的不同点评计数，采集会增加页面核对。</p></div>
+<p id="formError" class="error" role="alert"></p><div class="actions"><button class="primary" id="start">开始采集 ↗</button><button type="button" id="stop" disabled>停止并保存</button></div></form></section>
+<section class="panel"><div class="heading"><h2>本次任务</h2><span id="status" class="badge" role="status">连接中</span></div><div id="progress" class="stream"><div class="empty">尚未开始采集。创建任务后，这里会显示真实进度。</div></div><p id="runError" class="error" role="alert"></p><div id="relatedResults" hidden></div><div class="heading"><p class="hint">任务结束不等于平台数据已全部采集。</p><button id="download" disabled>保存报告</button><a id="mobileCsv" href="/api/task-csv" download hidden style="color:var(--accent);font-size:13px">下载本地累计点评 CSV</a></div><details id="details" hidden><summary>查看结果详情</summary><pre id="result" class="result"></pre></details></section></div>
+<section class="panel" style="margin-top:30px"><div class="heading"><h2>本地评论预览</h2><button id="previewButton">刷新预览</button></div><label for="previewSource">评论来源</label><select id="previewSource"><option value="network">网页评论</option><option value="mobile">手机评论（旧版未绑定 ID）</option><option value="scoped">手机评论（按声明 ID 分组）</option></select><p class="hint" id="previewHint">当前输出目录的网页评论，每页20条，包含历史任务。</p><p id="previewNotice" role="status">点击刷新，读取本地数据。</p><div id="previewItems"></div><div class="actions"><button id="previewPrev" disabled>上一页</button><button id="previewNext" disabled>下一页</button></div></section><p class="footer">数据默认保存到服务启动时指定的目录。公开样本、屏幕内容与完整点评的覆盖范围不同，请以报告为准。</p></main>
+<script>
+const logger=console,$=id=>document.getElementById(id);let lastResult=null,pending=false;
+/* ===== 步骤1：绑定表单；数据源：用户选择；操作：1) 显示对应输入 2) 不提交无关字段 ===== */
+logger.info('开始绑定工作台表单');
+// 1.1 根据实际通道展示输入和手机页面准备说明。
+$('mode').onchange=()=>{const mode=$('mode').value,app=mode.startsWith('app_'),pageFields=mode==='app_page_fields',ocr=mode==='screenshot_ocr',phone=(app&&(!pageFields||!$('fieldArchiveRun').value))||(mode.startsWith('sight_')&&mode!=='sight_review_replay'),hotelList=mode==='app_hotel_list',restaurantList=mode==='app_restaurant_list',restaurantDetail=mode==='app_restaurant_detail',shoppingList=mode==='app_shopping_list',shoppingDetail=mode==='app_shopping_detail',hotelPages=hotelList||mode==='app_hotel',discovery=mode==='auto_discovery',resume=mode==='resume_discovery',graph=mode==='related_graph',media=['media','video_media'].includes(mode),capture=mode==='capture_import',sightGallery=mode==='sight_gallery',coverage=mode==='coverage',sightReplay=mode==='sight_review_replay',replay=mode==='ai_replay'||sightReplay;$('phone').hidden=!phone;$('pageFieldsForm').hidden=!pageFields;$('ocrForm').hidden=!ocr;$('phoneNameLabel').hidden=$('name').hidden=pageFields;$('hotelPagesWrap').hidden=!hotelPages;$('hotelPages').disabled=!hotelPages;$('hotelPagesLabel').textContent=hotelList?'酒店列表读取屏数上限':'房型读取屏数上限';$('restaurantPagesWrap').hidden=$('restaurantPages').disabled=!restaurantList;$('shoppingPagesWrap').hidden=$('shoppingPages').disabled=!shoppingList;$('appDetails').hidden=!['app_reviews','app_ai','app_gallery'].includes(mode);$('phoneNameLabel').textContent=hotelList?'搜索地区':restaurantList||shoppingList||mode==='app_city'?'页面显示的城市':restaurantDetail?'餐厅名称':shoppingDetail?'购物地点名称':'对象名称';$('name').placeholder=hotelList?'与手机酒店搜索栏一致':restaurantList||shoppingList?'例如：上海':mode==='app_city'?'例如：抚松':'与 App 页面标题完全一致';$('idField').hidden=!['app_reviews','app_ai','app_gallery'].includes(mode);$('swipesField').hidden=mode!=='app_reviews';$('appKind').disabled=['app_ai','app_gallery'].includes(mode);if($('appKind').disabled)$('appKind').value='hotel';$('links').hidden=phone||ocr||pageFields||discovery||resume||media||capture||coverage||replay;$('discovery').hidden=!discovery;$('resume').hidden=!resume;$('graph').hidden=!graph;$('refreshWrap').hidden=!(mode==='reviews'||mode==='app_reviews'||capture);$('refreshHint').hidden=$('refreshWrap').hidden;$('media').hidden=!media;$('mediaLabel').textContent=mode==='video_media'?'视频数量上限':'图片数量上限';$('mediaHint').textContent=mode==='video_media'?'下载评论返回的 MP4 版本；链接可能失效，程序只检查容器标记，尚未验证能否播放。':'下载评论中携程返回的图片版本，不保证是原图，也不等于 AI 优选图集。';$('captureImport').hidden=!capture;$('coverageInfo').hidden=!(coverage||replay);$('coverageInfo').firstElementChild.textContent=sightReplay?'从当前目录已保存的景点点评和对应的 App 页面重新提取字段，另存 CSV。无需连接手机。':replay?'从当前目录的 AI 总结和原始页面中补提字段，另存报告。无需连接手机。':'查当前目录已保存的网页点评、App 评论、AI 总结、图集和景点详情。不同来源分开统计，无需连接手机。';$('reloadFiles').hidden=!(resume||graph||media||capture||sightGallery);if(!$('reloadFiles').hidden)loadLocalFiles();$('limit').disabled=ocr||pageFields||(phone&&mode!=='app_reviews')||media||coverage||replay||graph;$('limitWrap').hidden=$('limit').disabled;$('pages').disabled=!['sight_policy','app_gallery','sight_gallery'].includes(mode);$('pagesWrap').hidden=$('pages').disabled;$('pages').max=['app_gallery','sight_gallery'].includes(mode)?500:50;if(Number($('pages').value)>Number($('pages').max))$('pages').value='10';$('pagesLabel').textContent=['app_gallery','sight_gallery'].includes(mode)?'图集页数上限':'政策屏数上限';$('phoneHint').textContent=({app_page_fields:'在手机打开要读取的公开页面，让页面名称和目标标签可见。',app_hotel:'打开酒店详情顶部，保持酒店名称和首个房型可见。',app_hotel_list:'在携程完成酒店搜索，停留在结果列表。按屏读取，需要多屏时请保持查询条件不变。',app_restaurant_list:'在手机或模拟器打开携程的城市「美食」列表，让城市名称和餐厅卡片可见。',app_restaurant_detail:'在手机或模拟器打开餐厅详情顶部，让餐厅名称和评分栏可见。',app_shopping_list:'在手机或模拟器打开携程的城市「购物」列表，让城市名称和购物地点卡片可见。',app_shopping_detail:'在手机或模拟器打开购物地点详情顶部，让地点名称和详情栏可见。',app_city:'在携程打开城市搜索结果，停在“必看推荐”卡片可见的位置。',app_reviews:'打开该对象的全部点评列表；名称须由你核对，程序暂不能确认点评所属对象。',app_ai:'打开酒店评论页面，AI 总结须在页面中可见。',sight_ai:'打开景点的「用户点评」，滚到 AI 总结卡。程序会尝试展开总结。',app_gallery:'打开酒店 AI 优选住客晒图，停在网格顶部。',sight_gallery:sightGalleryEntryHint,sight_policy:'打开景点优待政策表格，从完整表头开始。',sight_detail:'打开对应景点详情页。',sight_guide:'打开景点的「必看指南」，停在开放时间或门票信息可见的位置。'})[mode]||'保持手机解锁并打开对应页面。'};
+/* ===== 步骤2：更新操作名称；数据源：当前采集方式；操作：1) 按用途匹配名称 2) 其余模式保留采集 ===== */
+logger.info('开始绑定操作名称');
+// 2.1 只更改按钮文案，不更改任务参数或提交方式。
+$('mode').addEventListener('change',()=>{const mode=$('mode').value,labels={screenshot_ocr:'识别文字 ↗',app_page_fields:'读取字段 ↗',public_poi_profile:'读取公开资料 ↗',auto_discovery:'开始发现 ↗',resume_discovery:'继续发现 ↗',related_discovery:'开始发现 ↗',related_sight:'开始发现 ↗',related_graph:'开始发现 ↗',media:'开始下载 ↗',video_media:'开始下载 ↗',capture_import:'开始导入 ↗',ai_replay:'开始重读 ↗',sight_review_replay:'开始重读 ↗',coverage:'开始检查 ↗'};$('start').textContent=labels[mode]||'开始采集 ↗';$('linksHint').textContent=mode==='related_discovery'?'填写一条餐饮 POI 详情链接。结果是页面推荐，不代表周边全部对象。':['related_sight','related_graph'].includes(mode)?'填写一条景点详情链接。结果是页面推荐，候选身份尚未逐个核验。':'酒店完整点评可能需要在专用浏览器中登录。';if(mode==='public_poi_profile')$('linksHint').textContent='每行一条景点、餐饮或购物详情链接，最多 20 条。这一步读取公开资料和页面样本。';if(['related_discovery','related_sight','public_poi_profile'].includes(mode)){$('limit').disabled=true;$('limitWrap').hidden=true}});
+function showGalleryStart(){
+  const gallery=$('mode').value==='app_gallery';
+  $('galleryFallbackWrap').hidden=$('galleryStartWrap').hidden=!gallery;
+  $('sightGalleryWrap').hidden=$('mode').value!=='sight_ai';
+  if(gallery)$('phoneHint').textContent=$('galleryStart').value?'在手机打开 AI 优选大图，停在填写的页码。':'打开酒店 AI 优选住客晒图，停在网格顶部。';
+}
+$('mode').addEventListener('change',showGalleryStart);$('galleryStart').addEventListener('input',showGalleryStart);
+const sightGalleryEntryHint='在安卓设备或模拟器打开景点的「用户点评」，收起 AI 总结，保持 AI 优选晒图可见。';
+function showSightGalleryResume(){
+  const active=$('mode').value==='sight_gallery',field=$('sightGalleryResume');
+  $('sightGalleryResumeWrap').hidden=field.disabled=!active;
+  if(active){
+    const checkpoint=field.selectedOptions[0]?.dataset;
+    $('phoneHint').textContent=checkpoint?.lastPage?'打开「'+checkpoint.name+'」的 AI 优选大图，停在第 '+checkpoint.lastPage+' 页，再开始采集。':sightGalleryEntryHint;
+  }
+}
+function sightGalleryOption(run){
+  const option=document.createElement('option');option.value=run.run_id;
+  option.dataset.name=run.name;option.dataset.lastPage=String(run.last_page);
+  option.textContent=run.name+' · 已保存至第 '+run.last_page+' 页'+(run.modified?' · '+new Date(run.modified*1000).toLocaleString():'');
+  return option;
+}
+function fillSightGalleryOptions(runs){
+  const field=$('sightGalleryResume'),previous=field.selectedOptions[0];
+  field.replaceChildren(field.options[0],...runs.map(sightGalleryOption));
+  if(previous?.value){
+    if(!runs.some(run=>run.run_id===previous.value))field.append(previous);
+    field.value=previous.value;
+  }
+  showSightGalleryResume();
+}
+$('mode').addEventListener('change',showSightGalleryResume);
+$('sightGalleryResume').onchange=()=>{
+  const name=$('sightGalleryResume').selectedOptions[0]?.dataset.name;
+  if(name)$('name').value=name;
+  showSightGalleryResume();
+};
+function showReviewOptions(){
+  const reviews=$('mode').value==='app_reviews',kind=$('appKind').value;
+  const verifiedTitle=reviews&&({restaurant:'餐厅',shopping:'购物地点'})[kind];
+  $('reviewExpandWrap').hidden=$('reviewAiWrap').hidden=$('reviewThumbnailsWrap').hidden=!reviews||kind!=='hotel';
+  $('resourceId').placeholder=verifiedTitle?'已核对的'+verifiedTitle+'点评对象数字 ID':'酒店或景点详情链接中的数字 ID';
+  if(reviews)$('phoneHint').textContent=verifiedTitle?'在手机或模拟器打开该'+verifiedTitle+'的全部点评。程序会核对页面标题，数字 ID 需由你核对。':'打开该对象的全部点评列表，并核对名称和数字 ID。';
+}
+$('mode').addEventListener('change',showReviewOptions);$('appKind').addEventListener('change',showReviewOptions);
+logger.info('操作名称绑定完成');
+const deviceCopy={
+  not_configured:['工作台未配置安卓设备','请从支持安卓采集的入口打开工作台。'],
+  disconnected:['未连接设备','请启动模拟器，或连接手机并允许 USB 调试。'],
+  offline:['设备暂不可用','等待安卓启动完成，或重新连接设备。'],
+  unauthorized:['设备尚未授权','请解锁设备，在 USB 调试提示中点允许。'],
+  ambiguous:['连接了多台设备','请只保留一台，或启动工作台时指定设备。'],
+  not_installed:['未安装携程','请在这台设备安装携程，再重新检查。'],
+  background:['携程未在前台','请解锁设备并打开携程。'],
+  focus_unknown:['暂时无法确认前台页面','请解锁设备并打开携程，然后重新检查。'],
+  foreground:['携程在前台','请按下方提示打开目标页。设备检查不会核对当前页面或对象。'],
+  check_failed:['设备检查失败','请检查模拟器或手机连接，再试一次。']
+};
+async function checkDevice(){
+  const button=$('recheckDevice');
+  if(button.disabled)return;
+  button.disabled=true;
+  function show(state,title,detail){
+    $('deviceStrip').dataset.state=state;
+    $('deviceTitle').textContent=title;
+    $('deviceDetail').textContent=detail;
+  }
+  show('checking','正在检查设备','正在确认连接和携程前台状态。');
+  try{
+    const {state,device}=await api('/api/android-readiness');
+    const [title,detail]=deviceCopy[state]||deviceCopy.check_failed;
+    const guidance=state==='disconnected'?'请启动这台模拟器，再重新检查。':detail;
+    show(state,title,device==='emulator'?'安卓模拟器 · '+guidance:detail);
+  }catch{
+    show('check_failed',...deviceCopy.check_failed);
+  }finally{button.disabled=false}
+}
+$('recheckDevice').onclick=checkDevice;
+$('mode').addEventListener('change',()=>{if(!$('phone').hidden&&$('mode').value!=='app_page_fields')checkDevice()});
+$('fieldArchiveRun').onchange=()=>{
+  $('phone').hidden=Boolean($('fieldArchiveRun').value);
+  if(!$('phone').hidden)checkDevice();
+};
+$('mode').addEventListener('change',async()=>{
+  if($('mode').value!=='app_page_fields')return;
+  const select=$('fieldArchiveRun'),previous=select.value,note=$('fieldSourcesNote');
+  try{
+    const {runs}=await api('/api/raw-page-runs');
+    if($('mode').value!=='app_page_fields')return;
+    const current=document.createElement('option');current.value='';current.textContent='当前手机屏幕';
+    select.replaceChildren(current);
+    for(const run of runs){
+      const option=document.createElement('option');option.value=run.name;
+      option.textContent=new Date(run.modified*1000).toLocaleString('zh-CN')+' · '+run.name;select.append(option);
+    }
+    if(runs.some(run=>run.name===previous))select.value=previous;
+    $('phone').hidden=Boolean(select.value);
+    note.textContent=runs.length?'选择已保存任务可离线应用同一组标签。':'当前目录没有已保存的 App 页面。';
+  }catch(error){note.textContent='读取页面来源失败：'+error.message}
+});
+async function api(path,body){const response=await fetch(path,body===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const data=await response.json();if(!response.ok)throw Error(data.error||'请求失败');return data}
+/* ===== 步骤2：加载本地任务与对象；数据源：当前输出目录；操作：1) 读取规范文件 2) 展示可选项 ===== */
+async function loadLocalFiles(){logger.info('开始读取可用文件');try{const data=await api('/api/local-files');for(const [id,files,empty] of [['reportFile',data.reports,'没有可续跑的目录报告'],['sourceFile',data.media_sources,'没有可用的评论文件'],['captureFile',data.capture_files,'没有受限响应文件或历史归档'],['graphReport',data.graph_reports||[],'从头开始']]){const field=$(id),previous=field.value;field.replaceChildren();const placeholder=document.createElement('option');placeholder.value='';placeholder.textContent=id==='graphReport'?'从头开始':files.length?'请选择文件':empty;field.append(placeholder);for(const file of files){const option=document.createElement('option');option.value=file.name;const label=file.name.startsWith('archive:')?'历史归档 · '+file.name.slice(8):file.name;option.textContent=new Date(file.modified*1000).toLocaleString()+' · '+label;field.append(option)}if(files.some(file=>file.name===previous))field.value=previous}fillSightGalleryOptions(data.sight_gallery_runs||[]);$('formError').textContent=''}catch(error){$('formError').textContent='无法读取文件列表：'+error.message}logger.info('可用文件读取结束')}
+// 2.1 重新扫描只读取文件名，不打开任意本地文件。
+$('reloadFiles').onclick=loadLocalFiles;
+let ocrUrl='',ocrBox=null,ocrStart=null,ocrPointer=null;
+function drawOcrRegion(){
+  const selection=$('ocrSelection'),reset=$('resetOcrRegion'),image=$('ocrImage');
+  selection.hidden=!ocrBox;reset.hidden=!ocrBox;
+  if(ocrBox){
+    const [x,y,width,height]=ocrBox;
+    Object.assign(selection.style,{left:(x*100)+'%',top:(y*100)+'%',width:(width*100)+'%',height:(height*100)+'%'});
+    $('ocrRegionNote').textContent='已选 '+Math.round(width*image.naturalWidth)+' × '+Math.round(height*image.naturalHeight)+' 像素';
+  }else $('ocrRegionNote').textContent=image.naturalWidth?'将读取整张截图':'';
+}
+$('ocrFile').onchange=async()=>{
+  const image=$('ocrImage'),file=$('ocrFile').files[0];
+  if(ocrUrl)URL.revokeObjectURL(ocrUrl);
+  image.removeAttribute('src');ocrUrl='';ocrBox=ocrStart=ocrPointer=null;$('ocrFrame').hidden=true;drawOcrRegion();
+  if(!file)return;
+  ocrUrl=URL.createObjectURL(file);
+  const expected=ocrUrl;image.src=expected;
+  try{
+    await image.decode();
+    if(ocrUrl!==expected)return;
+    $('ocrFrame').hidden=false;drawOcrRegion();
+  }catch{if(ocrUrl===expected)$('ocrRegionNote').textContent='无法打开这张图片，请选择 PNG 或 JPEG。'}
+};
+function ocrPoint(event){
+  const rect=$('ocrImage').getBoundingClientRect();
+  const clamp=value=>Math.max(0,Math.min(1,value));
+  return [clamp((event.clientX-rect.left)/rect.width),clamp((event.clientY-rect.top)/rect.height)];
+}
+$('ocrFrame').onpointerdown=event=>{
+  if(event.button!==0||ocrPointer!==null)return;
+  event.preventDefault();ocrPointer=event.pointerId;ocrStart=ocrPoint(event);
+  $('ocrFrame').setPointerCapture(event.pointerId);
+};
+$('ocrFrame').onpointermove=event=>{
+  if(event.pointerId!==ocrPointer)return;
+  const [x,y]=ocrPoint(event),[startX,startY]=ocrStart;
+  ocrBox=[Math.min(x,startX),Math.min(y,startY),Math.abs(x-startX),Math.abs(y-startY)];
+  drawOcrRegion();
+};
+function endOcrDrag(event){
+  if(event.pointerId!==ocrPointer)return;
+  ocrPointer=ocrStart=null;
+  const image=$('ocrImage');
+  if(ocrBox&&(ocrBox[2]*image.naturalWidth<4||ocrBox[3]*image.naturalHeight<4))ocrBox=null;
+  drawOcrRegion();
+}
+$('ocrFrame').onpointerup=endOcrDrag;$('ocrFrame').onpointercancel=endOcrDrag;
+$('resetOcrRegion').onclick=()=>{ocrBox=null;drawOcrRegion()};
+async function submitOcr(){
+  const image=$('ocrImage');
+  if($('ocrFrame').hidden||!image.naturalWidth)throw Error('请先选择一张截图');
+  const [x,y,width,height]=ocrBox||[0,0,1,1];
+  const left=Math.floor(x*image.naturalWidth),top=Math.floor(y*image.naturalHeight);
+  const clipWidth=Math.ceil((x+width)*image.naturalWidth)-left,clipHeight=Math.ceil((y+height)*image.naturalHeight)-top;
+  if(clipWidth*clipHeight>20000000)throw Error('图片像素过多，请缩小框选范围');
+  const canvas=document.createElement('canvas');canvas.width=clipWidth;canvas.height=clipHeight;
+  canvas.getContext('2d').drawImage(image,left,top,clipWidth,clipHeight,0,0,clipWidth,clipHeight);
+  const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
+  if(!blob||blob.size>8*1024*1024)throw Error('所选区域过大，请缩小框选范围');
+  const response=await fetch('/api/screenshot-ocr',{method:'POST',body:blob});
+  const state=await response.json();
+  if(!response.ok)throw Error(state.error||'无法开始识别');
+}
+$('task').onsubmit=async e=>{e.preventDefault();pending=true;$('start').disabled=true;$('formError').textContent='';try{const mode=$('mode').value;if(mode==='screenshot_ocr'){await submitOcr();return}await api('/api/start',{mode,urls:$('urls').value.split('\n').map(s=>s.trim()).filter(Boolean),name:mode==='app_page_fields'?$('pageFieldName').value:$('name').value,field_archive_run:mode==='app_page_fields'?$('fieldArchiveRun').value:'',field_labels:mode==='app_page_fields'?$('fieldLabels').value.split('\n').map(label=>label.trim()).filter(Boolean):[],limit:Number($('limit').value),refresh:$('refreshExisting').checked,expand_sight_ai:mode==='sight_ai',save_sight_gallery_thumbnails:mode==='sight_ai'&&$('sightGallery').checked,save_review_thumbnails:mode==='app_reviews'&&$('appKind').value==='hotel'&&$('reviewThumbnails').checked,save_visible_ai:mode==='app_reviews'&&$('appKind').value==='hotel'&&$('reviewAi').checked,expand_reviews:mode==='app_reviews'&&$('appKind').value==='hotel'&&$('reviewExpand').checked,gallery_start_page:mode==='app_gallery'&&$('galleryStart').value!==''?Number($('galleryStart').value):null,gallery_display_fallback:mode==='app_gallery'&&$('galleryFallback').checked,resume_sight_gallery_run:mode==='sight_gallery'?$('sightGalleryResume').value:'',max_pages:Number($('pages').value),hotel_max_pages:['app_hotel','app_hotel_list'].includes(mode)?Number($('hotelPages').value):1,restaurant_max_pages:mode==='app_restaurant_list'?Number($('restaurantPages').value):1,shopping_max_pages:mode==='app_shopping_list'?Number($('shoppingPages').value):1,kind:mode==='auto_discovery'?$('discoveryKind').value:$('appKind').value,resource_id:$('resourceId').value,max_swipes:Number($('swipes').value),max_regions:Number($('regions').value),max_objects:Number($('objects').value),discovery_pages:Number($('discoveryPages').value),collect_discovered:mode==='resume_discovery'?$('resumeCollect').checked:$('collectDiscovered').checked,report_file:$('reportFile').value,graph_report:$('graphReport').value,graph_visits:Number($('graphVisits').value),source_file:$('sourceFile').value,media_limit:Number($('mediaLimit').value),capture_file:$('captureFile').value})}catch(error){$('formError').textContent=error.message}finally{pending=false;await refresh()}};
+$('stop').onclick=async()=>{try{await api('/api/stop',{});await refresh()}catch(error){$('formError').textContent=error.message}};
+$('download').onclick=()=>{if(!lastResult)return;const url=URL.createObjectURL(new Blob([JSON.stringify(lastResult,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='采集报告.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
+logger.info('工作台表单绑定完成');
+/* ===== 步骤3：展示关联对象；数据源：本次推荐报告；操作：1) 安全文本呈现 2) 传递已验证酒店链接 ===== */
+let relatedKey='';
+const relatedKindLabels={hotel:'酒店',restaurant:'餐厅',sight:'景点',shopping:'购物'};
+function sightCandidateUrl(item){
+  const path={sight:'sight',restaurant:'food',shopping:'shopping'}[item.kind];
+  if(path&&Number.isSafeInteger(item.resource_id)&&item.resource_id>0&&new RegExp('^https://you\\.ctrip\\.com/'+path+'/[a-zA-Z0-9]+/'+item.resource_id+'\\.html$').test(item.url||''))return item.url;
+  return '';
+}
+function renderGraphIndex(box,result){
+  logger.info('开始展示景点发现清单');
+  // 3.1 筛选只处理已返回的对象；不触发网络采集，也不把候选身份标记为已核验。
+  const index=document.createElement('section');index.className='graph-index';index.setAttribute('aria-label','景点关联清单');
+  index.innerHTML=`<h3>景点关联清单</h3><div class="graph-metrics"></div><p class="hint">对象来自已访问的推荐页。范围随访问预算变化，不能代表完整目录。</p>
+  <div class="graph-filters"><div><label for="graphSearch">搜索候选</label><input id="graphSearch" type="search" placeholder="名称、资源编号或 POI"></div>
+  <div><label for="graphKind">对象类型</label><select id="graphKind"><option value="">全部类型</option><option value="sight">景点</option><option value="restaurant">餐厅</option><option value="shopping">购物</option></select></div></div>
+  <p class="hint" role="status" data-count></p><ul class="graph-list"></ul><div class="graph-actions"><button type="button" data-prev>上一页</button><button type="button" data-next>下一页</button></div>
+  <button type="button" class="graph-transfer" data-transfer>使用候选链接采集点评</button>`;
+  for(const [label,count] of [['已发现对象',result.objects.length],['已核验页面',result.expanded_sights?.length??0],['待访问景点',result.pending_sights?.length??0]]){
+    const metric=document.createElement('div'),value=document.createElement('strong');value.textContent=count;metric.append(value,label);index.querySelector('.graph-metrics').append(metric);
+  }
+  const search=index.querySelector('#graphSearch'),kind=index.querySelector('#graphKind'),list=index.querySelector('.graph-list');
+  const previous=index.querySelector('[data-prev]'),next=index.querySelector('[data-next]'),transfer=index.querySelector('[data-transfer]');
+  const pageSize=12;let page=0;
+  function update(){
+    const query=search.value.trim().toLowerCase();
+    const matches=result.objects.filter(item=>(!kind.value||item.kind===kind.value)&&[item.name,item.resource_id,item.poi_id].some(value=>String(value??'').toLowerCase().includes(query)));
+    const links=[...new Set(matches.map(sightCandidateUrl).filter(Boolean))];
+    const pageCount=Math.ceil(matches.length/pageSize);
+    list.replaceChildren();
+    for(const item of matches.slice(page*pageSize,(page+1)*pageSize)){
+      const row=document.createElement('li'),name=document.createElement('strong'),detail=document.createElement('small');
+      name.textContent=item.name||'名称未提供';detail.textContent=[relatedKindLabels[item.kind]||'对象',item.resource_id?'编号 '+item.resource_id:'',item.poi_id?'POI '+item.poi_id:'',item.identity_status==='page_verified'?'已核验页面':'候选链接'].filter(Boolean).join(' · ');
+      row.append(name,detail);list.append(row);
+    }
+    index.querySelector('[data-count]').textContent=matches.length?matches.length+' 个匹配 · '+links.length+' 个可用链接 · 第 '+(page+1)+' / '+pageCount+' 页':'没有匹配对象。可以清空搜索或更换类型。';
+    previous.disabled=page===0;next.disabled=page+1>=pageCount;transfer.disabled=!links.length;
+    transfer.onclick=()=>{$('mode').value='reviews';$('mode').dispatchEvent(new Event('change'));$('urls').value=links.join('\n');$('urls').focus()};
+  }
+  search.oninput=kind.onchange=()=>{page=0;update()};
+  previous.onclick=()=>{page-=1;update()};next.onclick=()=>{page+=1;update()};
+  box.append(index);update();
+  logger.info('景点发现清单展示完成');
+}
+function renderGalleryCoverage(groups){
+  const details=document.createElement('details'),heading=document.createElement('summary'),list=document.createElement('ul');
+  heading.textContent='查看各酒店图集缺页';details.append(heading);list.className='graph-list';
+  const format=ranges=>ranges.slice(0,12).map(([first,last])=>first===last?String(first):first+'–'+last).join('、')+(ranges.length>12?' 等':'');
+  for(const group of groups.slice(0,20)){
+    const row=document.createElement('li'),title=document.createElement('strong'),files=document.createElement('small'),gaps=document.createElement('small');
+    title.textContent='酒店 '+group.declared_object_key.replace(/^hotel-/,'')+' · 显示 '+group.display_total+' 张';
+    files.textContent=group.run_count+' 次任务 · '+group.cache_pages.length+' 页有缓存文件 · '+group.display_only_pages.length+' 页仅有裁图';
+    gaps.textContent=group.missing_file_ranges.length?'当前目录无文件：第 '+format(group.missing_file_ranges)+' 页':'显示范围内每页都有文件记录';
+    row.append(title,files,gaps);
+    if(group.conflicting_file_pages.length){
+      const conflicts=document.createElement('small');
+      conflicts.textContent='同页记录有不同文件：第 '+group.conflicting_file_pages.slice(0,12).join('、')+(group.conflicting_file_pages.length>12?' 等':'')+' 页';
+      row.append(conflicts);
+    }
+    list.append(row);
+  }
+  const note=document.createElement('p');note.className='hint';
+  note.textContent='按填写的酒店编号和页面显示总数分组。即使总数相同，图集顺序也可能变化。'+(groups.length>20?'其余分组见保存的报告。':'');
+  details.append(note,list);return details;
+}
+function renderCoverage(box,result){
+  logger.info('开始展示本地覆盖概览');
+  const index=document.createElement('section');index.className='graph-index';index.setAttribute('aria-label','本地数据覆盖');
+  const heading=document.createElement('h3');heading.textContent='本地数据覆盖';index.append(heading);
+  const list=document.createElement('ul');list.className='graph-list';index.append(list);
+  const total=(rows,field)=>rows.reduce((sum,row)=>sum+row[field],0);
+  const row=(title,detail)=>{const item=document.createElement('li'),label=document.createElement('strong'),caption=document.createElement('small');label.textContent=title;caption.textContent=detail;item.append(label,caption);list.append(item)};
+  row('网页与响应导入',total(result.objects,'review_count')+' 条已存点评 · '+result.objects.length+' 个对象');
+  if(result.android){
+    const app=result.android;
+    const restaurantReviews=app.reviews.filter(review=>/^restaurant-[1-9][0-9]*$/.test(review.declared_object_key||''));
+    const shoppingReviews=app.reviews.filter(review=>/^shopping-[1-9][0-9]*$/.test(review.declared_object_key||''));
+    row('手机点评',total(app.reviews,'review_count')+' 条按声明编号保存'+(restaurantReviews.length?' · 其中餐厅 '+total(restaurantReviews,'review_count')+' 条':'')+(shoppingReviews.length?' · 其中购物 '+total(shoppingReviews,'review_count')+' 条':'')+' · '+app.legacy_unlinked_review_count+' 条旧版未绑定点评'+(app.review_database==='unreadable'?' · 手机评论库读取失败':''));
+    row('AI 总结',app.ai_summaries.length+' 份 · '+total(app.ai_summaries,'section_count')+' 个段落记录 · '+total(app.ai_summaries,'bound_count_section_count')+' 段有明确关联点评数 · '+total(app.ai_summaries,'rating_dimension_count')+' 项维度评分记录');
+    const saved=app.gallery_runs.reduce((sum,run)=>sum+(run.page_statuses.saved||0)+(run.page_statuses.display_saved||0),0),present=total(app.gallery_runs,'saved_assets_present');
+    const display=total(app.gallery_runs,'display_assets_present');
+    const pages=app.gallery_runs.reduce((sum,run)=>sum+Object.values(run.page_statuses).reduce((count,n)=>count+n,0),0);
+    row('AI 图集',app.gallery_runs.length+' 次任务 · '+(present-display)+' 页有缓存文件 · '+display+' 页有显示裁图 · '+(pages-saved)+' 页未保存 · '+(saved-present)+' 页文件缺失或大小不符');
+    row('景点资料',app.sight_details.length+' 份详情 · '+app.sight_policies.length+' 份优待政策 · '+total(app.sight_details,'ticket_card_count')+' 条票品展示记录');
+    if(app.sight_ai_summaries?.length){
+      const images=total(app.sight_ai_summaries,'display_thumbnails_with_archive');
+      row('景点 AI 总结',app.sight_ai_summaries.length+' 份 · '+total(app.sight_ai_summaries,'section_count')+' 段可见总结'+(images?' · '+images+' 张晒图裁图有压缩包':''));
+    }
+    if(app.sight_guides?.length)row('景点必看指南',app.sight_guides.length+' 份 · '+total(app.sight_guides,'opening_period_count')+' 条分时安排 · '+total(app.sight_guides,'booking_note_count')+' 条门票说明');
+    if(app.city_recommendations?.length)row('手机城市推荐',app.city_recommendations.length+' 份页面 · '+total(app.city_recommendations,'candidate_count')+' 张推荐卡片');
+    if(app.screenshot_ocr_runs?.length)row('截图文字识别',app.screenshot_ocr_runs.length+' 份报告 · '+total(app.screenshot_ocr_runs,'line_count')+' 行');
+    if(app.page_field_runs?.length)row('App 自选字段',app.page_field_runs.length+' 份报告 · '+total(app.page_field_runs,'screen_count')+' 屏');
+    if(app.hotel_lists?.length)row('手机酒店搜索结果',app.hotel_lists.length+' 份报告 · '+total(app.hotel_lists,'display_record_count')+' 条酒店展示');
+    if(app.restaurant_lists?.length)row('App 餐厅列表',app.restaurant_lists.length+' 份报告 · '+total(app.restaurant_lists,'screen_count')+' 屏 · '+total(app.restaurant_lists,'display_record_count')+' 条餐厅展示');
+    if(app.restaurant_details?.length)row('App 餐厅详情',app.restaurant_details.length+' 份报告 · '+total(app.restaurant_details,'recommended_dish_count')+' 条可见推荐菜记录');
+    if(app.shopping_lists?.length)row('App 购物列表',app.shopping_lists.length+' 份报告 · '+total(app.shopping_lists,'screen_count')+' 屏 · '+total(app.shopping_lists,'display_record_count')+' 条购物地点展示');
+    if(app.shopping_details?.length)row('App 购物详情',app.shopping_details.length+' 份报告 · '+total(app.shopping_details,'offer_count')+' 条可见优惠记录');
+    if(app.hotel_details?.length){
+      const checkpoints=app.hotel_details.filter(report=>report.status==='running').length;
+      const interrupted=app.hotel_details.filter(report=>report.status==='error').length;
+      row('手机酒店资料',app.hotel_details.length+' 份详情 · '+total(app.hotel_details,'room_card_count')+' 条房型展示记录'+(checkpoints?' · '+checkpoints+' 份只有逐屏存档':'')+(interrupted?' · '+interrupted+' 份读取中断':''));
+      if(checkpoints||interrupted){
+        const archive=document.createElement('details'),summary=document.createElement('summary'),files=document.createElement('ul');
+        summary.textContent='下载未完成的酒店房型报告';
+        const recent=app.hotel_details.filter(report=>['running','error'].includes(report.status)).sort((a,b)=>(b.captured_at||'').localeCompare(a.captured_at||''));
+        for(const report of recent.slice(0,20)){
+          const item=document.createElement('li'),link=document.createElement('a');
+          const when=report.captured_at?.slice(0,19).replace('T',' ');
+          link.textContent=[report.name,report.room_card_count+' 条房型展示',when].filter(Boolean).join(' · ');
+          link.href='/api/hotel-report?'+new URLSearchParams({file:report.file});
+          item.append(link);files.append(item);
+        }
+        archive.append(summary,files);
+        list.lastElementChild.append(archive);
+      }
+    }
+    if(app.invalid_artifacts)row('无法读取的手机结果',app.invalid_artifacts+' 份，请查看报告范围');
+  }
+  if(result.android?.gallery_page_coverage?.length)index.append(renderGalleryCoverage(result.android.gallery_page_coverage));
+  const note=document.createElement('p');note.className='hint';note.textContent='来自当前目录。网页与手机点评未跨来源去重。对象级结果见报告。';index.append(note);
+  const records=document.createElement('details'),summary=document.createElement('summary'),saved=document.createElement('ul');
+  records.className='graph-index';summary.textContent='找回手机点评任务的样本';
+  saved.className='graph-list';records.append(summary,saved);index.append(records);
+  records.ontoggle=async()=>{
+    if(!records.open||records.dataset.loaded)return;
+    records.dataset.loaded='true';
+    const item=document.createElement('li');item.textContent='正在读取已保存任务…';saved.replaceChildren(item);
+    try{
+      const {runs}=await api('/api/saved-review-runs');
+      if(!runs.length){item.textContent='没有可恢复的点评样本。';return}
+      saved.replaceChildren();
+      for(const run of runs){
+        const row=document.createElement('li'),link=document.createElement('a'),note=document.createElement('small');
+        link.href='/api/saved-review-sample?'+new URLSearchParams({run:run.run_id});link.download='';
+        link.textContent=run.name+' · 下载 '+run.sample_count+' 条本次点评';
+        note.textContent=(run.status==='unfinalized'?'没有结束记录':'已有结束记录')+' · '+new Date(run.started_at).toLocaleString('zh-CN');
+        row.append(link,note);saved.append(row);
+      }
+    }catch(error){delete records.dataset.loaded;item.textContent='读取失败：'+error.message}
+  };
+  box.append(index);
+  logger.info('本地覆盖概览展示完成');
+}
+function renderGalleryRun(box,result){
+  const card=document.createElement('section');card.className='graph-index';card.setAttribute('aria-label','图集采集结果');
+  const title=document.createElement('h3');title.textContent='图集采集结果';card.append(title);
+  const pages=result.pages,stored=pages.filter(page=>page.result?.status==='saved').length;
+  const display=pages.filter(page=>page.result?.status==='display_saved').length;
+  const missing=pages.filter(page=>!['saved','display_saved'].includes(page.result?.status));
+  const last=pages.at(-1), summary=document.createElement('p');summary.className='hint';
+  summary.textContent=(last?'本次读取第 '+pages[0].index+'–'+last.index+' 页（显示总数 '+last.total+'）':'本次未读取到页面')+' · 缓存 '+stored+' 页 · 裁图 '+display+' 页 · 未保存 '+missing.length+' 页';
+  card.append(summary);
+  const actions=document.createElement('div');actions.className='graph-actions';
+  const add=(label,index)=>{const button=document.createElement('button');button.type='button';button.textContent=label;button.onclick=()=>{$('mode').value='app_gallery';$('mode').dispatchEvent(new Event('change'));$('resourceId').value=String(result.object_key).replace(/^hotel-/,'');$('galleryStart').value=index;showGalleryStart();$('galleryStart').focus()};actions.append(button)};
+  if(missing.length)add('填入漏采页 '+missing[0].index,missing[0].index);
+  if(last&&last.index<last.total)add('填入下一页 '+(last.index+1),last.index+1);
+  card.append(actions);box.append(card);
+}
+function renderSightPhotoGallery(box,result){
+  const panel=document.createElement('section');panel.className='graph-index';panel.setAttribute('aria-label','景点 AI 图集结果');
+  const title=document.createElement('h3');title.textContent=result.name+' · AI 图集';
+  const summary=document.createElement('p');summary.className='hint';
+  const range=Number.isInteger(result.first_page)&&Number.isInteger(result.last_page)?'（第 '+(result.first_page===result.last_page?result.first_page:result.first_page+'–'+result.last_page)+' 页）':'';
+  summary.textContent='图集显示 '+result.gallery_total+' 张 · '+(result.previous_run_id?'续采读取 ':'本次读取 ')+result.page_count+' 页'+range+' · 保存 '+result.unique_image_count+' 张去重裁图';
+  const reason=document.createElement('p');reason.className='hint';
+  reason.textContent=({gallery_end_reached:'已到达图集最后一页。',page_budget_reached:'已达到本次页数上限。',screen_changed:'画面或页码有变化，采集已停止。',image_not_ready:'页面图片尚未稳定，采集已停止。',device_error:'设备读取中断。',cancelled:'已按请求停止。'})[result.reason]||'本次已结束。';
+  panel.append(title,summary,reason);
+  if(result.archive&&result.run_id){
+    const actions=document.createElement('div');actions.className='graph-actions';
+    const link=document.createElement('a');link.style.color='var(--accent)';link.download='';
+    link.href='/api/sight-photo-gallery?'+new URLSearchParams({run:result.run_id});
+    link.textContent='下载景点 AI 图集裁图（ZIP）';actions.append(link);
+    if(Number.isInteger(result.last_page)&&result.last_page>=1&&result.last_page<result.gallery_total){
+      const resume=document.createElement('button');resume.type='button';resume.textContent='继续采集 · 第 '+(result.last_page+1)+' 页起';
+      resume.onclick=()=>{
+        const field=$('sightGalleryResume');
+        if(!Array.from(field.options).some(option=>option.value===result.run_id))field.append(sightGalleryOption(result));
+        field.value=result.run_id;$('name').value=result.name;
+        $('mode').value='sight_gallery';$('mode').dispatchEvent(new Event('change'));
+        $('pages').focus();
+      };
+      actions.append(resume);
+    }
+    panel.append(actions);
+  }
+  box.append(panel);
+}
+function renderSightGuide(box,result){
+  const card=document.createElement('section');card.className='graph-index';card.setAttribute('aria-label','景点必看指南');
+  const title=document.createElement('h3');title.textContent=result.name+' · 必看指南';card.append(title);
+  const list=document.createElement('ul');list.className='graph-list';
+  const opening=[result.opening_status_text,result.visit_duration_text,...result.opening_periods.map(row=>row.period_text+' · '+row.hours_text),...result.other_opening_hours_texts,...result.opening_notes];
+  const booking=[...result.ticket_price_texts,...result.booking_notes];
+  for(const [label,fields] of [['开放时间与游玩建议',opening],['门票与预约信息',booking]]){
+    const item=document.createElement('li'),heading=document.createElement('strong');heading.textContent=label;item.append(heading);
+    const values=fields.filter(Boolean);
+    for(const value of (values.length?values:['当前屏未读取到'])){const line=document.createElement('small');line.textContent=value;item.append(line)}
+    list.append(item);
+  }
+  const note=document.createElement('p');note.className='hint';note.textContent='仅记录采集时这一屏的展示，未核对其他日期或库存。';
+  card.append(list,note);box.append(card);
+}
+function renderSightSnapshot(box,result){
+  logger.info('开始展示手机景点详情');
+  const card=document.createElement('section');card.className='graph-index';card.setAttribute('aria-label','手机景点详情');
+  const title=document.createElement('h3');title.textContent=result.name;card.append(title);
+  const rating=result.review_display;
+  const details=[rating&&rating.score_text+rating.scale_text+' · '+rating.count_text,result.address_text,
+                 result.parent_sight_name&&'所属景区：'+result.parent_sight_name,...(result.ranking_labels||[])].filter(Boolean);
+  for(const text of details){const line=document.createElement('p');line.className='hint';line.textContent=text;card.append(line)}
+  const notice=document.createElement('p');notice.className='hint';notice.textContent='当前屏幕 · '+result.ticket_cards.length+' 个可辨认票品。价格和可订日期是采集时页面展示。';card.append(notice);
+  const list=document.createElement('ul');list.className='graph-list';
+  for(const ticket of result.ticket_cards){
+    const row=document.createElement('li'),name=document.createElement('strong'),metadata=document.createElement('small');
+    name.textContent=ticket.title+' · '+(ticket.display_price||'卡片未识别出价格');
+    metadata.textContent=[...(ticket.booking_conditions||[]),...(ticket.badges||[]),ticket.sold_label].filter(Boolean).join(' · ');
+    row.append(name,metadata);list.append(row);
+  }
+  card.append(list);box.append(card);
+  logger.info('手机景点详情展示完成');
+}
+function renderAppCity(box,result){
+  const card=document.createElement('section');card.className='graph-index';card.setAttribute('aria-label','手机城市推荐');
+  const title=document.createElement('h3');title.textContent=result.city+' · '+result.section;card.append(title);
+  const note=document.createElement('p');note.className='hint';note.textContent=result.objects.length+' 张可识别卡片，仅当前推荐区域。周边条目可能不在该城市。'+(result.skipped_cards?' 有 '+result.skipped_cards+' 张卡片无法确认名称。':'');card.append(note);
+  const list=document.createElement('ul');list.className='graph-list';
+  for(const item of result.objects){
+    const row=document.createElement('li'),name=document.createElement('strong'),meta=document.createElement('small'),button=document.createElement('button');
+    name.textContent=item.visible_order+' · '+item.name;meta.textContent=item.nearby_label_visible?'周边 · 仅卡片名称':'仅卡片名称';
+    button.type='button';button.textContent='填入景点详情';button.onclick=()=>{$('mode').value='sight_detail';$('mode').dispatchEvent(new Event('change'));$('name').value=item.name;$('name').focus()};
+    row.append(name,meta,button);list.append(row);
+  }
+  card.append(list);box.append(card);
+}
+function renderHotelList(box,result){
+  const panel=document.createElement('section');panel.className='graph-index';panel.setAttribute('aria-label','手机酒店搜索结果');
+  const title=document.createElement('h3');title.textContent=result.query.location+' · 酒店搜索结果';panel.append(title);
+  const line=value=>{if(value){const node=document.createElement('p');node.className='hint';node.textContent=value;panel.append(node)}};
+  const query=result.query;
+  line([query.stay_dates.join(' 至 '),query.room_guest_label,query.keyword_label==='位置/品牌/酒店'?'':query.keyword_label].filter(Boolean).join(' · '));
+  line([...query.visible_filters,...query.confirmed_quick_filters.map(label=>label+'（已选）')].join(' · '));
+  const reasons={page_limit:'达到设置的屏数',query_changed:'搜索条件已变化',query_incomplete:'搜索栏条件显示不完整',page_unavailable:'后续页面无法确认',device_unavailable:'设备连接中断',no_new_cards:'连续两屏没有新增展示',not_scrollable:'当前列表无法滚动',cancelled:'已停止'};
+  const ads=result.screens.reduce((sum,screen)=>sum+screen.advertised_cards,0);
+  const skipped=result.screens.reduce((sum,screen)=>sum+screen.unrecognized_cards,0);
+  line([result.screens.length+' 屏',result.hotels.length+' 条酒店展示',ads?ads+' 张广告卡未收录':'',skipped?skipped+' 张卡无法识别':'',reasons[result.reason]].filter(Boolean).join(' · '));
+  const list=document.createElement('ul');list.className='graph-list';
+  for(const hotel of result.hotels){
+    const row=document.createElement('li'),name=document.createElement('strong'),price=document.createElement('small'),rating=document.createElement('small'),location=document.createElement('small'),button=document.createElement('button');
+    name.textContent=hotel.name;
+    price.textContent=[hotel.starting_price_display&&'App 显示 '+hotel.starting_price_display,hotel.offer_label_display,hotel.discount_display].filter(Boolean).join(' · ');
+    rating.textContent=[hotel.score_display&&'评分 '+hotel.score_display,hotel.review_count_display,hotel.favorites_count_display].filter(Boolean).join(' · ');
+    location.textContent=[hotel.distance_display,hotel.nearby_display].filter(Boolean).join(' · ');
+    button.type='button';button.textContent='填入酒店详情';
+    button.onclick=()=>{$('mode').value='app_hotel';$('mode').dispatchEvent(new Event('change'));$('name').value=hotel.name;$('name').focus()};
+    row.append(name);
+    for(const node of [price,rating,location])if(node.textContent)row.append(node);
+    row.append(button);list.append(row);
+  }
+  if(result.hotels.length)panel.append(list);
+  box.append(panel);
+}
+function renderRestaurantList(box,result){
+  const panel=document.createElement('section');panel.className='graph-index';panel.setAttribute('aria-label','App 餐厅列表');
+  const title=document.createElement('h3');title.textContent=result.city+' · 城市美食';
+  const reasons={page_limit:'达到设置的屏数',query_changed:'城市或筛选条件已变化',query_incomplete:'筛选条件显示不完整',page_unavailable:'后续页面无法确认',device_unavailable:'设备连接中断',no_new_cards:'连续两屏没有新增餐厅',not_scrollable:'当前列表无法滚动',cancelled:'已停止'};
+  const note=document.createElement('p');note.className='hint';
+  note.textContent=[result.screens.length+' 屏',result.restaurants.length+' 条餐厅记录',reasons[result.reason]].filter(Boolean).join(' · ');
+  const list=document.createElement('ul');list.className='graph-list';
+  for(const restaurant of result.restaurants){
+    const row=document.createElement('li'),name=document.createElement('strong'),button=document.createElement('button');
+    name.textContent=restaurant.name;row.append(name);
+    for(const fields of [[restaurant.score_display&&'评分 '+restaurant.score_display,restaurant.review_count_display,restaurant.per_person_price_display,restaurant.opening_status_display],[restaurant.cuisine_display,restaurant.nearby_display,restaurant.location_display,restaurant.ranking_display]]){
+      const values=fields.filter(Boolean);
+      if(values.length){const line=document.createElement('small');line.textContent=values.join(' · ');row.append(line)}
+    }
+    button.type='button';button.textContent='填入餐厅详情';
+    button.onclick=()=>{$('mode').value='app_restaurant_detail';$('mode').dispatchEvent(new Event('change'));$('name').value=restaurant.name;$('name').focus()};
+    row.append(button);list.append(row);
+  }
+  panel.append(title,note);if(result.restaurants.length)panel.append(list);box.append(panel);
+}
+function appReviewButton(name,kind,label){
+  const button=document.createElement('button');button.type='button';button.textContent=label;
+  button.onclick=()=>{
+    $('mode').value='app_reviews';$('appKind').value=kind;$('mode').dispatchEvent(new Event('change'));
+    $('name').value=name;$('resourceId').value='';$('resourceId').focus();
+  };
+  return button;
+}
+function renderRestaurantDetail(box,result){
+  const panel=document.createElement('section');panel.className='graph-index';panel.setAttribute('aria-label','App 餐厅详情');
+  const title=document.createElement('h3');title.textContent=result.name;panel.append(title);
+  const line=fields=>{const values=fields.filter(Boolean);if(values.length){const node=document.createElement('p');node.className='hint';node.textContent=values.join(' · ');panel.append(node)}};
+  line([result.score_display&&'评分 '+result.score_display,result.rating_label,result.review_count_display,result.per_person_price_display,result.cuisine_display]);
+  line([result.rank_badge,result.ranking_display]);
+  line([result.opening_status_display,result.opening_hours_display]);
+  line([result.address_display,result.nearby_display]);
+  for(const [label,value] of Object.entries(result.features||{}))if(value)line([label+' '+value]);
+  const dishes=result.recommended_dishes||[];
+  if(dishes.length||Number.isInteger(result.dish_count_display)){
+    const heading=document.createElement('h4');heading.textContent='推荐菜';panel.append(heading);
+    line([Number.isInteger(result.dish_count_display)&&'页面显示 '+result.dish_count_display+' 道','本屏读到 '+dishes.length+' 道']);
+    line(dishes);
+  }
+  const booking=result.booking_preview||{};
+  const bookingFields=[booking.earliest_display,booking.party_size_display,...(booking.time_slots_display||[]),booking.booked_count_display];
+  if(bookingFields.some(Boolean)){const heading=document.createElement('h4');heading.textContent='页面订座信息';panel.append(heading);line(bookingFields)}
+  panel.append(appReviewButton(result.name,'restaurant','填入餐厅点评'));box.append(panel);
+}
+function renderShoppingList(box,result){
+  const panel=document.createElement('section');panel.className='graph-index';panel.setAttribute('aria-label','App 购物列表');
+  const title=document.createElement('h3');title.textContent=result.city+' · 城市购物';
+  const reasons={page_limit:'达到设置的屏数',query_changed:'城市或筛选条件已变化',query_incomplete:'筛选条件显示不完整',page_unavailable:'后续页面无法确认',device_unavailable:'设备连接中断',no_new_cards:'连续两屏没有新增购物地点',not_scrollable:'当前列表无法滚动',cancelled:'已停止'};
+  const note=document.createElement('p');note.className='hint';
+  note.textContent=[result.screens.length+' 屏',result.shops.length+' 条购物地点记录',reasons[result.reason]].filter(Boolean).join(' · ');
+  const list=document.createElement('ul');list.className='graph-list';
+  for(const shop of result.shops){
+    const row=document.createElement('li'),name=document.createElement('strong'),button=document.createElement('button');
+    name.textContent=shop.name;row.append(name);
+    const lines=[
+      [shop.english_name!==shop.name&&shop.english_name,shop.category_display,shop.location_display],
+      [shop.score_display&&'评分 '+shop.score_display,shop.review_count_display],
+      [shop.tagline_display],
+      shop.offers||[],
+    ];
+    for(const fields of lines){
+      const values=fields.filter(Boolean);
+      if(values.length){const line=document.createElement('small');line.textContent=values.join(' · ');row.append(line)}
+    }
+    button.type='button';button.textContent='填入购物详情';
+    button.onclick=()=>{$('mode').value='app_shopping_detail';$('mode').dispatchEvent(new Event('change'));$('name').value=shop.name;$('name').focus()};
+    row.append(button);list.append(row);
+  }
+  panel.append(title,note);if(result.shops.length)panel.append(list);box.append(panel);
+}
+function renderShoppingDetail(box,result){
+  const panel=document.createElement('section');panel.className='graph-index';panel.setAttribute('aria-label','App 购物详情');
+  const title=document.createElement('h3');title.textContent=result.name;panel.append(title);
+  const line=fields=>{const values=fields.filter(Boolean);if(values.length){const node=document.createElement('p');node.className='hint';node.textContent=values.join(' · ');panel.append(node)}};
+  line([result.english_name!==result.name&&result.english_name,...(result.category_labels||[])]);
+  line([result.score_display&&'评分 '+result.score_display,result.review_count_display]);
+  line([result.opening_status_display,...[].concat(result.opening_hours_display||[])]);
+  line([result.address_display,result.nearby_display]);
+  line([result.tagline_display,...(result.badges||[])]);
+  if(result.offers?.length){
+    const heading=document.createElement('h4');heading.textContent='页面优惠';
+    const list=document.createElement('ul');list.className='graph-list';
+    for(const offer of result.offers){const item=document.createElement('li');item.textContent=offer;list.append(item)}
+    panel.append(heading,list);
+  }
+  panel.append(appReviewButton(result.name,'shopping','填入购物点评'));
+  box.append(panel);
+}
+function renderAppHotel(box,result){
+  const panel=document.createElement('section');panel.className='graph-index';panel.setAttribute('aria-label','手机酒店详情');
+  const title=document.createElement('h3');title.textContent=result.name;panel.append(title);
+  const rating=result.review_display;
+  const line=text=>{if(text){const element=document.createElement('p');element.className='hint';element.textContent=text;panel.append(element)}};
+  line(rating&&[rating.score_text,rating.label,rating.count_text+'点评'].filter(Boolean).join(' · '));
+  line(result.review_snippet_display&&'点评摘录：'+result.review_snippet_display);
+  line([result.address_text,result.distance_display].filter(Boolean).join(' · '));
+  line([...(result.opening_labels||[]),...(result.facility_highlights||[])].join(' · '));
+  line([result.stay_dates_visible&&'页面入住日期 '+result.stay_dates_visible,result.stay_nights_visible&&'共 '+result.stay_nights_visible+' 晚'].filter(Boolean).join(' · '));
+  if(result.room_filter_options?.length){
+    line('房型筛选：'+result.room_filter_options.map(option=>option.label+(option.selected?'（已选）':'')).join(' · '));
+    if(!result.room_filter_options.some(option=>option.selected))line('未能确认已选筛选。');
+  }
+  line(result.hotel_starting_price&&'酒店起价：'+result.hotel_starting_price);
+  const reason={page_limit:'达到设置的屏数',repeated_screen:'页面没有变化',no_new_rooms:'连续两屏没有新增房型资料',hotel_context_changed:'页面或查询条件已变化',room_scroll_unavailable:'未识别到可滚动的房型区域',cancelled:'已停止',error:'读取中断'};
+  line((result.pages?.length?'已读 '+result.pages.length+' 屏 · ':'')+result.room_cards.length+' 条房型展示记录'+(reason[result.reason]?' · '+reason[result.reason]:'')+'。');
+  const list=document.createElement('ul');list.className='graph-list';
+  for(const room of result.room_cards){
+    const row=document.createElement('li'),name=document.createElement('strong'),details=document.createElement('small');
+    name.textContent=room.title;details.textContent=[room.bed_text,room.area_text,room.occupancy_text,room.floor_text,...(room.features||[])].filter(Boolean).join(' · ');
+    row.append(name,details);
+    for(const offer of room.offer_displays||[]){const price=document.createElement('small');price.textContent=['房型起价 '+offer.starting_price_display,offer.offer_label_display,offer.discount_display].filter(Boolean).join(' · ');row.append(price)}
+    list.append(row);
+  }
+  panel.append(list);box.append(panel);
+}
+function renderSightPolicy(box,result){
+  const card=document.createElement('section');card.className='graph-index';card.setAttribute('aria-label','景点优待政策');
+  const title=document.createElement('h3');title.textContent=result.name+' · 优待政策';card.append(title);
+  const warning=document.createElement('p');warning.className='hint';
+  const unresolved=(result.pages||[]).filter(page=>page.unresolved_condition_count>0).length;
+  warning.textContent='本次读取 '+result.rows.length+' 条政策，不能确认表格已读完。'+(unresolved?' '+unresolved+' 屏有条件未能对应完整政策。':'');card.append(warning);
+  for(const text of result.supplementary_notes||[]){
+    const note=document.createElement('p');note.textContent='补充说明：'+text;card.append(note);
+  }
+  if(result.rows.length){
+    const details=document.createElement('details'),summary=document.createElement('summary'),list=document.createElement('ul');summary.textContent='查看已读政策';list.className='graph-list';
+    for(const policy of result.rows){
+      const row=document.createElement('li'),name=document.createElement('strong'),condition=document.createElement('small');
+      name.textContent=policy.group+' · '+policy.policy;condition.textContent=policy.condition;row.append(name,condition);list.append(row);
+    }
+    details.append(summary,list);card.append(details);
+  }
+  box.append(card);
+}
+function renderAiSummary(box,result){
+  const sight=result.kind==='sight',label=sight?'景点 AI 点评总结':'酒店 AI 点评总结';
+  const panel=document.createElement('section');panel.className='graph-index';panel.setAttribute('aria-label',label);
+  const title=document.createElement('h3');title.textContent=label;panel.append(title);
+  const note=document.createElement('p');note.className='hint';
+  note.textContent=[result.name,result.status==='expanded_visible'||result.summary_state==='expanded'?'已读到展开区':'仅部分总结',
+    sight?(result.expand_entry_visible&&result.summary_state!=='expanded'?'本次仅读到摘要':'本次可见段落'):'关联点评数为 App 展示，未下载这些点评'].filter(Boolean).join(' · ');
+  panel.append(note);
+  const review=result.review_display;
+  const ratings=[review?.score_text,review?.count_text,...(result.rating_dimensions||[]).map(({label,score_text})=>label+' '+score_text)].filter(Boolean);
+  if(ratings.length){
+    const line=document.createElement('p');line.className='hint';
+    line.textContent=(sight?'App 显示 ':'点评维度：')+ratings.join(' · ');panel.append(line);
+  }
+  for(const lead of result.lead||[]){const paragraph=document.createElement('p');paragraph.textContent=lead;panel.append(paragraph)}
+  const list=document.createElement('ul');list.className='graph-list';
+  for(const item of result.sections){
+    const row=document.createElement('li'),heading=document.createElement('strong'),body=document.createElement('p');
+    heading.textContent=(item.topic||'总结段落')+(item.linked_count!==null&&item.linked_count!==undefined?' · 展示 '+item.linked_count+' 条':'');
+    body.textContent=item.body||item.text;row.append(heading,body);list.append(row);
+  }
+  panel.append(list);
+  const photos=result.ai_selected_images||{},imageInfo=document.createElement('p');imageInfo.className='hint';
+  const counts=[Number.isInteger(photos.display_count)?'晒图入口 '+photos.display_count+' 张':'',
+                Number.isInteger(photos.selected_count)?'AI 优选分类 '+photos.selected_count+' 张':''].filter(Boolean);
+  if(counts.length){imageInfo.textContent=counts.join(' · ')+'（均为页面显示，非已采图片）';panel.append(imageInfo)}
+  if(photos.visible_labels?.length){
+    const labels=document.createElement('p');labels.className='hint';
+    labels.textContent='当前晒图标签 '+photos.visible_labels.join(' · ');panel.append(labels);
+  }
+  const thumbnails=result.gallery_thumbnails;
+  if(thumbnails){
+    const status=document.createElement('p');status.className='hint';
+    if(thumbnails.archive){
+      status.textContent='已保存 '+thumbnails.saved_count+' 张屏幕裁图';
+      const grid=document.createElement('div');grid.className='gallery-thumbnails';
+      thumbnails.labels.forEach((label,index)=>{
+        const figure=document.createElement('figure'),picture=document.createElement('img');
+        picture.src='/api/sight-gallery?'+new URLSearchParams({run:thumbnails.report_id,tile:index+1});
+        picture.alt=label||'景点晒图 '+(index+1);picture.loading='lazy';figure.append(picture);
+        if(label){const caption=document.createElement('figcaption');caption.textContent=label;figure.append(caption)}
+        grid.append(figure);
+      });
+      const link=document.createElement('a');
+      link.href='/api/sight-gallery?'+new URLSearchParams({run:thumbnails.report_id});
+      link.textContent='下载景点晒图 ZIP';link.download='';
+      panel.append(status,grid,link);
+    }else{
+      const reasons={no_visible_tiles:'没有识别到完整方格',no_rendered_tiles:'方格尚未显示可用图片',screen_changed:'截图前后页面发生变化',dimension_mismatch:'截图尺寸与页面不一致',unsupported_image:'截图格式不支持',capture_unavailable:'暂时无法读取截图',archive_unavailable:'无法保存裁图文件'};
+      status.textContent='本次未保存晒图 · '+(reasons[thumbnails.status]||'采集已停止');panel.append(status);
+    }
+  }
+  box.append(panel);
+}
+function renderAiReplay(box,result){
+  const panel=document.createElement('section');panel.className='graph-index';panel.setAttribute('aria-label','本地 AI 总结重读');
+  const title=document.createElement('h3');title.textContent='本地 AI 总结重读';panel.append(title);
+  const note=document.createElement('p');note.className='hint';
+  note.textContent='已重读 '+result.summaries.length+' 份 · 跳过 '+result.skipped.length+' 份'+(result.remaining?' · 未处理 '+result.remaining+' 份':'')+'。结果保留原采集时间。';panel.append(note);
+  if(result.summaries.length){
+    const label=document.createElement('label'),select=document.createElement('select'),body=document.createElement('div');
+    label.htmlFor='replayedSummary';label.textContent='选择总结';select.id='replayedSummary';
+    for(const [index,summary] of result.summaries.entries()){
+      const option=document.createElement('option');option.value=index;option.textContent=summary.name+' · '+summary.captured_at.slice(0,10);select.append(option);
+    }
+    const render=()=>{body.replaceChildren();renderAiSummary(body,result.summaries[Number(select.value)])};
+    select.onchange=render;panel.append(label,select,body);render();
+  }
+  box.append(panel);
+}
+function renderMobileSampling(box,result){
+  const context=result.sampling_context||{};
+  const check=result.review_count_check;
+  const panel=document.createElement('section');panel.className='graph-index';panel.setAttribute('aria-label','手机点评采样条件');
+  const title=document.createElement('h3');title.textContent='手机点评采样条件';panel.append(title);
+  const line=text=>{const p=document.createElement('p');p.className='hint';p.textContent=text;panel.append(p)};
+  const reasons={target_reached:'达到设置的条数',screen_budget_reached:'达到滚动次数上限',stalled_unverified:'页面重复或连续未识别点评，无法确认已到底',stopped_by_user:'收到停止请求',identity_unverified:'无法确认点评页面名称',review_filter_changed:'检测到页面筛选切换',review_screen_changed:'截图前后页面发生变化，已保留之前的结果',requires_manual_action:'页面需要手动处理',error:'读取中断'};
+  if(reasons[result.reason])line('停止原因：'+reasons[result.reason]+'。');
+  if(check){
+    line([Number.isInteger(check.current_run_unique)?'本次读到 '+check.current_run_unique+' 条不同点评':'', '本次新增 '+result.new_count+' 条','本地累计 '+result.count+' 条'].filter(Boolean).join(' · '));
+    if(check.state==='compared_display_only'){
+      const relation=check.difference>0?' · 比显示数少 '+check.difference+' 条':check.difference<0?' · 比显示数多 '+Math.abs(check.difference)+' 条':' · 数量相同';
+      line('「'+check.filter+'」显示 '+check.display_total+' 条'+relation+'。仅供对照，不能确认已读全。');
+    }else{
+      const why={selection_unconfirmed:'没有确认本次所有读取屏使用同一筛选',approximate_count:'页面显示约数或带加号的数量',count_not_stable:'读到的显示数不一致',display_count_unavailable:'没有读取到当前筛选的显示数',current_run_count_unavailable:'旧版模式没有逐次去重记录'};
+      if(why[check.state])line('无法对照显示数：'+why[check.state]+'。');
+    }
+  }
+  const summary=document.createElement('p');summary.className='hint';
+  summary.textContent='检测到的筛选：'+(context.selected_filter||'未确认')+' · 排序：'+(context.sort_order||'未确认')+'。筛选按钮可见不等于已选中。';
+  panel.append(summary);
+  const evidence=context.observations?.find(observation=>observation.visible_filters.length);
+  if(evidence){
+    const counts=document.createElement('p');counts.textContent='页面显示：'+evidence.visible_filters.map(({label,display_count})=>label+' '+display_count).join(' · ');
+    panel.append(counts);
+  }
+  if(result.kind==='shopping'){
+    const overview=context.observations?.find(observation=>observation.shopping_review_overview)?.shopping_review_overview;
+    if(overview){
+      const scores=[];
+      if(Number.isFinite(overview.overall_score))scores.push('页面评分 '+overview.overall_score);
+      for(const label of ['商品','环境','服务']){
+        const score=overview.rating_dimensions?.[label];
+        if(Number.isFinite(score))scores.push(label+' '+score);
+      }
+      if(scores.length)line(scores.join(' · '));
+    }
+  }
+  line('显示数量不是本次已采数量。不同点评按本地内容去重。');
+  const firstAi=result.first_screen_ai;
+  const thumbnails=result.review_thumbnails;
+  if(thumbnails){
+    line('点评缩略图：已保存 '+thumbnails.saved_count+' 张'+(thumbnails.skipped_screens?' · '+thumbnails.skipped_screens+' 屏未能完整保存':'')+(thumbnails.limit_reached?' · 达到保存上限':'')+'。');
+    if(thumbnails.archive){
+      const crops=document.createElement('a'),row=document.createElement('p');
+      crops.href='/api/review-thumbnails?'+new URLSearchParams({run:result.run_id});
+      crops.download='';crops.style.color='var(--accent)';crops.textContent='下载点评缩略图（ZIP）';
+      row.append(crops);panel.append(row);
+    }
+  }
+  if(firstAi){
+    const detail={saved:'已保存 '+firstAi.section_count+' 段'+(firstAi.summary_status==='partial'?'（仅可见部分）':'（看到展开结束标记）'),not_visible:'当前首屏未读到总结',not_read:'任务未读到首屏',save_failed:'写入失败，已保留点评结果'};
+    line('首屏 AI 总结：'+(detail[firstAi.status]||'状态未知')+'。');
+  }
+  if(result.sample_csv){
+    const download=document.createElement('a');
+    download.href='/api/task-sample-csv';download.download='';
+    download.textContent='下载本次点评 CSV（'+result.sample_csv_count+' 条）';
+    download.style.color='var(--accent)';panel.append(download);
+    if(['restaurant','shopping'].includes(result.kind)){
+      const actions=document.createElement('div'),preview=document.createElement('button');
+      actions.className='graph-actions';preview.type='button';preview.textContent='查看本地 App 点评';
+      preview.onclick=()=>{$('previewSource').value='scoped';$('previewSource').dispatchEvent(new Event('change'));$('previewSource').focus()};
+      actions.append(preview);panel.append(actions);
+    }
+    if(result.kind==='hotel'&&(!firstAi||firstAi.status==='saved')){
+      const bundle=document.createElement('a');
+      bundle.href='/api/hotel-review-bundle?'+new URLSearchParams({run:result.run_id});
+      bundle.download='';bundle.style.color='var(--accent)';
+      bundle.textContent='合并导出点评与 AI 总结（ZIP）';
+      const row=document.createElement('p');row.className='hint';row.append(bundle);panel.append(row);
+      line(firstAi?'本次压缩包只使用这次任务保存的首屏总结。':'合并导出前，请先采集同名、同编号酒店的 AI 总结。两份资料可以来自不同时间。');
+    }
+  }
+  box.append(panel);
+}
+function renderPublicProfiles(box,result,reviewBatch=false){
+  const panel=document.createElement('section');panel.className='graph-index';panel.setAttribute('aria-label','对象公开资料');
+  const title=document.createElement('h3');title.textContent='对象公开资料';panel.append(title);
+  const line=(parent,text)=>{const p=document.createElement('p');p.className='hint';p.textContent=text;parent.append(p)};
+  const disclosure=(parent,label,items)=>{
+    if(!items.length)return;
+    const details=document.createElement('details'),summary=document.createElement('summary'),entries=document.createElement('ul');
+    summary.textContent=label+'（'+items.length+'）';entries.className='graph-list';
+    for(const text of items){const item=document.createElement('li');item.textContent=text;entries.append(item)}
+    details.append(summary,entries);parent.append(details);
+  };
+  line(panel,reviewBatch?'本次采集 '+result.profiles.filter(profile=>!profile.reused).length+' 个 · 从以往已核验结果复用 '+result.profiles.filter(profile=>profile.reused).length+' 个。':
+    '已读取 '+result.profiles.length+' 个 · 失败 '+result.failed.length+' 个 · 未处理 '+result.remaining+' 个。');
+  const list=document.createElement('ul');list.className='graph-list';
+  for(const profile of result.profiles){
+    const row=document.createElement('li'),name=document.createElement('strong');
+    const label={sight:'景点',restaurant:'餐饮',shopping:'购物'}[profile.kind]||'对象';
+    name.textContent=label+' · '+(profile.name||'对象 '+profile.resource_id);
+    row.append(name);
+    const counts=Number.isInteger(profile.overview_display_total)?profile.overview_display_total:profile.display_total;
+    const score=[profile.average_score!=null?'页面评分 '+profile.average_score:'',counts!=null?'显示 '+counts+' 条点评':''].filter(Boolean);
+    if(score.length)line(row,score.join(' · '));
+    if(profile.score_dimensions?.length)line(row,profile.score_dimensions.map(({label,score})=>label+' '+score).join(' · '));
+    if(profile.opening_text)line(row,'营业：'+profile.opening_text);
+    if(profile.kind==='sight'){
+      if(profile.opening_status_text||profile.next_opening_text)line(row,[profile.opening_status_text,profile.next_opening_text].filter(Boolean).join(' · '));
+      if(profile.visit_duration_text)line(row,'建议游玩：'+profile.visit_duration_text);
+      if(profile.ranking_label)line(row,'页面榜单：'+profile.ranking_label);
+      disclosure(row,'开放时段',(profile.opening_time_rules||[]).map(rule=>rule.period_text+'：'+rule.hours_texts.join('；')));
+      disclosure(row,'优待政策',(profile.admission_policies||[]).map(rule=>rule.group+'：'+rule.description));
+      if(profile.review_topic_tags?.length){
+        disclosure(row,'点评话题标签',(profile.review_topic_tags||[]).map(tag=>tag.label+(Number.isInteger(tag.display_count)?' · 页面显示 '+tag.display_count+' 条':'')));
+        line(row,'话题仅为页面标签和显示数，未取得完整 AI 总结或标签关联点评。');
+      }
+    }
+    if(profile.address)line(row,'地址：'+profile.address);
+    if(profile.cuisines?.length)line(row,'菜系：'+profile.cuisines.join('、'));
+    if(profile.featured_dishes?.length)line(row,'页面列出的菜品：'+profile.featured_dishes.join('、'));
+    if(profile.kind==='shopping'){
+      line(row,profile.comment_samples_status==='available'?'页面附带 '+profile.comment_samples.length+' 条点评样本。':'未读取到点评样本。');
+      if(profile.comment_samples?.length){
+        const details=document.createElement('details'),summary=document.createElement('summary');
+        summary.textContent='查看页面点评样本';details.append(summary);
+        for(const sample of profile.comment_samples.slice(0,10))if(typeof sample.content==='string')line(details,sample.content);
+        row.append(details);
+      }
+    }
+    if(reviewBatch){
+      const reviews=profile.review_result;
+      line(row,profile.reused?'复用已核验的点评和当时保存的公开资料。':'本次分页读取 '+reviews.read_unique+' 条 · 本地累计 '+reviews.count+' 条。');
+      if(reviews.csv&&/^(sight|restaurant|shopping)-[1-9][0-9]*$/.test(reviews.object_key)){
+        const link=document.createElement('a');link.href='/api/export?'+new URLSearchParams({object:reviews.object_key,format:'csv'});
+        link.download='';link.textContent='下载本地累计点评 CSV';row.append(link);
+      }
+    }else{
+      const action=document.createElement('button');action.type='button';action.textContent='填入对象点评';
+      action.onclick=()=>{$('mode').value='reviews';$('mode').dispatchEvent(new Event('change'));$('urls').value=profile.url;$('urls').focus()};
+      row.append(action);
+    }
+    list.append(row);
+  }
+  panel.append(list);
+  if(!reviewBatch&&result.failed.length)line(panel,'失败对象和原因见报告。');
+  line(panel,'资料来自公开页面；样本不代表全部点评。');
+  box.append(panel);
+}
+function renderScreenshotOcr(box,result){
+  const panel=document.createElement('section');panel.className='graph-index';panel.setAttribute('aria-label','截图文字识别结果');
+  const heading=document.createElement('h3');heading.textContent='截图文字';panel.append(heading);
+  const meta=document.createElement('p');meta.className='hint';
+  meta.textContent=result.image_size.join(' × ')+' 像素 · '+result.lines.length+' 行。使用前可对照截图核对数字与标点。';
+  panel.append(meta);
+  if(result.text){
+    const text=document.createElement('pre');text.className='ocr-text';text.textContent=result.text;panel.append(text);
+    const copy=document.createElement('button');copy.type='button';copy.textContent='复制识别文字';
+    const message=document.createElement('span');message.className='hint';message.setAttribute('role','status');
+    copy.onclick=async()=>{
+      try{await navigator.clipboard.writeText(result.text);message.textContent='已复制'}
+      catch{message.textContent='请选中文字复制'}
+    };
+    const actions=document.createElement('div');actions.className='actions';actions.append(copy,message);panel.append(actions);
+  }else{
+    const note=document.createElement('p');note.className='hint';note.textContent='所选区域未识别到文字。';panel.append(note);
+  }
+  box.append(panel);
+}
+function renderSelectedPageFields(box,result){
+  const panel=document.createElement('section');panel.className='graph-index';panel.setAttribute('aria-label','App 自选字段结果');
+  const title=document.createElement('h3');title.textContent=result.name+' · 自选字段';panel.append(title);
+  const coverage=document.createElement('p');coverage.className='hint';
+  coverage.textContent='名称匹配 '+result.matched_screens+' / '+result.total_screens+' 屏'+(result.skipped_screens.length?' · 跳过 '+result.skipped_screens.length+' 屏':'');
+  panel.append(coverage);
+  if(result.screens.length){
+    const picker=document.createElement('select'),label=document.createElement('label'),details=document.createElement('dl');
+    picker.id='fieldScreen';label.htmlFor='fieldScreen';label.textContent='查看页面';
+    for(const [index,screen] of result.screens.entries()){
+      const option=document.createElement('option');option.value=index;
+      option.textContent='第 '+screen.screen+' 屏 · '+screen.fields.filter(field=>field.values.length).length+' 项有值';picker.append(option);
+    }
+    picker.onchange=()=>{
+      details.replaceChildren();
+      const screen=result.screens[Number(picker.value)];
+      for(const field of screen.fields){
+        const name=document.createElement('dt');name.textContent=field.label;
+        const body=document.createElement('dd');body.style.margin='4px 0 14px';
+        if(!field.values.length){body.className='hint';body.textContent='本屏未找到'}
+        for(const value of field.values){
+          const line=document.createElement('p');line.style.whiteSpace='pre-wrap';line.textContent=value;body.append(line);
+        }
+        details.append(name,body);
+      }
+    };
+    if(result.screens.length>1)panel.append(label,picker);
+    panel.append(details);picker.onchange();
+  }
+  box.append(panel);
+}
+function renderSightReviewReplay(box,result){
+  const panel=document.createElement('section');panel.className='graph-index';panel.setAttribute('aria-label','景点点评离线重读');
+  const title=document.createElement('h3');title.textContent='景点点评离线重读';panel.append(title);
+  const status=document.createElement('p');status.className='hint';
+  status.textContent='核对 '+result.rows_written+' / '+result.local_reviews+' 条 · '+result.matched_reviews+' 条匹配原始页面 · 读取 '+result.evidence_screens_read+' 屏';
+  panel.append(status);
+  const counts=result.replayed_field_counts,fields=document.createElement('p');fields.className='hint';
+  fields.textContent='有图数 '+counts.photo_count_display+' 条 · 有用票数 '+counts.helpful_count_display+' 条 · 下方评论数 '+counts.thread_comment_count_display+' 条';
+  panel.append(fields);
+  const reasons={review_not_matched:'正文不匹配',title_mismatch:'景点标题无法核对',invalid_evidence:'页面文件无法解析',unavailable_evidence:'页面文件不可用'};
+  const issues=Object.entries(reasons).filter(([key])=>result.status_counts[key]).map(([key,label])=>label+' '+result.status_counts[key]+' 条');
+  if(issues.length){const note=document.createElement('p');note.className='hint';note.textContent=issues.join(' · ');panel.append(note)}
+  if(result.record_sources.scoped&&result.record_sources.legacy){
+    const note=document.createElement('p');note.className='hint';note.textContent='含旧版未绑定编号的数据，和按编号保存的数据可能重叠。';panel.append(note);
+  }
+  const link=document.createElement('a');link.href='/api/sight-review-replay?'+new URLSearchParams({run:result.replay_id});
+  link.textContent='下载离线重读 CSV';link.download='';panel.append(link);box.append(panel);
+}
+function renderRelated(result){
+  logger.info('开始展示页面推荐对象');
+  const box=$('relatedResults');
+  const coverage=['local_network_database_only','local_network_and_android_artifacts'].includes(result?.scope);
+  const publicProfiles=['public_poi_profile','public_restaurant_shopping_profile'].includes(result?.source_method)&&Array.isArray(result.profiles);
+  const batchResult=result?.collection||result;
+  const batchProfiles=[
+    ...(Array.isArray(batchResult?.results)?batchResult.results:[]).filter(item=>item.public_profile).map(item=>({...item.public_profile,review_result:item})),
+    ...(Array.isArray(batchResult?.reused_results)?batchResult.reused_results:[]).filter(item=>item.public_profile).map(item=>({...item.public_profile,review_result:item,reused:true})),
+  ];
+  const gallery=result?.source_method==='android_gallery_viewer'&&Array.isArray(result.pages);
+  const sightPhotoGallery=result?.source_method==='android_sight_photo_gallery';
+  const sightSnapshot=result?.source_channel==='android_ui_snapshot'&&Array.isArray(result.ticket_cards);
+  const sightGuide=result?.source_method==='android_sight_guide_snapshot';
+  const appCity=result?.source_method==='android_city_mustsee_snapshot'&&Array.isArray(result.objects);
+  const hotelList=result?.source_method==='android_hotel_list_snapshot'&&Array.isArray(result.hotels);
+  const appHotel=result?.source_method==='android_hotel_detail_snapshot'&&Array.isArray(result.room_cards);
+  const restaurantList=result?.source_method==='android_restaurant_list_snapshot'&&Array.isArray(result.restaurants);
+  const restaurantDetail=result?.source_method==='android_restaurant_detail_snapshot';
+  const shoppingList=result?.source_method==='android_shopping_list_snapshot'&&Array.isArray(result.shops);
+  const shoppingDetail=result?.source_method==='android_shopping_detail_snapshot';
+  const policy=result?.source_method==='android_sight_policy'&&Array.isArray(result.rows);
+  const ai=result?.source==='ctrip_android_ui'&&result.generated_by_ai===true&&Array.isArray(result.sections);
+  const screenshotOcr=result?.source_method==='local_screenshot_ocr';
+  const selectedFields=result?.source_method==='android_selected_page_fields';
+  const sightReplay=result?.source_method==='android_sight_review_evidence_replay';
+  const replay=result?.source_method==='android_ai_evidence_replay'&&Array.isArray(result.summaries);
+  const sampling=result?.review_count_check?.scope==='current_run_fingerprints_vs_app_filter_label'||result?.sampling_context?.scope==='current_run_ui_controls_only';
+  const relevant=publicProfiles||batchProfiles.length>0||sampling||replay||sightReplay||selectedFields||screenshotOcr||ai||policy||gallery||sightPhotoGallery||sightSnapshot||sightGuide||appCity||appHotel||hotelList||restaurantList||restaurantDetail||shoppingList||shoppingDetail||(result&&(coverage||['public_restaurant_page_recommendations','public_restaurant_poi_resolution','public_sight_page_recommendations','public_sight_recommendation_graph'].includes(result.source_method))&&Array.isArray(result.objects));
+  const key=relevant?JSON.stringify(result):'';
+  if(key===relatedKey)return;
+  relatedKey=key;box.replaceChildren();box.hidden=!relevant;
+  if(!relevant)return;
+  if(publicProfiles){renderPublicProfiles(box,result);return}
+  if(batchProfiles.length){renderPublicProfiles(box,{profiles:batchProfiles},true);return}
+  if(sampling){renderMobileSampling(box,result);return}
+  if(screenshotOcr){renderScreenshotOcr(box,result);return}
+  if(selectedFields){renderSelectedPageFields(box,result);return}
+  if(sightReplay){renderSightReviewReplay(box,result);return}
+  if(replay){renderAiReplay(box,result);return}
+  if(ai){renderAiSummary(box,result);return}
+  if(policy){renderSightPolicy(box,result);return}
+  if(hotelList){renderHotelList(box,result);return}
+  if(appHotel){renderAppHotel(box,result);return}
+  if(restaurantList){renderRestaurantList(box,result);return}
+  if(restaurantDetail){renderRestaurantDetail(box,result);return}
+  if(shoppingList){renderShoppingList(box,result);return}
+  if(shoppingDetail){renderShoppingDetail(box,result);return}
+  if(appCity){renderAppCity(box,result);return}
+  if(sightSnapshot){renderSightSnapshot(box,result);return}
+  if(sightGuide){renderSightGuide(box,result);return}
+  if(sightPhotoGallery){renderSightPhotoGallery(box,result);return}
+  if(gallery){renderGalleryRun(box,result);return}
+  if(coverage){renderCoverage(box,result);return}
+  if(result.source_method==='public_sight_recommendation_graph'){renderGraphIndex(box,result);return}
+  // 3.1 名称和编号只作为文本，避免页面数据插入 HTML。
+  const resolving=result.source_method==='public_restaurant_poi_resolution',sight=result.source_method==='public_sight_page_recommendations';
+  const title=document.createElement('p');title.textContent=(resolving?'已核验餐厅':'页面推荐')+' · '+result.objects.length+' 个对象';box.append(title);
+  const hint=document.createElement('p');hint.className='hint';hint.textContent=resolving?'仅展示身份核验成功的餐厅；失败和未处理情况请查看报告。':(result.recommendations_status==='partial'?'部分推荐列表缺失或格式无效，展示的是已读取的部分。':'推荐不代表全部对象。')+(sight?' 候选链接来自来源页面，尚未逐个核验。':' 餐厅候选可继续核验，酒店链接可用于后续采集。');box.append(hint);
+  const hotels=[],restaurants=[],candidates=[];
+  for(const item of result.objects){
+    const row=document.createElement('p');row.className='hint';
+    const label=relatedKindLabels[item.kind]||'对象';
+    row.textContent=label+' · '+(item.name||'名称未提供')+' · '+(item.kind==='hotel'?'酒店 ID '+item.hotel_id:'POI '+item.poi_id);
+    box.append(row);
+    if(item.kind==='hotel'&&/^https:\/\/hotels\.ctrip\.com\/hotels\/[1-9][0-9]*\.html$/.test(item.url||''))hotels.push(item.url);
+    if(resolving&&item.kind==='restaurant'&&/^https:\/\/you\.ctrip\.com\/yougourmet\/restdetail\/[a-zA-Z0-9]+\/[1-9][0-9]*\.html$/.test(item.url||''))restaurants.push(item.url);
+    if(sight){const url=sightCandidateUrl(item);if(url)candidates.push(url)}
+  }
+  // 3.2 只填入链接供用户核对，不自动开始网络采集。
+  if(hotels.length){const button=document.createElement('button');button.type='button';button.textContent='使用酒店链接采集点评';button.onclick=()=>{$('mode').value='reviews';$('mode').dispatchEvent(new Event('change'));$('urls').value=hotels.join('\n');$('urls').focus()};box.append(button)}
+  if(restaurants.length){const button=document.createElement('button');button.type='button';button.textContent='使用餐厅链接采集点评';button.onclick=()=>{$('mode').value='reviews';$('mode').dispatchEvent(new Event('change'));$('urls').value=restaurants.join('\n');$('urls').focus()};box.append(button)}
+  if(candidates.length){const button=document.createElement('button');button.type='button';button.textContent='使用候选链接采集点评';button.onclick=()=>{$('mode').value='reviews';$('mode').dispatchEvent(new Event('change'));$('urls').value=candidates.join('\n');$('urls').focus()};box.append(button)}
+  const filename=(result.report_file||'').split(/[\\/]/).pop();
+  if(!resolving&&!sight&&result.objects.some(item=>item.kind==='restaurant')&&/^related-restaurant-[0-9a-f]{32}\.json$/.test(filename)){
+    const button=document.createElement('button');button.type='button';button.textContent='核验推荐餐厅';
+    button.onclick=async()=>{pending=true;button.disabled=true;try{await api('/api/start',{mode:'resolve_related',report_file:filename})}catch(error){$('formError').textContent=error.message}finally{pending=false;await refresh()}};
+    box.append(button);
+  }
+  logger.info('页面推荐对象展示完成');
+}
+/* ===== 步骤2：读取任务快照；数据源：本地服务；操作：1) 展示真实进度 2) 明示断线 ===== */
+async function refresh(){logger.info('开始读取任务快照');try{const state=await api('/api/state');const busy=['running','stopping'].includes(state.status);$('status').textContent=({idle:'等待任务',running:'采集中',stopping:'正在保存',finished:'任务结束',cancelled:'已停止',error:'任务出错'})[state.status]||state.status;$('status').classList.toggle('running',busy);$('start').disabled=busy||pending;$('stop').disabled=state.status!=='running';if(state.messages.length)$('progress').textContent=state.messages.join('\n');$('runError').textContent=state.error||'';lastResult=state.result;renderRelated(lastResult);$('mobileCsv').hidden=!(lastResult&&lastResult.csv&&['hotel','sight','restaurant','shopping'].includes(lastResult.kind)&&['finished','cancelled','error'].includes(state.status));$('download').disabled=!lastResult;$('details').hidden=!lastResult;$('result').textContent=lastResult?JSON.stringify(lastResult,null,2):''}catch(error){$('status').textContent='连接中断';$('start').disabled=true;$('stop').disabled=true;$('runError').textContent='无法连接本地服务：'+error.message}logger.info('任务快照读取结束')}
+// 2.1 前次请求结束后再轮询，避免慢响应堆积。
+async function poll(){await refresh();setTimeout(poll,1500)}poll();
+/* ===== 步骤3：预览已采数据；数据源：本地数据库；操作：1) 按需读取 2) 纯文本呈现 ===== */
+logger.info('开始绑定数据预览');
+let previewCursor=null,previewHistory=[],previewNext=null,previewGeneration=0;
+function makeCardFields(item){
+  const fields=item.card_fields,box=document.createElement('div'),meta=document.createElement('p');
+  const labels=[['room_type','房型'],['travel_type','出游类型'],['visit_duration','游玩时长']];
+  const values=labels.filter(([key])=>fields[key]).map(([key,label])=>label+'：'+fields[key]);
+  if(fields.verified_purchase_visible)values.push('消费后评价（页面标记）');
+  if(Number.isInteger(fields.helpful_count_display))values.push('有用 '+fields.helpful_count_display+'（页面显示）');
+  if(Number.isInteger(fields.photo_count_display))values.push(fields.photo_count_display+' 图（App 显示）');
+  if(Number.isInteger(fields.thread_comment_count_display))values.push('下方评论 '+fields.thread_comment_count_display+' 条（App 显示）');
+  if(Number.isInteger(fields.media_tiles_visible))values.push('曾在同屏看到 '+fields.media_tiles_visible+' 格点评媒体');
+  if(item.kind==='shopping'){
+    const dimensions=[['shopping_product_score','商品'],['shopping_environment_score','环境'],['shopping_service_score','服务']];
+    for(const [key,label] of dimensions){
+      const score=fields[key];
+      if(Number.isFinite(score)||(typeof score==='string'&&score.trim()))values.push(label+' '+score);
+    }
+    if(Number.isInteger(fields.shopping_reaction_count_display))values.push('互动 '+fields.shopping_reaction_count_display+'（App 显示）');
+  }
+  if(values.length){meta.className='hint';meta.textContent=values.join(' · ');box.append(meta)}
+  if(fields.hotel_reply){const reply=document.createElement('p');reply.style.whiteSpace='pre-wrap';reply.textContent='酒店回复：'+fields.hotel_reply+(item.hotel_reply_truncated?'…（预览已截断）':'');box.append(reply)}
+  return box;
+}
+async function loadPreview(){
+  const generation=++previewGeneration,button=$('previewButton');button.disabled=true;
+  // 3.0 来源变化后立即清空旧数据，避免等待期间显示错误来源。
+  $('previewItems').replaceChildren();$('previewNotice').textContent='正在读取评论…';$('previewPrev').disabled=true;$('previewNext').disabled=true;
+  try{
+    const source=$('previewSource').value,mobile=source!=='network',endpoint=source==='scoped'?'/api/scoped-mobile-preview':mobile?'/api/mobile-preview':'/api/preview';const data=await api(endpoint+(previewCursor===null?'':'?before='+previewCursor));if(generation!==previewGeneration)return;previewNext=data.next_cursor;$('previewItems').replaceChildren();
+    // 3.1 不将评论正文插入HTML，避免外部内容变成页面代码。
+    for(const item of data.items){const article=document.createElement('article');article.style.cssText='border-top:1px solid var(--line);padding:20px 0;overflow-wrap:anywhere';const meta=document.createElement('p');meta.className='hint';meta.textContent=(mobile?((relatedKindLabels[item.kind]||'对象')+' · '+item.place+(item.object_id?' · 声明 ID '+item.object_id:'')+(['restaurant','shopping'].includes(item.kind)?' · 数字 ID 由操作者声明':' · 对象由操作者填写，未自动核验')):item.object_key)+' · '+(item.score?'评分 '+item.score+' · ':'')+item.fetched_at;const body=document.createElement('p');body.style.whiteSpace='pre-wrap';body.textContent=item.content+(item.truncated?'…（预览已截断）':'')+(item.expanded_content_observed?'（正文来自展开后的卡片，完整性未验证）':mobile&&item.has_expand?'（页面有折叠内容，完整性未验证）':'');article.append(meta,body);if(mobile&&item.first_saved_screen){const first=document.createElement('p');first.className='hint';first.textContent='原始正文首次保存：任务 '+item.first_saved_screen.run_id+' · 第 '+item.first_saved_screen.screen+' 屏';article.append(first)}if(mobile&&item.card_fields)article.append(makeCardFields(item));if(source==='scoped'&&item.local_key)article.append(makeObservationView(item));for(const format of (mobile?[]:['csv','jsonl'])){const link=document.createElement('a');link.href='/api/export?object='+encodeURIComponent(item.object_key)+'&format='+format;link.textContent='下载此对象 '+format.toUpperCase();link.style.cssText='color:var(--accent);font-size:12px;margin-right:18px';article.append(link)}if(!mobile&&item.observations_available){const link=document.createElement('a');link.href='/api/export?object='+encodeURIComponent(item.object_key)+'&format=observations';link.textContent='下载此对象评论观察记录';link.style.cssText='color:var(--accent);font-size:12px;margin-right:18px';article.append(link);const note=document.createElement('p');note.className='hint';note.textContent='观察记录包含不同来源的评论字段。采集中下载的文件可能是上次导出的版本。';article.append(note)}$('previewItems').append(article)}
+    $('previewNotice').textContent=data.items.length?'显示 '+data.items.length+' 条'+(data.has_more?(mobile?'，可继续翻页。':'，可继续翻页或下载完整文件。'):'。'):(mobile?'当前目录还没有手机评论。':'当前目录还没有网页评论。');
+  }catch(error){if(generation===previewGeneration)$('previewNotice').textContent='读取失败：'+error.message}finally{if(generation===previewGeneration){button.disabled=false;$('previewPrev').disabled=!previewHistory.length;$('previewNext').disabled=previewNext===null}}
+};
+/* ===== 步骤4：查看评论观察；数据源：本地同指纹记录；操作：1) 按需分页 2) 导出摘要 ===== */
+function makeObservationView(item){
+  const key=item.local_key;
+  logger.info('开始创建观察记录入口');
+  const details=document.createElement('details'),summary=document.createElement('summary'),note=document.createElement('p'),list=document.createElement('div'),more=document.createElement('button'),download=document.createElement('button');
+  summary.textContent='查看评论变化记录';note.className='hint';note.textContent='内容指纹不是平台评论 ID 或匿名化标识，可能合并不同评论；对象 ID 由操作者声明。摘要不包含昵称、原始文本或来源路径。';
+  more.type='button';more.textContent='加载更早记录';more.hidden=true;download.type='button';download.textContent='下载全部观察摘要';download.hidden=true;
+  let next=null,loaded=false,loading=false;
+  const url=cursor=>'/api/mobile-observations?review='+encodeURIComponent(key)+(cursor===null?'':'&before='+cursor);
+  // 4.1 每页只显示评分、展开标志、时间和原文是否变化，不输出原始文本。
+  async function load(cursor){if(loading)return;loading=true;more.disabled=true;try{const data=await api(url(cursor));if(cursor===null)list.replaceChildren();if(data.history_status!=='available'){note.textContent=data.history_status==='unavailable'?'旧数据没有观察表，不能推断没有变化。':'这条评论尚无观察记录。';more.hidden=true;download.hidden=true;return}for(const row of data.items){const line=document.createElement('p');line.className='hint';line.textContent=(row.captured_at||'时间未知')+' · 评分 '+(row.score??'未知')+' · '+(row.has_expand===null?'展开状态未知':row.has_expand?'页面有展开按钮':'页面未显示展开按钮')+' · '+(row.raw_texts_changed===null?'首次记录':row.raw_texts_changed?'界面原文有变化':'界面原文未变化');list.append(line)}next=data.next_cursor;more.hidden=next===null;download.hidden=false;loaded=true}catch(error){note.textContent='读取观察记录失败：'+error.message}finally{loading=false;more.disabled=false}}
+  details.ontoggle=()=>{if(details.open&&!loaded)load(null)};more.onclick=()=>load(next);
+  // 4.2 导出全部已记录摘要；页数过大时明确报错，不将不完整结果称为全部。
+  download.onclick=async()=>{download.disabled=true;try{let cursor=null,items=[],data;do{data=await api(url(cursor));items.push(...data.items);cursor=data.next_cursor;if(items.length>20000)throw Error('记录超过 20000 条，请分批查看');}while(cursor!==null);const payload={local_key:key,object:{kind:item.kind,object_id:item.object_id,place:item.place},review_identity:'content_fingerprint_not_platform_id',object_identity:'operator_declared_unverified',limitations:data.limitations,items};const objectUrl=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=objectUrl;a.download='手机评论观察摘要.json';a.click();setTimeout(()=>URL.revokeObjectURL(objectUrl),1000)}catch(error){note.textContent='导出失败：'+error.message}finally{download.disabled=false}};
+  details.append(summary,note,list,more,download);logger.info('观察记录入口创建完成');return details;
+}
+$('previewSource').onchange=()=>{$('previewHint').textContent=$('previewSource').value!=='network'?'手机界面采集结果。数字 ID 由操作者填写，核验范围见各次采集报告。':'当前输出目录的网页评论，每页20条，包含历史任务。';previewCursor=null;previewHistory=[];previewNext=null;return loadPreview()};
+$('previewButton').onclick=()=>{previewCursor=null;previewHistory=[];return loadPreview()};
+$('previewNext').onclick=()=>{if($('previewButton').disabled||previewNext===null)return;previewHistory.push(previewCursor);previewCursor=previewNext;return loadPreview()};
+$('previewPrev').onclick=()=>{if($('previewButton').disabled||!previewHistory.length)return;previewCursor=previewHistory.pop();return loadPreview()};
+logger.info('数据预览绑定完成');
+</script></body></html>

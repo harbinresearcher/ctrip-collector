@@ -1,122 +1,48 @@
-# 携程点评采集器（CtripCollector）
+# 携程点评采集器
 
 ![tests](https://github.com/harbinresearcher/ctrip-collector/actions/workflows/tests.yml/badge.svg)
 
-> ⚠️ **开发中，非成品**。当前 `0.19`，只对下面「当前状态」表里标为完成的能力负责。
-> 未完成的能力在 [ROADMAP.md](ROADMAP.md) 里列着，不要当成已有功能使用或宣传。
+当前版本 **0.21.0**。Windows 电脑上的本地采集工作台，读取携程网页和 Android 模拟器内可见的资料，保存到本地目录。工作台可以查看采集范围、预览点评并导出 CSV、JSON 或适用的 ZIP。
 
-从携程 App / 网页采集**公开可见**的点评类数据，落地 SQLite，导出 CSV / JSONL，带 Tkinter 操作窗口和 CLI。
+## 在 Windows 启动
 
-面向学术研究：**有界、可复现、不抽样**，数量以数据库为准，不以"长时间没有新增"当作全量完成。
+使用 Python 3.12，在仓库目录运行。
 
-## 当前状态（0.19）
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe app.py --workbench --output data
+```
 
-| 能力 | 状态 | 备注 |
-| --- | --- | --- |
-| 网络点评采集（景点 / 餐饮 / 购物） | ✅ 可用 | 真实页面验证过，分页到接口返回空为止 |
-| 酒店浏览器通道 + AI 总结 | ✅ 可用 | 依赖本机 Edge，首次需自行登录 |
-| 景点 / 餐饮 / 购物 / 酒店目录发现 | ✅ 可用 | 酒店目录用专用 Edge 登录目录监听分页请求；只代表当次日期与筛选条件 |
-| 评论图片下载 | ✅ 可用 | 只取接口明确返回的大图，Pillow 校验 + SHA256 复用 |
-| AI 优选图集 | ⚠️ 试验（0.12+） | GUI 已接，见 [docs/GALLERY_USAGE.md](docs/GALLERY_USAGE.md)；锁屏/非首张/未知布局一律停 |
-| 多地区批量发现 | ✅ 可用 | `--region-seeds` 从公开首页生成地区入口，逐地区保留结果与停止原因 |
-| 地区目录续跑 | ✅ 可用 | `--resume-regions` 接着上次的 `discovery-regions-*.json`，见 [docs/REGION_RESUME.md](docs/REGION_RESUME.md) |
-| 酒店公开详情批量 | ✅ 可用 | `hotel_public_batch.py` 批量读公开详情页与评论样本，不用浏览器登录 |
-| 覆盖统计 | ✅ 可用 | `--coverage` 统计本地已采评论与字段覆盖，不等于平台全量；见 [docs/COVERAGE_USAGE.md](docs/COVERAGE_USAGE.md) |
-| 持久批处理与断点续跑 | ✅ 可用 | 中断恢复做过模拟测试，未做真实强杀测试 |
-| 抓包 JSONL 导入 | ✅ 可用 | 不含原始流量，字段按白名单脱敏 |
-| 手机 UI 补采 | ⚠️ 受限 | 机型 / 版本强相关，只作兜底 |
-| App 独有字段、AI 原图、全站目录 | ❌ 未开始 | 见 [ROADMAP.md](ROADMAP.md) |
+电脑浏览器会打开工作台。网页采集和检查已有数据可以直接使用。需要读取 App 时，在 Android 模拟器里打开携程，再把工作台绑定到它。
 
-## 功能
+```powershell
+adb devices
+.\.venv\Scripts\python.exe app.py --workbench --output data --adb adb --adb-serial emulator-5554
+```
 
-| 通道 | 说明 |
+按 `adb devices` 的结果替换设备编号。酒店的部分网页任务会在独立的浏览器资料目录中打开 Edge 或 Chrome，并提示手动登录。详细操作见 [工作台使用指南](docs/WORKBENCH_USAGE.md)。
+
+## 已接入工作台
+
+| 入口 | 可读取和导出的内容 |
 | --- | --- |
-| 网络响应 | 酒店、景点、餐饮、购物的点评分页；酒店用本机 Edge 配置目录打开页面，监听响应并顺带取 AI 总结 |
-| 手机 UI | `adb` / `uiautomator2` 读 Android UI XML，按卡片解析，适合网络接口拿不到时的补采 |
-| App 响应导入 | `capture_addon.py`（mitmproxy addon）写 JSONL，`--import-capture` 导入，不保存原始流量 |
-| 目录发现 | 景点/餐饮列表页翻页、购物按地区 ID、酒店监听搜索分页，生成清单后可串接采集 |
-| 持久批处理 | `batch.sqlite3` 记录进度，重启跳过已达标对象，中断任务重试 |
-| 图片下载 | 从评论 JSONL 的 `images`/`imageCuttingsList` 取平台返回的大图，CDN 白名单 + 尺寸上限，不猜原图地址 |
-| 打包 | PyInstaller（`CtripCollector.spec` / `package_release.py`） |
+| 网页点评与公开资料 | 酒店、景点、餐饮和购物的资料或点评，按入口和页面实际返回保存 |
+| 对象发现 | 城市与多地区目录、周边推荐、逐层发现景点、按已保存的多地区队列继续 |
+| Android 列表与详情 | 酒店搜索及房型、景点详情与指南、城市美食与购物列表、餐厅与购物地点详情 |
+| Android 点评 | 酒店、景点、餐厅和购物地点，支持本次样本、累计 CSV 和已保存任务恢复 |
+| App AI 总结和图集 | 酒店与景点的可见总结，景点尝试展开总结；景点用户实拍图集可裁图、导出和续采 |
+| 自选字段与截图 | 读取当前 App 页面或已保存页面中的指定字段；在 Windows 识别截图所选区域的文字 |
+| 本地覆盖概览 | 按采集来源、对象和字段查看已有记录，工具会报告停止原因及显示数 |
 
-## 快速开始
+实测范围包括东方明珠的展开总结与图集续采、上海美食与购物列表、餐厅和购物点评样本。App 任务显示的总数、页面核对结果和实际读到的记录分别写入报告。平台全量、所有 App 字段和媒体原文件仍待验证，详见 [路线图](ROADMAP.md)。
 
-```powershell
-uv venv
-uv pip install -r requirements.txt
-playwright install msedge        # 酒店通道依赖本机 Edge
-
-python app.py                   # 图形界面
-python app.py --check           # 环境自检
-```
-
-CLI 示例：
+## 开发和测试
 
 ```powershell
-# 网络采集单个酒店
-python app.py --collect --url "https://hotels.ctrip.com/hotels/detail/xxxx.html" --output data
-
-# 城市景点目录（第一页链接）→ 生成清单 → 串接采集
-python app.py --city-list "https://you.ctrip.com/sight/..." --discovery-pages 5 --collect-discovered
-
-# 导入受限 App 抓包结果
-python app.py --import-capture capture/flows.jsonl
-
-# 购物目录（携程地区 ID，上海=2，0=全球）
-python app.py --shopping-district 2 --discovery-pages 3
-
-# 下载评论里返回的图片（JSONL 路径，上限 20 张不同图片）
-python app.py --download-media data/hotel-xxx.jsonl --media-limit 20
-
-# 手机 UI 补采（设备用 USB 连接，先打开"全部评论"页）
-python app.py --collect --url "https://..." --ui-backend uiautomator2
+.\.venv\Scripts\python.exe -m unittest discover -s tests
 ```
 
-## 测试
+`app.py` 保留原图形窗口和 CLI。`workbench_server.py` 提供本机服务，`workbench.html` 提供浏览器界面。`runner.py` 读取模拟器页面。`network.py` 和 `hotel_browser.py` 提供网页采集。`CtripCollector.spec` 用于构建 Windows 程序。
 
-```powershell
-python -m unittest discover -s tests     # 114 项，覆盖解析、去重、批处理、抓包、目录发现、图片下载、图集匹配、覆盖统计、续跑
-```
-
-回归用例基于真实页面导出的 UI XML / 响应样本，位于 `tests/fixtures/`。
-
-## 目录
-
-```
-app.py              GUI + CLI 入口
-core.py             UI XML 解析、SQLite 存储、CSV 导出
-runner.py           adb / uiautomator2 采集循环
-network.py          网页响应通道（点评分页、字段清洗）
-hotel_browser.py    酒店专用 Edge 通道
-hotel_public.py     公开详情补充（地址、设施、政策）
-ai_capture.py       酒店 AI 总结采集
-capture_io.py       抓包 JSONL 导入与脱敏
-capture_addon.py    mitmproxy addon
-discovery.py        城市目录发现（景点 / 餐饮）
-shopping_discovery.py  购物目录发现（按地区 ID）
-hotel_discovery.py  酒店目录发现（Edge 登录目录 + 分页监听）
-browser_context.py  浏览器独立资料（Edge 缺失时回退 Chrome）
-multi_discovery.py  多地区批量发现
-region_seeds.py     从公开首页提取待核验地区
-coverage_report.py  本地采集覆盖统计
-hotel_public_batch.py  酒店公开详情批量
-gallery_*.py        AI 图集采集与主图匹配（0.12 开发中）
-batch.py            持久批处理
-media.py            评论图片下载（Pillow 校验、SHA256 复用）
-tests/              回归测试 + fixtures
-docs/               计划与路线图
-```
-
-## 边界
-
-- 只采公开可见数据；**不绕过验证码、不破解签名、不保存登录凭据**，抓包文件不进仓库。
-- 每页请求走固定间隔，失败退避；触发风控即停止，不换号、不换 IP 硬刷。
-- 未完成项（全站目录、App 独有字段、AI 原图、跨屏 AI 全文等）见 [ROADMAP.md](ROADMAP.md)，不要把这些当成已实现。
-
-## 合规
-
-个人学术研究用途。使用时请自行确认符合目标站点的用户协议与 robots 规则，控制请求频率，不对外分发原始数据。
-
-## License
-
-[MIT](LICENSE)
+[MIT 许可证](LICENSE)

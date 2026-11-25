@@ -5,12 +5,13 @@ import json
 import logging
 import re
 import subprocess
+import uuid
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from contextlib import nullcontext
 from pathlib import Path
 
-from PIL import Image, UnidentifiedImageError
+from PIL import Image, ImageStat, UnidentifiedImageError
 
 from gallery_match import match_gallery_image
 from gallery_cache import changed_candidates
@@ -35,7 +36,8 @@ def gallery_position(xml, confirmed_category):
     return counters[0]
 
 
-def capture_current_gallery_frame(adb, baseline, region, output, object_key, confirmed_category, stop, *, candidate_session=None):
+def capture_current_gallery_frame(adb, baseline, region, output, object_key, confirmed_category, stop, *,
+                                  candidate_session=None, save_display_fallback=False, expected_position=None):
     # /* ===== 步骤1：读取当前图集画面；数据源：缓存变化和手机截图；操作：1) 校验前台 2) 夹取截图前后页面 ===== */
     logger.info('开始读取当前图集画面')
     if stop.is_set():
@@ -52,13 +54,11 @@ def capture_current_gallery_frame(adb, baseline, region, output, object_key, con
     with context as paths:
         adb.ensure_foreground()
         before = adb.snapshot()
+        if expected_position is not None and gallery_position(before, confirmed_category) != expected_position:
+            raise ValueError('截图开始前图集页码发生变化')
         if stop.is_set():
             raise InterruptedError('图集采集已取消')
-        command = [adb.executable, '-s', adb.serial, 'exec-out', 'screencap', '-p']
-        result = subprocess.run(command, capture_output=True, timeout=35,
-                                creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
-        if result.returncode:
-            raise RuntimeError('图集截图读取失败')
+        frame = read_gallery_screenshot(adb)
         adb.ensure_foreground()
         after = adb.snapshot()
         logger.info('当前图集画面读取完成')
@@ -66,8 +66,8 @@ def capture_current_gallery_frame(adb, baseline, region, output, object_key, con
         logger.info('开始核验当前图集图片')
         if stop.is_set():
             raise InterruptedError('图集采集已取消')
-        # 2.1 截图仅在内存中参与比较，绝不作为原图片保存。
-        with Image.open(io.BytesIO(result.stdout)) as screen:
+        # 2.1 先尝试匹配缓存文件；显示画面的补录单独标记来源。
+        with Image.open(io.BytesIO(frame)) as screen:
             if screen.width * screen.height > 20_000_000:
                 raise ValueError('截图尺寸超出限制')
             saved = save_gallery_frame(screen, paths, before, after, region, output, object_key, confirmed_category,
@@ -81,8 +81,71 @@ def capture_current_gallery_frame(adb, baseline, region, output, object_key, con
                     raise InterruptedError('图集采集已取消')
                 saved = save_gallery_frame(screen, paths, before, after, region, output, object_key, confirmed_category,
                                            candidate_scope='bounded_recent_cache')
+            if save_display_fallback and saved['status'] in {'no_match', 'ambiguous'}:
+                saved = capture_display_fallback(adb, screen, before, region, output, object_key,
+                                                 confirmed_category, stop, saved)
         logger.info('当前图集图片核验完成：%s', saved['status'])
         return saved
+
+
+def read_gallery_screenshot(adb):
+    command = [adb.executable, '-s', adb.serial, 'exec-out', 'screencap', '-p']
+    result = subprocess.run(command, capture_output=True, timeout=35,
+                            creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+    if result.returncode:
+        raise RuntimeError('图集截图读取失败')
+    return result.stdout
+
+
+def capture_display_fallback(adb, screen, before, region, output, object_key, category, stop, cache_result):
+    logger.info('开始核对图集显示画面')
+    # 两次裁剪像素必须相同；页码稳定仍可能处于异步加载中。
+    if stop.is_set() or stop.wait(0.5) or stop.is_set():
+        raise InterruptedError('图集采集已取消')
+    position = gallery_position(before, category)
+    adb.ensure_foreground()
+    if gallery_position(adb.snapshot(), category) != position:
+        raise ValueError('图集显示补录前页码发生变化')
+    frame = read_gallery_screenshot(adb)
+    adb.ensure_foreground()
+    if gallery_position(adb.snapshot(), category) != position:
+        raise ValueError('图集显示补录后页码发生变化')
+    if stop.is_set():
+        raise InterruptedError('图集采集已取消')
+    left, top, right, bottom = region
+    if not (0 <= left < right <= screen.width and 0 <= top < bottom <= screen.height):
+        raise ValueError('主图区域超出截图边界')
+    crop = screen.crop(region).convert('RGB')
+    with Image.open(io.BytesIO(frame)) as confirmation:
+        if confirmation.size != screen.size or crop.tobytes() != confirmation.crop(region).convert('RGB').tobytes():
+            logger.info('图集显示画面仍在变化，未补录')
+            return {**cache_result, 'display_fallback_status': 'unstable'}
+    if sum(ImageStat.Stat(crop.resize((64, 64), Image.Resampling.LANCZOS)).stddev) / 3 < 12:
+        logger.info('图集显示画面细节不足，未补录')
+        return {**cache_result, 'display_fallback_status': 'insufficient_detail'}
+    # 单存裁图，不保留截图元数据或界面其余区域。
+    buffer = io.BytesIO()
+    Image.frombytes('RGB', crop.size, crop.tobytes()).save(buffer, format='PNG')
+    payload = buffer.getvalue()
+    if stop.is_set():
+        raise InterruptedError('图集采集已取消')
+    digest = hashlib.sha256(payload).hexdigest()
+    folder = Path(output)
+    folder.mkdir(parents=True, exist_ok=True)
+    filename = 'display-' + digest + '.png'
+    temporary = folder / (uuid.uuid4().hex + '.part')
+    try:
+        temporary.write_bytes(payload)
+        temporary.replace(folder / filename)
+    finally:
+        temporary.unlink(missing_ok=True)
+    logger.info('图集显示画面补录完成：第%s页', position[0])
+    return {**cache_result, 'status': 'display_saved', 'cache_status': cache_result['status'],
+            'source_method': 'app_gallery_display_crop', 'file': filename, 'sha256': digest, 'bytes': len(payload),
+            'dimensions': list(crop.size), 'crop_bounds': list(region), 'object_key': object_key,
+            'identity_verification': 'operator_declared', 'category': category,
+            'gallery_index': position[0], 'gallery_total': position[1],
+            'original_verified': False, 'complete': False, 'saved_at': datetime.now(timezone.utc).isoformat()}
 
 
 def save_gallery_frame(screen, candidates, before_xml, after_xml, region, output, object_key, confirmed_category, *, candidate_scope='provided_candidates'):

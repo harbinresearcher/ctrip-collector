@@ -11,7 +11,8 @@ from gallery_layout import viewer_region
 logger = logging.getLogger(__name__)
 
 
-def collect_gallery_pages(adb, baseline, region, output, object_key, confirmed_category, stop, *, max_pages=30):
+def collect_gallery_pages(adb, baseline, region, output, object_key, confirmed_category, stop, *,
+                          max_pages=30, save_display_fallback=False, expected_start=None):
     # /* ===== 步骤1：建立任务记录；数据源：当前已确认图集；操作：1) 限定页数 2) 创建独立进度文件 ===== */
     logger.info('开始图集分页任务')
     if not isinstance(max_pages, int) or isinstance(max_pages, bool) or not 1 <= max_pages <= 500:
@@ -24,7 +25,12 @@ def collect_gallery_pages(adb, baseline, region, output, object_key, confirmed_c
     output.mkdir(parents=True, exist_ok=True)
     path = output / f'gallery-run-{uuid.uuid4().hex}.json'
     record = {'status': 'running', 'object_key': object_key, 'category': confirmed_category,
-              'pages': [], 'complete': False, 'category_verification': 'operator_confirmed'}
+              'pages': [], 'complete': False, 'category_verification': 'operator_confirmed',
+              'source_method': 'android_gallery_viewer', 'report_file': str(path.resolve())}
+    if expected_start is not None:
+        record.update(entry_mode='current_viewer', requested_start=expected_start[0], display_total=expected_start[1])
+    if save_display_fallback:
+        record['display_fallback_enabled'] = True
     # 1.1 原子替换进度；不覆盖之前任务，不将显示总数当作已采数量。
     def checkpoint():
         temporary = path.with_suffix('.part')
@@ -43,17 +49,22 @@ def collect_gallery_pages(adb, baseline, region, output, object_key, confirmed_c
                 adb.ensure_foreground()
                 xml = adb.snapshot()
                 position = gallery_position(xml, confirmed_category)
+                if previous is None and expected_start is not None and position != expected_start:
+                    raise ValueError('开始续采前图集页码或显示总数发生变化')
                 current_region = viewer_region(xml, confirmed_category) if region is None else region
                 left, top, right, bottom = current_region
                 if previous is not None and position != (previous[0] + 1, previous[1]):
                     record['status'] = 'page_not_advanced' if position == previous else 'page_changed_unexpectedly'
                     break
                 # 2.1 无匹配与歧义保留为缺失，不阻止采集后续页。
-                result = capture_current_gallery_frame(adb, baseline, current_region, output, object_key, confirmed_category, stop, candidate_session=session)
+                result = capture_current_gallery_frame(adb, baseline, current_region, output, object_key,
+                                                       confirmed_category, stop, candidate_session=session,
+                                                       save_display_fallback=save_display_fallback,
+                                                       expected_position=position)
                 adb.ensure_foreground()
                 if gallery_position(adb.snapshot(), confirmed_category) != position:
                     raise ValueError('采集期间页码被外部操作改变')
-                if result['status'] == 'saved' and result['gallery_index'] != position[0]:
+                if result['status'] in {'saved', 'display_saved'} and result['gallery_index'] != position[0]:
                     raise ValueError('保存图片与预期页码不一致')
                 record['pages'].append({'index': position[0], 'total': position[1], 'result': result})
                 checkpoint()

@@ -84,7 +84,9 @@ def parse_public_hotel(url, html):
               'name': base['nameInfo']['name'], 'display_total': comments.get('totalCount'),
               'details': {key: sanitize(detail[key]) for key in public_keys if key in detail},
               'comment_info': sanitize({k: comments[k] for k in ('commentRating', 'totalCountForPage', 'commentTagList',
-                                        'travelTypeList', 'roomList', 'filteredOutCommentInfo', 'staticInfo') if k in comments}),
+                                        'travelTypeList', 'roomList', 'filteredOutCommentInfo', 'staticInfo',
+                                        'commonStatisticList', 'packageList', 'ratingFloatingLayerInfo',
+                                        'excitationInfoList') if k in comments}),
               'source_method': 'hotel_public_html_snapshot', 'snapshot_comments': records,
               'ai_summary': {'status': 'not_captured', 'content': None}}
     logger.info('酒店公开字段整理完成：%s，页面样本 %s 条', target['name'], len(records))

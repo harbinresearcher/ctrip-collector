@@ -1,0 +1,286 @@
+<hierarchy>
+  <!--Anonymized App capture with original review card and media grid geometry.-->
+  <node class="android.widget.FrameLayout" package="ctrip.android.view" checked="false" selected="false" bounds="[0,0][1440,3200]">
+    <node class="android.widget.FrameLayout" package="ctrip.android.view" checked="false" selected="false" bounds="[0,0][1440,3200]">
+      <node class="android.widget.ImageView" package="ctrip.android.view" checked="false" selected="false" bounds="[0,0][1440,3200]" />
+    </node>
+    <node class="android.widget.LinearLayout" package="ctrip.android.view" checked="false" selected="false" bounds="[0,0][1440,3140]">
+      <node class="android.widget.FrameLayout" package="ctrip.android.view" checked="false" selected="false" bounds="[0,0][1440,3140]">
+        <node class="android.widget.FrameLayout" package="ctrip.android.view" checked="false" selected="false" bounds="[0,0][1440,3140]">
+          <node class="android.widget.FrameLayout" package="ctrip.android.view" checked="false" selected="false" bounds="[0,0][1440,3140]">
+            <node class="android.widget.FrameLayout" package="ctrip.android.view" checked="false" selected="false" bounds="[0,0][1440,3140]">
+              <node class="android.widget.LinearLayout" package="ctrip.android.view" checked="false" selected="false" bounds="[0,0][1440,3140]">
+                <node class="android.widget.FrameLayout" package="ctrip.android.view" checked="false" selected="false" bounds="[0,0][1440,3140]">
+                  <node class="android.widget.FrameLayout" package="ctrip.android.view" checked="false" selected="false" bounds="[0,0][1440,3140]">
+                    <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[0,0][1440,3140]">
+                      <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[0,0][1440,3140]">
+                        <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[0,0][1440,352]" />
+                        <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[0,157][1440,345]">
+                          <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[45,204][139,299]">
+                            <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[48,207][135,293]" />
+                          </node>
+                          <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[165,189][1140,313]">
+                            <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[209,224][263,277]" />
+                            <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[287,219][1096,287]">
+                              <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[287,219][1096,287]" />
+                            </node>
+                          </node>
+                          <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[1157,189][1280,313]">
+                            <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[1184,216][1252,284]" />
+                          </node>
+                          <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[1281,189][1405,313]">
+                            <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[1308,216][1376,284]" />
+                          </node>
+                        </node>
+                        <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[0,352][1440,3140]">
+                          <node class="android.widget.ScrollView" package="ctrip.android.view" checked="false" selected="false" bounds="[0,352][1440,3103]">
+                            <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[0,352][1440,3103]">
+                              <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[0,352][1440,2209]">
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[0,352][1440,2209]" />
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[75,352][1365,1936]" />
+                                <node class="android.widget.ImageView" package="ctrip.android.view" checked="false" selected="false" bounds="[75,244][229,352]" />
+                                <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[273,168][579,352]" text="测试旅客 1" />
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[593,163][821,352]">
+                                  <node class="android.widget.ImageView" package="ctrip.android.view" checked="false" selected="false" bounds="[607,153][648,352]" />
+                                  <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[655,163][809,352]" />
+                                </node>
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[837,163][1021,352]">
+                                  <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[852,161][1007,352]" />
+                                </node>
+                                <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[273,240][624,352]" text="2025年02月入住" />
+                                <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[639,235][649,352]" text="|" />
+                                <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[664,240][891,352]" />
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[75,352][1365,357]">
+                                  <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[75,352][283,357]" />
+                                  <node class="android.widget.ImageView" package="ctrip.android.view" checked="false" selected="false" bounds="[75,352][135,357]" />
+                                  <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[149,352][221,357]" text="5.0" />
+                                  <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[221,352][268,357]" text="分" />
+                                </node>
+                                <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[75,331][312,352]" />
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[311,347][356,352]">
+                                  <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[311,347][356,352]" text="锦" />
+                                </node>
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[356,347][401,352]">
+                                  <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[356,347][401,352]" text="华" />
+                                </node>
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[401,347][447,352]">
+                                  <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[401,347][447,352]" text="高" />
+                                </node>
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[447,347][492,352]">
+                                  <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[447,347][492,352]" text="级" />
+                                </node>
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[492,347][537,352]">
+                                  <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[492,347][537,352]" text="房" />
+                                </node>
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[537,347][557,352]">
+                                  <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[537,347][557,352]" text="-" />
+                                </node>
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[557,347][603,352]">
+                                  <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[557,347][603,352]" text="大" />
+                                </node>
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[603,347][648,352]">
+                                  <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[603,347][648,352]" text="床" />
+                                </node>
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[648,337][687,352]">
+                                  <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[648,337][687,352]" text="" />
+                                </node>
+                                <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[701,347][712,352]" text="|" />
+                                <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[728,347][741,352]" />
+                                <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[741,347][787,352]" text="朋" />
+                                <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[787,347][832,352]" text="友" />
+                                <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[832,347][877,352]" text="出" />
+                                <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[877,347][923,352]" text="游" />
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[75,388][1365,660]">
+                                  <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[75,388][1365,660]" text="这是测试点评 1，用于核对正文和图片属于同一卡片。" />
+                                </node>
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[75,701][1365,1572]">
+                                  <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[75,716][495,1136]">
+                                    <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[75,716][495,1136]">
+                                      <node class="android.widget.ImageView" package="ctrip.android.view" checked="false" selected="false" bounds="[75,716][495,1136]" />
+                                      <node class="android.widget.ImageView" package="ctrip.android.view" checked="false" selected="false" bounds="[75,716][495,1136]" />
+                                    </node>
+                                  </node>
+                                  <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[509,716][929,1136]">
+                                    <node class="android.widget.ImageView" package="ctrip.android.view" checked="false" selected="false" bounds="[509,716][929,1136]" />
+                                    <node class="android.widget.ImageView" package="ctrip.android.view" checked="false" selected="false" bounds="[509,716][929,1136]" />
+                                  </node>
+                                  <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[945,716][1365,1136]">
+                                    <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[945,716][1365,1136]">
+                                      <node class="android.widget.ImageView" package="ctrip.android.view" checked="false" selected="false" bounds="[945,716][1365,1136]" />
+                                      <node class="android.widget.ImageView" package="ctrip.android.view" checked="false" selected="false" bounds="[945,716][1365,1136]" />
+                                    </node>
+                                  </node>
+                                  <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[75,1152][495,1572]">
+                                    <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[75,1152][495,1572]">
+                                      <node class="android.widget.ImageView" package="ctrip.android.view" checked="false" selected="false" bounds="[75,1152][495,1572]" />
+                                      <node class="android.widget.ImageView" package="ctrip.android.view" checked="false" selected="false" bounds="[75,1152][495,1572]" />
+                                    </node>
+                                  </node>
+                                  <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[509,1152][929,1572]">
+                                    <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[509,1152][929,1572]">
+                                      <node class="android.widget.ImageView" package="ctrip.android.view" checked="false" selected="false" bounds="[509,1152][929,1572]" />
+                                      <node class="android.widget.ImageView" package="ctrip.android.view" checked="false" selected="false" bounds="[509,1152][929,1572]" />
+                                    </node>
+                                  </node>
+                                </node>
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[75,1623][1365,1781]" />
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[120,1664][1320,1740]">
+                                  <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[120,1664][1320,1740]" text="酒店回复：谢谢体验反馈。" />
+                                  <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[1029,1664][1320,1740]">
+                                    <node class="android.view.View" package="ctrip.android.view" checked="false" selected="false" bounds="[1029,1664][1320,1740]" />
+                                    <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[1141,1664][1153,1740]" />
+                                    <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[1153,1668][1252,1736]" text="展开" />
+                                    <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[1271,1677][1320,1727]" />
+                                  </node>
+                                </node>
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[75,1843][161,1929]">
+                                  <node class="android.widget.ImageView" package="ctrip.android.view" checked="false" selected="false" bounds="[80,1848][156,1924]" />
+                                </node>
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[139,1843][225,1929]">
+                                  <node class="android.widget.ImageView" package="ctrip.android.view" checked="false" selected="false" bounds="[139,1843][225,1929]" />
+                                </node>
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[203,1843][289,1929]">
+                                  <node class="android.widget.ImageView" package="ctrip.android.view" checked="false" selected="false" bounds="[203,1843][289,1929]" />
+                                </node>
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[265,1843][351,1929]">
+                                  <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[279,1856][336,1913]" />
+                                </node>
+                                <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[367,1852][640,1920]" />
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[1063,1836][1365,1937]">
+                                  <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[1108,1863][1153,1908]" text="󰲅" />
+                                  <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[1169,1855][1319,1920]" text="有用17" />
+                                </node>
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[0,1996][1440,2209]" />
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[0,2027][1440,2180]" />
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[0,2027][1440,2180]">
+                                  <node class="android.widget.ImageView" package="ctrip.android.view" checked="false" selected="false" bounds="[87,2077][139,2129]" />
+                                  <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[153,2069][1220,2137]" />
+                                  <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[1235,2069][1288,2137]" />
+                                </node>
+                              </node>
+                              <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[0,2209][1440,3103]">
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[0,2209][1440,3103]" />
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[75,2209][1365,3103]" />
+                                <node class="android.widget.ImageView" package="ctrip.android.view" checked="false" selected="false" bounds="[75,2275][229,2428]" />
+                                <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[273,2280][595,2352]" text="测试旅客 2" />
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[609,2287][837,2347]">
+                                  <node class="android.widget.ImageView" package="ctrip.android.view" checked="false" selected="false" bounds="[623,2296][664,2337]" />
+                                  <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[671,2288][825,2347]" />
+                                </node>
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[853,2287][1037,2347]">
+                                  <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[868,2288][1023,2345]" />
+                                </node>
+                                <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[273,2367][624,2424]" text="2025年02月入住" />
+                                <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[639,2373][649,2419]" text="|" />
+                                <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[664,2367][891,2424]" />
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[75,2481][1365,2541]">
+                                  <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[75,2481][283,2541]" />
+                                  <node class="android.widget.ImageView" package="ctrip.android.view" checked="false" selected="false" bounds="[75,2481][135,2541]" />
+                                  <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[149,2481][221,2541]" text="5.0" />
+                                  <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[221,2481][268,2541]" text="分" />
+                                </node>
+                                <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[75,2488][312,2515]" />
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[311,2473][356,2531]">
+                                  <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[311,2473][356,2531]" text="锦" />
+                                </node>
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[356,2473][401,2531]">
+                                  <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[356,2473][401,2531]" text="华" />
+                                </node>
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[401,2473][447,2531]">
+                                  <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[401,2473][447,2531]" text="高" />
+                                </node>
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[447,2473][492,2531]">
+                                  <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[447,2473][492,2531]" text="级" />
+                                </node>
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[492,2473][537,2531]">
+                                  <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[492,2473][537,2531]" text="房" />
+                                </node>
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[537,2473][557,2531]">
+                                  <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[537,2473][557,2531]" text="-" />
+                                </node>
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[557,2473][603,2531]">
+                                  <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[557,2473][603,2531]" text="双" />
+                                </node>
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[603,2473][648,2531]">
+                                  <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[603,2473][648,2531]" text="床" />
+                                </node>
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[648,2483][687,2521]">
+                                  <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[648,2483][687,2521]" text="" />
+                                </node>
+                                <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[701,2473][712,2531]" text="|" />
+                                <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[728,2473][741,2531]" />
+                                <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[741,2473][787,2531]" text="家" />
+                                <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[787,2473][832,2531]" text="庭" />
+                                <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[832,2473][877,2531]" text="亲" />
+                                <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[877,2473][923,2531]" text="子" />
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[75,2572][1365,3103]">
+                                  <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[75,2572][1365,3103]" text="这是测试点评 2，用于核对正文和图片属于同一卡片。" />
+                                  <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[1073,3036][1365,3103]">
+                                    <node class="android.view.View" package="ctrip.android.view" checked="false" selected="false" bounds="[1073,3036][1365,3103]" />
+                                    <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[1185,3036][1197,3103]" />
+                                    <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[1197,3040][1296,3103]" text="展开" />
+                                    <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[1315,3049][1364,3099]" />
+                                  </node>
+                                </node>
+                              </node>
+                            </node>
+                          </node>
+                          <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[0,352][1440,544]">
+                            <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[0,352][1440,529]" />
+                            <node class="android.widget.HorizontalScrollView" package="ctrip.android.view" checked="false" selected="false" bounds="[75,401][1365,525]">
+                              <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[75,401][1365,525]">
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[75,401][291,525]" resource-id="htl_x_htlcmtlist_tab_SubTab_exposure" />
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[75,408][291,488]" content-desc="全部, 5722">
+                                  <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[75,408][181,488]" text="全部" />
+                                  <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[181,413][291,481]" />
+                                </node>
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[424,401][775,525]" resource-id="htl_x_htlcmtlist_tab_SubTab_exposure" />
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[424,408][775,488]" content-desc="有图·视频, 2753">
+                                  <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[424,408][664,488]" text="有图·视频" />
+                                  <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[664,413][775,481]" />
+                                </node>
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[908,401][1076,525]" resource-id="htl_x_htlcmtlist_tab_SubTab_exposure" />
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[908,408][1076,488]" content-desc="差评, 63">
+                                  <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[908,408][1015,488]" text="差评" />
+                                  <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[1015,413][1076,481]" />
+                                </node>
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[75,511][291,525]">
+                                  <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[145,511][220,525]" />
+                                </node>
+                                <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[1209,401][1365,525]">
+                                  <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[1209,408][1316,488]" />
+                                  <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[1316,423][1365,472]" />
+                                </node>
+                              </node>
+                            </node>
+                            <node class="android.view.View" package="ctrip.android.view" checked="false" selected="false" bounds="[0,528][1440,543]" />
+                          </node>
+                          <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[0,2911][1440,3140]">
+                            <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[45,2949][199,3101]">
+                              <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[75,2949][169,3044]" />
+                              <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[64,3044][180,3101]" />
+                            </node>
+                            <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[656,3003][683,3071]" />
+                            <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[683,2969][821,3083]" />
+                            <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[852,2941][1396,3109]">
+                              <node class="android.view.ViewGroup" package="ctrip.android.view" checked="false" selected="false" bounds="[852,2941][1396,3109]">
+                                <node class="android.widget.TextView" package="ctrip.android.view" checked="false" selected="false" bounds="[852,2976][1396,3067]" />
+                              </node>
+                            </node>
+                          </node>
+                        </node>
+                      </node>
+                    </node>
+                  </node>
+                </node>
+              </node>
+            </node>
+          </node>
+        </node>
+      </node>
+    </node>
+    <node class="android.view.View" package="ctrip.android.view" checked="false" selected="false" bounds="[0,0][1440,161]" />
+    <node class="android.widget.FrameLayout" package="ctrip.android.view" checked="false" selected="false" bounds="[0,0][1,1]" />
+    <node class="android.view.View" package="ctrip.android.view" checked="false" selected="false" bounds="[0,3140][1440,3200]" />
+  </node>
+</hierarchy>

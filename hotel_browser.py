@@ -1,6 +1,10 @@
 """酒店浏览器响应采集。只保存当前酒店点评，不记录认证请求。"""
 import logging
+import copy
+import json
 import time
+import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from threading import Event
 from urllib.parse import urlparse
@@ -18,6 +22,45 @@ SCROLL = """() => {
     el.scrollTop = el.scrollHeight;
     return true;
 }"""
+
+
+def has_content(value):
+    # /* ===== 步骤1：核对字段内容；数据源：业务响应；操作：1) 递归排除空容器 2) 保留有效零值 ===== */
+    logger.info('开始核对 AI 字段内容')
+    # 1.1 空列表和空字符串只表示已观察到空值，不证明采到内容。
+    def nonempty(item):
+        if isinstance(item, dict):
+            return any(nonempty(child) for child in item.values())
+        if isinstance(item, list):
+            return any(nonempty(child) for child in item)
+        if isinstance(item, str):
+            return bool(item.strip())
+        return item is not None
+    result = nonempty(value)
+    logger.info('AI 字段内容核对完成：%s', result)
+    return result
+
+
+def observe_ai(target, data, index, source):
+    # /* ===== 步骤2：留存 AI 响应；数据源：已校验当前酒店批次；操作：1) 记录空值 2) 只标识非空内容 ===== */
+    logger.info('开始留存酒店 AI 响应')
+    # 2.1 每批独立记时间及来源；缺失字段不代表空字段。
+    timestamp = datetime.now(timezone.utc).isoformat()
+    for key, dest in (('aiSummaryEntities', 'ai_summary'), ('selectedCommentPhotosEntities', 'ai_photos')):
+        if key not in data:
+            continue
+        content = sanitize(data[key])
+        item = target[dest]
+        first = not item['response_observations']
+        item['response_observations'].append({'page_index': index, 'source': source,
+                                               'captured_at': timestamp, 'content': content})
+        valid = (isinstance(content, dict) and isinstance(content.get('summaryItemList'), list)
+                 and has_content(content['summaryItemList'])) if dest == 'ai_summary' else has_content(content)
+        if valid and item['status'] != 'response_captured':
+            item.update(status='response_captured', content=content)
+        elif first:
+            item['content'] = content
+    logger.info('酒店 AI 响应留存完成')
 
 
 def hotel_batch(data, identity):
@@ -44,9 +87,11 @@ def hotel_batch(data, identity):
     return {'code': 200, 'result': {'items': records, 'totalCount': data['totalCount']}}
 
 
-def collect_hotel_page(page, url, output, limit=500, stop=None, emit=None, login_timeout=300):
+def collect_hotel_page(page, url, output, limit=500, stop=None, emit=None, login_timeout=300, *, refresh=False):
     # /* ===== 步骤2：等待可见点评；数据源：独立浏览器；操作：1) 用户自行登录 2) 接收当前酒店正常翻页响应 ===== */
     logger.info('开始酒店浏览器采集')
+    if type(refresh) is not bool:
+        raise ValueError('刷新选项必须为布尔值')
     from playwright.sync_api import Error as BrowserError
     stop = stop or Event()
     emit = emit or logger.info
@@ -57,6 +102,8 @@ def collect_hotel_page(page, url, output, limit=500, stop=None, emit=None, login
     batches = {}
     filters = {}
     failures = []
+    pending_ai = []
+    target = None
 
     def receive(response):
         # 2.1 只读取指定接口的酒店 ID、页码和响应，不保存请求头或认证字段。
@@ -76,8 +123,26 @@ def collect_hotel_page(page, url, output, limit=500, stop=None, emit=None, login
                         'rooms': [], 'travelTypes': [], 'filterDateTypeList': [], 'orderTypes': [], 'repeatComment': 1}
             if any(options.get(key) != value for key, value in expected.items()):
                 raise ValueError('酒店点评筛选条件发生变化')
+            data = response.json().get('data')
+            batch = hotel_batch(data, identity)
+            # 2.1.2 未建立对象时缓存筛选后的字段；之后逐批原子保存，失败不覆盖旧对象。
+            observed = {key: data[key] for key in ('aiSummaryEntities', 'selectedCommentPhotosEntities') if key in data}
+            if observed and target is None:
+                pending_ai.append((index, sanitize(observed)))
+            elif observed:
+                candidate = copy.deepcopy(target)
+                observe_ai(candidate, observed, index, 'network_response')
+                object_path = Path(output) / f'hotel-{identity}-object.json'
+                temporary = object_path.with_name(object_path.name + '.' + uuid.uuid4().hex + '.tmp')
+                try:
+                    temporary.write_text(json.dumps(candidate, ensure_ascii=False, indent=2), encoding='utf-8')
+                    temporary.replace(object_path)
+                finally:
+                    temporary.unlink(missing_ok=True)
+                target.clear()
+                target.update(candidate)
             filters[index] = sanitize(options)
-            batches[index] = hotel_batch(response.json().get('data'), identity)
+            batches[index] = batch
         except Exception:
             failures.append('酒店翻页响应无效或需要重新验证；已停止')
 
@@ -105,14 +170,16 @@ def collect_hotel_page(page, url, output, limit=500, stop=None, emit=None, login
         if not isinstance(initial, dict) or not isinstance(initial.get('groupList'), list) or (not initial['groupList'] and initial.get('totalCount') != 0):
             raise ValueError('未获得酒店点评状态，请完成登录后重试')
         batches[1] = hotel_batch(initial, identity)
-        ai = initial.get('aiSummaryEntities') or {}
         target = {'kind': 'hotel', 'url': url, 'resource_id': identity, 'name': initial.get('hotelName') or str(identity),
                   'display_total': initial['totalCount'], 'source_method': 'hotel_browser_response', 'page_size': 10,
                   'details': sanitize({key: initial[key] for key in ('staticInfo', 'commentRating', 'roomList',
                     'commentTagList', 'travelTypeList', 'filteredOutCommentInfo', 'totalCountForPage') if key in initial}),
-                  'ai_summary': {'status': 'response_captured' if ai.get('summaryItemList') else 'not_captured', 'content': sanitize(ai)},
-                  'ai_photos': {'status': 'response_captured' if initial.get('selectedCommentPhotosEntities') else 'not_captured',
-                                'content': sanitize(initial.get('selectedCommentPhotosEntities'))}}
+                  'ai_summary': {'status': 'not_captured', 'content': {}, 'response_observations': []},
+                  'ai_photos': {'status': 'not_captured', 'content': None,
+                                'response_observations': [], 'files_downloaded': False}}
+        observe_ai(target, initial, 1, 'initial_state')
+        for index, observed in pending_ai:
+            observe_ai(target, observed, index, 'network_response')
         # 2.3 公开详情单独补充地址、设施、政策；获取失败显式记录，不影响已读点评保存。
         try:
             public = load_target(url)
@@ -138,9 +205,10 @@ def collect_hotel_page(page, url, output, limit=500, stop=None, emit=None, login
             logger.info('酒店第 %s 页接收完成', index)
             return batches.pop(index)
 
-        result = collect_network(target, output, limit, stop, emit, fetch=fetch, delay=0)
+        # 3.0 刷新时按本次读取的不同评论计数，默认继续沿用已有累计目标。
+        options = {'refresh': True} if refresh else {}
+        result = collect_network(target, output, limit, stop, emit, fetch=fetch, delay=0, **options)
         # 3.1 筛选元数据独立留存，不保存包含认证头的原请求。
-        import json
         Path(output, f'hotel-{identity}-filters.json').write_text(json.dumps(filters, ensure_ascii=False, indent=2), encoding='utf-8')
         return result
     finally:
@@ -148,15 +216,18 @@ def collect_hotel_page(page, url, output, limit=500, stop=None, emit=None, login
         logger.info('酒店浏览器采集结束')
 
 
-def collect_hotel(url, output, limit=500, stop=None, emit=None):
+def collect_hotel(url, output, limit=500, stop=None, emit=None, *, refresh=False):
     # /* ===== 步骤4：管理专用浏览器；数据源：本机 Edge；操作：1) 独立登录目录 2) 结束关闭浏览器 ===== */
     logger.info('开始打开酒店专用浏览器')
+    if type(refresh) is not bool:
+        raise ValueError('刷新选项必须为布尔值')
     from playwright.sync_api import sync_playwright
     # 4.1 账号状态不放进输出目录或交付包，不读取日常浏览器资料。
     with sync_playwright() as playwright:
         context = open_hotel_context(playwright)
         try:
-            return collect_hotel_page(context.pages[0] if context.pages else context.new_page(), url, output, limit, stop, emit)
+            options = {'refresh': True} if refresh else {}
+            return collect_hotel_page(context.pages[0] if context.pages else context.new_page(), url, output, limit, stop, emit, **options)
         finally:
             context.close()
             logger.info('酒店专用浏览器已关闭')

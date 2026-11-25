@@ -13,6 +13,35 @@ FIXTURES = Path(__file__).parent / 'fixtures'
 
 
 class GalleryTests(unittest.TestCase):
+    def test_gallery_excludes_other_apps(self):
+        # /* ===== 步骤1：核验图集来源；数据源：受控 XML 变体；操作：1) 排除其他应用 2) 拒绝虚假分类 ===== */
+        logger.info('开始检查图集页面来源')
+        gallery = (FIXTURES / 'hotel-ai-gallery.xml').read_text('utf-8')
+        alien = gallery.replace('package="ctrip.android.view"', 'package="other.app"')
+        alien = alien.replace('</hierarchy>', '<node package="ctrip.android.view" text="其他"/></hierarchy>')
+        with self.assertRaises(ValueError):
+            parse_gallery(alien)
+        logger.info('图集页面来源检查完成')
+
+    def test_gallery_entry_from_other_app_is_not_clicked(self):
+        # /* ===== 步骤1：核验图集入口；数据源：覆盖层节点；操作：1) 排除其他应用 2) 禁止点击 ===== */
+        logger.info('开始检查图集入口来源')
+        xml = '<hierarchy><node package="other.app" text="AI优选住客晒图" bounds="[0,0][100,100]"/></hierarchy>'
+        adb = Mock()
+        with TemporaryDirectory() as folder:
+            result = capture_gallery_metadata(adb, xml, Path(folder) / 'sample', Event())
+        self.assertEqual(result['metadata_status'], 'entry_not_visible')
+        adb.run.assert_not_called()
+        logger.info('图集入口来源检查完成')
+
+    def test_foreign_overlay_does_not_replace_gallery_count(self):
+        # /* ===== 步骤1：核验混合窗口；数据源：真实图集变体；操作：1) 注入外部分类 2) 保留携程计数 ===== */
+        logger.info('开始混合窗口图集检查')
+        gallery = (FIXTURES / 'hotel-ai-gallery.xml').read_text('utf-8')
+        gallery = gallery.replace('</hierarchy>', '<node package="other.app" text="AI优选 999"/></hierarchy>')
+        self.assertEqual(parse_gallery(gallery)['selected_count'], 30)
+        logger.info('混合窗口图集检查完成')
+
     def test_cancel_during_foreground_check_prevents_gallery_tap(self):
         # /* ===== 步骤0：核对检查中取消；数据源：停止事件；操作：1) 前台检查时取消 2) 禁止点击 ===== */
         logger.info('开始前台检查取消回归')

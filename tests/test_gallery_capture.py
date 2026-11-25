@@ -23,6 +23,49 @@ def viewer(index=4, package='ctrip.android.view'):
 
 
 class GalleryCaptureTests(unittest.TestCase):
+    def test_display_fallback_preserves_only_verified_stable_viewer_crop(self):
+        logger.info('开始图集显示画面补录验证')
+        region = (0, 40, 240, 400)
+        screen = Image.new('RGB', (240, 500), 'black')
+        screen.paste(picture(), (0, 120))
+        changed = screen.copy()
+        changed.paste('white', (0, 40, 240, 220))
+        def screenshot(image):
+            stream = io.BytesIO()
+            image.save(stream, format='PNG')
+            return SimpleNamespace(returncode=0, stdout=stream.getvalue())
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            adb = Mock(executable='adb', serial='device')
+            adb.snapshot.return_value = viewer()
+            stop = Mock(is_set=lambda: False, wait=lambda _: False)
+            with patch('gallery_capture.changed_candidates', return_value=nullcontext([])), \
+                 patch('gallery_capture.subprocess.run', return_value=screenshot(screen)):
+                record = capture_current_gallery_frame(adb, {}, region, root, 'hotel-42', 'AI优选',
+                                                       stop, save_display_fallback=True)
+            self.assertEqual(record['status'], 'display_saved')
+            self.assertEqual(record['cache_status'], 'no_match')
+            self.assertFalse(record['original_verified'])
+            self.assertFalse(record['complete'])
+            with Image.open(root / record['file']) as display:
+                self.assertEqual(display.size, (240, 360))
+                self.assertEqual(display.tobytes(), screen.crop(region).tobytes())
+            with patch('gallery_capture.changed_candidates', return_value=nullcontext([])), \
+                 patch('gallery_capture.subprocess.run', side_effect=[screenshot(screen), screenshot(changed)]):
+                unstable = capture_current_gallery_frame(adb, {}, region, root / 'unstable', 'hotel-42',
+                                                         'AI优选', stop, save_display_fallback=True)
+            self.assertEqual(unstable['status'], 'no_match')
+            self.assertEqual(unstable['display_fallback_status'], 'unstable')
+            self.assertFalse((root / 'unstable').exists())
+            adb.snapshot.side_effect = [viewer(), viewer(), viewer(5)]
+            with patch('gallery_capture.changed_candidates', return_value=nullcontext([])), \
+                 patch('gallery_capture.subprocess.run', return_value=screenshot(screen)):
+                with self.assertRaisesRegex(ValueError, '页码'):
+                    capture_current_gallery_frame(adb, {}, region, root / 'wrong', 'hotel-42',
+                                                  'AI优选', stop, save_display_fallback=True)
+            self.assertFalse((root / 'wrong').exists())
+        logger.info('图集显示画面补录验证完成')
+
     def test_old_cache_fallback_recovers_file_and_rechecks_page(self):
         # /* ===== 步骤1：验证旧缓存补采；数据源：差分为空、近期候选命中；操作：1) 补查后匹配 2) 再验页码 ===== */
         logger.info('开始旧缓存串接测试')

@@ -12,7 +12,7 @@ from network import canonical_url, collect_network
 logger = logging.getLogger(__name__)
 
 
-def fixture(identity=427100):
+def fixture(identity=427100, comment_extra=None):
     props = {'hotelDetailResponse': {'hotelBaseInfo': {'masterHotelId': identity, 'nameInfo': {'name': '酒店'}},
                                     'hotelPositionInfo': {'address': '地址'}, 'hotelPolicyInfo': {'checkIn': '14:00'},
                                     'authInfo': {'token': 'never_export'}},
@@ -21,12 +21,37 @@ def fixture(identity=427100):
                                                                     'rating': 5, 'checkinDate': '2026-09',
                                                                     'imageList': ['/photo.jpg'], 'videoList': [],
                                                                     'userInfo': {'nickName': '昵称', 'userId': 'private'}}]}]}}
+    props['hotelCommentResponse'].update(comment_extra or {})
     record = 'Ja:' + json.dumps(['$', '@c', None, props]) + '\n'
     return ''.join('<script>self.__next_f.push(' + json.dumps([1, chunk]) + ')</script>'
                    for chunk in [record[:80], record[80:]])
 
 
 class PublicHotelTests(unittest.TestCase):
+    def test_public_review_statistics_preserved_and_sanitized(self):
+        # /* ===== 步骤1：核验点评统计；数据源：页面评论状态；操作：1) 保留四类字段 2) 递归清理凭据 ===== */
+        logger.info('开始酒店公开点评统计测试')
+        extra = {
+            'commonStatisticList': [{'id': 5, 'name': '视频', 'commentCount': 77, 'token': 'private-one'}],
+            'packageList': [{'id': 1, 'name': '套餐订单', 'commentCount': 400, 'nested': {'Authorization': 'private-two'}}],
+            'ratingFloatingLayerInfo': {'recommendTagList': [{'name': '服务好', 'userId': 'private-three'}], 'negativeTagList': []},
+            'excitationInfoList': [{'excitationText': '连续好评', 'excitationHighlight': ['87'], 'token': 'private-four'}],
+        }
+        # 1.1 数量是平台统计，不能当作已采数量，也不属于AI总结。
+        target = parse_public_hotel('https://hotels.ctrip.com/hotels/427100.html', fixture(comment_extra=extra))
+        self.assertEqual(target['comment_info']['commonStatisticList'][0]['commentCount'], 77)
+        self.assertEqual(target['comment_info']['packageList'][0]['commentCount'], 400)
+        self.assertEqual(target['comment_info']['ratingFloatingLayerInfo']['negativeTagList'], [])
+        self.assertEqual(target['comment_info']['excitationInfoList'][0]['excitationText'], '连续好评')
+        self.assertNotIn('private-', json.dumps(target, ensure_ascii=False))
+        self.assertEqual(target['ai_summary']['status'], 'not_captured')
+        with tempfile.TemporaryDirectory() as folder:
+            result = collect_network(target, folder, 500, delay=0)
+            self.assertEqual(result['reason'], 'public_snapshot_only')
+            self.assertFalse(result['complete'])
+            self.assertEqual(result['count'], 1)
+        logger.info('酒店公开点评统计测试完成')
+
     def test_public_mode_cli_routes_to_snapshot_collector(self):
         # /* ===== 步骤1：核对命令入口；数据源：酒店链接；操作：1) 选择公开样本 2) 不启动浏览器 ===== */
         logger.info('开始公开样本命令测试')
