@@ -25,6 +25,9 @@ data/
 evidence/
 rejected-*/
 outputs/
+# 本机 %TEMP% 不可写时 tempfile 会回落到当前目录，留出的临时名不要进仓库
+tmp????????
+.test-tmp/
 
 # 本地工具与凭据
 platform-tools/
