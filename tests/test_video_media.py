@@ -148,8 +148,9 @@ class VideoMediaTests(unittest.TestCase):
             opener = Opener()
             report = download_videos(source, root, opener=opener, delay=0)
             self.assertEqual((report['downloaded'], report['reused'], opener.calls), (1, 0, 1))
-            self.assertEqual(Path(report['output_folder']), root / 'videos')
-            self.assertEqual(Path(report['manifest_file']), root / 'video-manifest.jsonl')
+            canonical_root = root.resolve()
+            self.assertEqual(Path(report['output_folder']), canonical_root / 'videos')
+            self.assertEqual(Path(report['manifest_file']), canonical_root / 'video-manifest.jsonl')
             self.assertFalse(report['complete'])
             manifest = [json.loads(line) for line in (root / 'video-manifest.jsonl').read_text('utf-8').splitlines()]
             self.assertEqual({row['comment_id'] for row in manifest}, {'1', '2'})

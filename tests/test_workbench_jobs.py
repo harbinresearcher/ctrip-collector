@@ -371,10 +371,13 @@ class JobTests(unittest.TestCase):
                     make_job(request, folder)
             # 1.1 规范链接去重，取消事件不替换为另一个实例。
             stop = Event()
+            emit = Mock()
             url = 'https://you.ctrip.com/food/city1/9.html'
             with patch('workbench_jobs.collect_batch', return_value={'reason': 'cancelled'}) as collect:
                 job = make_job({'mode': 'reviews', 'urls': [url, url], 'limit': 5}, folder)
-                self.assertEqual(job(stop, print)['reason'], 'cancelled')
+                self.assertEqual(job(stop, emit)['reason'], 'cancelled')
                 self.assertEqual(collect.call_args.args[0], [url])
                 self.assertIs(collect.call_args.kwargs['stop'], stop)
+                self.assertIs(collect.call_args.kwargs['emit'], emit)
+                emit.assert_called()
         logger.info('任务适配测试完成')

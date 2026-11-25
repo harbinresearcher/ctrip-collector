@@ -2,7 +2,7 @@
 
 ![tests](https://github.com/harbinresearcher/ctrip-collector/actions/workflows/tests.yml/badge.svg)
 
-当前版本 **0.21.0**。Windows 电脑上的本地采集工作台，读取携程网页和 Android 模拟器内可见的资料，保存到本地目录。工作台可以查看采集范围、预览点评并导出 CSV、JSON 或适用的 ZIP。
+当前版本 **0.21.1**。Windows 电脑上的本地采集工作台，读取携程网页和 Android 模拟器内可见的资料，保存到本地目录。工作台可以查看采集范围、预览点评并导出 CSV、JSON 或适用的 ZIP。
 
 ## 在 Windows 启动
 
