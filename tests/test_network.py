@@ -1,3 +1,4 @@
+import io
 import json
 import logging
 import sqlite3
@@ -7,7 +8,7 @@ from pathlib import Path
 from threading import Event
 from unittest.mock import patch
 
-from network import collect_network, export_records, parse_target, sanitize, shopping_target
+from network import collect_network, export_records, load_target, parse_target, sanitize, shopping_target
 
 logger = logging.getLogger(__name__)
 
@@ -241,6 +242,37 @@ class NetworkTests(unittest.TestCase):
             self.assertEqual(result['reason'], 'cancelled')
             self.assertEqual(result['pages'], 0)
         logger.info('中止检查完成')
+
+    def test_export_failure_leaves_no_temporary_files(self):
+        # /* ===== 步骤5：验证导出失败清理；数据源：损坏行；操作：1) 保留旧导出 2) 不留临时文件 ===== */
+        logger.info('开始导出失败清理测试')
+        with tempfile.TemporaryDirectory() as folder, sqlite3.connect(':memory:') as db:
+            db.execute('CREATE TABLE network_reviews(object_key TEXT, comment_id TEXT, data TEXT, fetched_at TEXT)')
+            db.execute('INSERT INTO network_reviews VALUES(?,?,?,?)', ('sight-1', '1', json.dumps({'content': '旧正文'}), 'now'))
+            old_jsonl, old_csv = export_records(db, 'sight-1', Path(folder))
+            # 5.1 第二行不是合法 JSON，导出必须失败并保持上一版导出可用。
+            db.execute('INSERT INTO network_reviews VALUES(?,?,?,?)', ('sight-1', '2', '{not json', 'now'))
+            with self.assertRaises(ValueError):
+                export_records(db, 'sight-1', Path(folder))
+            self.assertEqual(list(Path(folder).glob('*.tmp')), [])
+            self.assertIn('旧正文', Path(old_jsonl).read_text(encoding='utf-8'))
+            self.assertIn('旧正文', Path(old_csv).read_text(encoding='utf-8-sig'))
+        logger.info('导出失败清理测试完成')
+
+    def test_oversized_detail_page_is_rejected_not_truncated(self):
+        # /* ===== 步骤6：验证页面上限；数据源：超限正文；操作：1) 明确停止 2) 不解析截断内容 ===== */
+        logger.info('开始详情页上限测试')
+        url = 'https://you.ctrip.com/sight/city1/12.html'
+        with patch('network.MAX_HTML_BYTES', 4), patch('network.urlopen', return_value=io.BytesIO(b'12345')):
+            with self.assertRaises(ValueError) as caught:
+                load_target(url)
+        self.assertIn('大小限制', str(caught.exception))
+        # 6.1 刚好等于上限时仍按完整页面解析，不因上限判定误伤。
+        with patch('network.MAX_HTML_BYTES', 4), patch('network.urlopen', return_value=io.BytesIO(b'1234')):
+            with self.assertRaises(ValueError) as caught:
+                load_target(url)
+        self.assertNotIn('大小限制', str(caught.exception))
+        logger.info('详情页上限测试完成')
 
 
 if __name__ == '__main__':

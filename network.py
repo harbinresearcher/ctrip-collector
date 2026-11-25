@@ -21,6 +21,8 @@ HEAD = {'cver': '1.0', 'lang': '01', 'sid': '8888', 'syscode': '09',
 PRIVATE_KEYS = {'clientauth', 'auth', 'token', 'accesstoken', 'refreshtoken', 'cookie',
                 'authorization', 'ip', 'clientinfo', 'uid', 'userid', 'cid', 'ctok', 'xsid',
                 'signature', 'trace', 'ubtdata', 'authinfo'}
+# 页面正文上限；读取上限加一字节，用来区分刚好达到上限和实际被截断。
+MAX_HTML_BYTES = 12_000_000
 
 
 def sanitize(value):
@@ -140,9 +142,12 @@ def load_target(url):
             target['shopping_review_overview_error'] = str(exc)
         logger.info('购物详情读取完成')
         return target
-    # 4.1 无登录状态，不读取个人浏览器 Cookie。
+    # 4.1 无登录状态，不读取个人浏览器 Cookie；超过上限明确停止，不解析被截断的页面。
     with urlopen(url, timeout=30) as response:
-        html = response.read(12_000_000).decode('utf-8')
+        raw = response.read(MAX_HTML_BYTES + 1)
+    if len(raw) > MAX_HTML_BYTES:
+        raise ValueError('详情页超过大小限制，已停止，不能按截断内容解析')
+    html = raw.decode('utf-8')
     if urlparse(url).hostname == 'hotels.ctrip.com':
         from hotel_public import parse_public_hotel
         target = parse_public_hotel(url, html)
@@ -239,18 +244,23 @@ def export_records(db, object_key, folder):
               'resourceId', 'resourceType', 'businessId', 'businessType', 'sourceType']
     # 6.1 主文件每行保留完整的已清理响应，不丢嵌套媒体及回复。
     rows = db.execute('SELECT data, fetched_at FROM network_reviews WHERE object_key=? ORDER BY rowid', (object_key,))
-    with jsonl_temp.open('w', encoding='utf-8') as jf, csv_temp.open('w', encoding='utf-8-sig', newline='') as cf:
-        writer = csv.writer(cf)
-        writer.writerow(['object_key', 'fetched_at', *fields, 'full_json'])
-        for raw, fetched_at in rows:
-            data = sanitize(json.loads(raw))
-            jf.write(json.dumps({'object_key': object_key, 'fetched_at': fetched_at, 'data': data}, ensure_ascii=False) + '\n')
-            values = [object_key, fetched_at, *[data.get(field) for field in fields], data]
-            cells = [json.dumps(v, ensure_ascii=False) if isinstance(v, (dict, list)) else '' if v is None else str(v) for v in values]
-            writer.writerow(["'" + v if v.lstrip().startswith(('=', '+', '-', '@')) else v for v in cells])
-    # 6.2 临时文件全部写完才替换；被占用时旧导出仍在。
-    csv_temp.replace(csv_path)
-    jsonl_temp.replace(jsonl)
+    try:
+        with jsonl_temp.open('w', encoding='utf-8') as jf, csv_temp.open('w', encoding='utf-8-sig', newline='') as cf:
+            writer = csv.writer(cf)
+            writer.writerow(['object_key', 'fetched_at', *fields, 'full_json'])
+            for raw, fetched_at in rows:
+                data = sanitize(json.loads(raw))
+                jf.write(json.dumps({'object_key': object_key, 'fetched_at': fetched_at, 'data': data}, ensure_ascii=False) + '\n')
+                values = [object_key, fetched_at, *[data.get(field) for field in fields], data]
+                cells = [json.dumps(v, ensure_ascii=False) if isinstance(v, (dict, list)) else '' if v is None else str(v) for v in values]
+                writer.writerow(["'" + v if v.lstrip().startswith(('=', '+', '-', '@')) else v for v in cells])
+        # 6.2 临时文件全部写完才替换；被占用时旧导出仍在。
+        csv_temp.replace(csv_path)
+        jsonl_temp.replace(jsonl)
+    finally:
+        # 6.3 写入或替换失败时清掉本次临时文件，不在输出目录留下残留。
+        csv_temp.unlink(missing_ok=True)
+        jsonl_temp.unlink(missing_ok=True)
     logger.info('点评导出完成')
     return str(jsonl), str(csv_path)
 

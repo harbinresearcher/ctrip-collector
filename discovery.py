@@ -7,7 +7,7 @@ from pathlib import Path
 from threading import Event
 from urllib.request import urlopen
 
-from network import NextData, canonical_url, sanitize
+from network import MAX_HTML_BYTES, NextData, canonical_url, sanitize
 
 logger = logging.getLogger(__name__)
 
@@ -40,8 +40,12 @@ def discover_restaurants(url, output, max_pages=5, max_objects=50, stop=None, fe
             if fetch:
                 html = fetch(index)
             else:
+                # 2.0 超过上限明确停止；截断页面会被解析成缺页，不能当成末页。
                 with urlopen(page_url, timeout=30) as response:
-                    html = response.read(12_000_000).decode('utf-8')
+                    raw = response.read(MAX_HTML_BYTES + 1)
+                if len(raw) > MAX_HTML_BYTES:
+                    raise ValueError('餐饮目录页面超过大小限制，已停止')
+                html = raw.decode('utf-8')
             parser = NextData()
             parser.feed(html)
             state = json.loads(''.join(parser.parts))['props']['pageProps']['initialState']
@@ -146,8 +150,12 @@ def discover_sights(url, output, max_pages=5, max_objects=50, stop=None, fetch=N
             if fetch:
                 html = fetch(index)
             else:
+                # 2.1.1 超过上限明确停止；截断页面会被解析成缺页，不能当成末页。
                 with urlopen(page_url, timeout=30) as response:
-                    html = response.read(12_000_000).decode('utf-8')
+                    raw = response.read(MAX_HTML_BYTES + 1)
+                if len(raw) > MAX_HTML_BYTES:
+                    raise ValueError('景点目录页面超过大小限制，已停止')
+                html = raw.decode('utf-8')
             parser = NextData()
             parser.feed(html)
             state = json.loads(''.join(parser.parts))['props']['pageProps']['initialState']
