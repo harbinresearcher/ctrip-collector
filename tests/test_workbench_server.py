@@ -180,6 +180,29 @@ with patch.object(ThreadingHTTPServer, 'serve_forever', interrupted):
             self.assertEqual(marker.read_text(encoding='utf-8'), 'saved')
         logger.info('服务关闭保存测试完成')
 
+    def test_second_server_cannot_steal_the_same_port(self):
+        # /* ===== 步骤2：核对端口独占；数据源：同一端口两次启动；操作：1) 第二次拒绝 2) 第一次仍可用 ===== */
+        logger.info('开始端口独占检查')
+        with TemporaryDirectory() as folder:
+            first = create_server(folder, port=0)
+            try:
+                port = first.server_port
+                # 2.1 后启动的不能再绑定同一端口（Windows 上 SO_REUSEADDR 会静默抢占）。
+                with self.assertRaises(ValueError) as caught:
+                    create_server(folder, port=port)
+                self.assertIn('已被占用', str(caught.exception))
+                # 2.2 先启动的服务仍能应答。
+                server_thread = Thread(target=first.serve_forever, daemon=True)
+                server_thread.start()
+                connection = http.client.HTTPConnection('127.0.0.1', port, timeout=5)
+                connection.request('GET', '/api/state')
+                self.assertEqual(connection.getresponse().status, 200)
+                connection.close()
+                first.shutdown()
+            finally:
+                first.server_close()
+        logger.info('端口独占检查完成')
+
     def test_favicon_request_has_no_404_noise(self):
         # /* ===== 步骤1：核对图标请求；数据源：浏览器默认请求；操作：1) 返回空响应 2) 不写错误日志 ===== */
         logger.info('开始图标请求测试')

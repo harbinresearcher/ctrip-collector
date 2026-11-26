@@ -4,6 +4,7 @@ import logging
 import os
 import re
 import shutil
+import socket
 import sqlite3
 import subprocess
 import webbrowser
@@ -22,6 +23,18 @@ from workbench_result_files import (open_hotel_report, open_task_csv, open_revie
                                     open_sight_gallery, open_sight_photo_gallery, open_sight_replay_csv,
                                     open_output_file)
 from hotel_review_bundle import open_hotel_review_bundle
+
+
+class LoopbackServer(ThreadingHTTPServer):
+    # /* ===== 步骤1：独占监听端口；数据源：本机端口；操作：1) 关闭地址复用 2) Windows 用独占标志 ===== */
+    # 1.1 Windows 的 SO_REUSEADDR 允许后启动的进程抢占同一端口，先启动的工作台会静默
+    #     收不到任何请求；这里改成独占监听，第二次启动直接报端口被占用。
+    allow_reuse_address = os.name != 'nt'
+
+    def server_bind(self):
+        if hasattr(socket, 'SO_EXCLUSIVEADDRUSE'):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
 from runner import Adb, AndroidReadinessError
 from sight_photo_gallery import MAX_REPORT_BYTES, SOURCE as SIGHT_PHOTO_GALLERY_SOURCE
 
@@ -447,7 +460,11 @@ def create_server(output, adb_path=None, port=8765, *, adb_serial=None):
                 self.reply(409, {'error': str(exc)})
             logger.info('任务操作处理结束')
 
-    server = ThreadingHTTPServer(('127.0.0.1', port), Handler)
+    try:
+        server = LoopbackServer(('127.0.0.1', port), Handler)
+    except OSError as exc:
+        # 1.2 端口被占用时给一句能照做的说明，而不是抛原始 WinError。
+        raise ValueError(f'端口 {port} 已被占用，请换一个端口，或用 --port 0 自动选择') from exc
     server.manager = manager
     logger.info('工作台服务建立完成')
     return server
