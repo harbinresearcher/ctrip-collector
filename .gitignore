@@ -1,5 +1,7 @@
 # Python
 __pycache__/
+.coverage
+htmlcov/
 *.py[cod]
 *.egg-info/
 .pytest_cache/
@@ -24,6 +26,9 @@ data/
 *.log
 evidence/
 rejected-*/
+# tempfile 的前缀（OCR 与图集缓存）；本机 %TEMP% 不可写时会落到当前目录
+ctrip-ocr-*/
+ctrip-gallery-*/
 outputs/
 # 本机 %TEMP% 不可写时 tempfile 会回落到当前目录，留出的临时名不要进仓库
 tmp????????
