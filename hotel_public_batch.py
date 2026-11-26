@@ -22,8 +22,12 @@ def collect_public_hotels(urls, output, limit=500, stop=None, emit=None):
     report={'reason':'running','complete':False,'results':[],'error':'','report_file':str(path)}
     def save():
         temp=path.with_suffix('.tmp')
-        temp.write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
-        temp.replace(path)
+        try:
+            temp.write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
+            temp.replace(path)
+        finally:
+            # 写入或替换失败都不能在输出目录留下半个文件。
+            temp.unlink(missing_ok=True)
     save()
     logger.info('公开酒店清单核验完成')
     # /* ===== 步骤2：读取公开样本；数据源：酒店详情页；操作：1) 保留来源和样本边界 2) 中断保留结果 ===== */
@@ -54,6 +58,11 @@ def collect_public_hotels(urls, output, limit=500, stop=None, emit=None):
     except Exception as exc:
         report.update(reason='error',error=str(exc))
     finally:
-        save()
+        # 末次写入失败时保留已核验样本并把失败写进报告。
+        try:
+            save()
+        except OSError as exc:
+            report['export_error']=str(exc)
+            logger.warning('酒店样本报告写入失败，已核验样本仍返回：%s',exc)
         logger.info('公开酒店样本采集结束：%s',report['reason'])
     return report

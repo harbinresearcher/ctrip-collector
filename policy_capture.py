@@ -26,8 +26,12 @@ def capture_policy(device, output, name, stop, max_pages=10):
     # 1.1 只保存结构化结果与屏幕哈希，不把完整设备界面写入交付数据。
     def save():
         temp = path.with_suffix('.part')
-        temp.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
-        temp.replace(path)
+        try:
+            temp.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
+            temp.replace(path)
+        finally:
+            # 写入或替换失败都不能在输出目录留下半个文件。
+            temp.unlink(missing_ok=True)
     save()
     logger.info('政策表任务记录建立完成')
     # /* ===== 步骤2：读取并翻页；数据源：当前屏幕；操作：1) 验证身份 2) 合并 3) 有界滑动 ===== */
@@ -83,6 +87,11 @@ def capture_policy(device, output, name, stop, max_pages=10):
     except Exception as exc:
         report.update(status='error', error=str(exc))
     finally:
-        save()
+        # 末次写入失败时保留已读政策行并把失败写进记录。
+        try:
+            save()
+        except OSError as exc:
+            report['export_error'] = str(exc)
+            logger.warning('政策读取进度写入失败，已读行仍返回：%s', exc)
         logger.info('逐屏读取政策结束：%s', report['status'])
     return report

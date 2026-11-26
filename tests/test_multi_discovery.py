@@ -79,6 +79,29 @@ class MultiDiscoveryTests(unittest.TestCase):
             self.assertEqual(calls,[])
         logger.info('续跑证据测试完成')
 
+    def test_report_write_failure_keeps_discovered_objects(self):
+        # /* ===== 步骤6：验证写入失败；数据源：磁盘错误；操作：1) 保留已发现对象 2) 不留半文件 ===== */
+        logger.info('开始地区目录写入失败测试')
+        one = 'https://you.ctrip.com/sight/a1/100.html'
+        def finder(entry, folder, pages, objects, stop):
+            return {'reason': 'page_budget_reached', 'objects': [{'url': one}]}
+        original = Path.replace
+        calls = {'n': 0}
+        def replace(path, destination):
+            if destination.suffix == '.json':
+                calls['n'] += 1
+                # 6.0 建任务(1)、第一个地区(2)之后，末次写入时让磁盘失败。
+                if calls['n'] >= 3:
+                    raise OSError('模拟磁盘写入失败')
+            return original(path, destination)
+        with tempfile.TemporaryDirectory() as folder, patch.object(Path, 'replace', replace):
+            result = discover_many(['a'], folder, 2, 5, Event(), finder)
+            # 6.1 已发现对象仍随报告返回，失败写进 export_error。
+            self.assertEqual([item['url'] for item in result['objects']], [one])
+            self.assertTrue(result.get('export_error'))
+            self.assertEqual(list(Path(folder).glob('*.tmp')), [])
+        logger.info('地区目录写入失败测试完成')
+
     def test_cli_accepts_repeated_city_list_without_changing_single_entry(self):
         # /* ===== 步骤1：核对命令入口；数据源：重复地区参数；操作：1) 分别请求 2) 合并报告 ===== */
         logger.info('开始多地区命令入口测试')

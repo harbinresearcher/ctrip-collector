@@ -89,6 +89,28 @@ class GalleryBatchTests(unittest.TestCase):
             self.assertEqual(adb.run.call_count, 1)
         logger.info('图集停滞测试完成')
 
+    def test_progress_write_failure_keeps_saved_pages(self):
+        # /* ===== 步骤4：验证写入失败；数据源：磁盘错误；操作：1) 保留已采页 2) 记录失败 ===== */
+        logger.info('开始图集写入失败测试')
+        adb = Mock()
+        adb.snapshot.return_value = viewer(1)
+        stop = Mock(is_set=lambda: False, wait=lambda seconds: False)
+        original = Path.replace
+        calls = {'n': 0}
+        def replace(path, destination):
+            calls['n'] += 1
+            # 4.0 前两次是建任务和存第一页；末次写入时让磁盘失败。
+            if calls['n'] >= 3:
+                raise OSError('模拟磁盘写入失败')
+            return original(path, destination)
+        with tempfile.TemporaryDirectory() as folder, patch.object(Path, 'replace', replace),                 patch('gallery_batch.GalleryCandidateSession', return_value=nullcontext(Mock())),                 patch('gallery_batch.capture_current_gallery_frame', return_value={'status': 'no_match'}):
+            result = collect_gallery_pages(adb, {}, (0, 40, 240, 400), folder, 'hotel-1', 'AI优选', stop, max_pages=1)
+            # 4.1 已采页面仍随返回值交给调用方，失败写进 export_error。
+            self.assertEqual(len(result['pages']), 1)
+            self.assertTrue(result.get('export_error'))
+            self.assertEqual(list(Path(folder).glob('*.part')), [])
+        logger.info('图集写入失败测试完成')
+
     def test_error_preserves_progress_and_initial_cancel_does_not_touch_device(self):
         # /* ===== 步骤3：验证中断；数据源：设备异常和取消；操作：1) 保留成功页 2) 取消不操作手机 ===== */
         logger.info('开始图集中断测试')

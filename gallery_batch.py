@@ -34,8 +34,12 @@ def collect_gallery_pages(adb, baseline, region, output, object_key, confirmed_c
     # 1.1 原子替换进度；不覆盖之前任务，不将显示总数当作已采数量。
     def checkpoint():
         temporary = path.with_suffix('.part')
-        temporary.write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding='utf-8')
-        temporary.replace(path)
+        try:
+            temporary.write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding='utf-8')
+            temporary.replace(path)
+        finally:
+            # 写入或替换失败都不能在输出目录留下半个文件。
+            temporary.unlink(missing_ok=True)
     checkpoint()
     logger.info('图集任务记录建立完成')
     # /* ===== 步骤2：采集并翻页；数据源：当前页码和缓存会话；操作：1) 逐页记录 2) 不前进即停止 ===== */
@@ -88,6 +92,11 @@ def collect_gallery_pages(adb, baseline, region, output, object_key, confirmed_c
     except Exception as exc:
         record.update(status='error', error_type=type(exc).__name__, error=str(exc))
     finally:
-        checkpoint()
+        # 末次写入失败时保留已采页面并把失败写进记录，不把结果丢给调用方。
+        try:
+            checkpoint()
+        except OSError as exc:
+            record['export_error'] = str(exc)
+            logger.warning('图集进度写入失败，已采页面仍返回：%s', exc)
         logger.info('图集连续读取结束：%s', record['status'])
     return record

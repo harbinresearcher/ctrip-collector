@@ -72,8 +72,12 @@ def discover_many(entries, output, max_pages, max_objects, stop, finder, *, resu
         for path, content in ((Path(report['links_file']), ''.join(item['url']+'\n' for item in report['objects'])),
                               (Path(report['report_file']), json.dumps(report, ensure_ascii=False, indent=2))):
             temp=path.with_suffix(path.suffix+'.tmp')
-            temp.write_text(content,encoding='utf-8')
-            temp.replace(path)
+            try:
+                temp.write_text(content,encoding='utf-8')
+                temp.replace(path)
+            finally:
+                # 写入或替换失败都不能在输出目录留下半个文件。
+                temp.unlink(missing_ok=True)
     checkpoint()
     logger.info('多地区任务建立完成：%s个地区',len(entries))
     # /* ===== 步骤2：逐地区发现；数据源：已有目录适配器；操作：1) 合并对象 2) 失败保留已有结果 ===== */
@@ -115,6 +119,11 @@ def discover_many(entries, output, max_pages, max_objects, stop, finder, *, resu
     except Exception as exc:
         report.update(reason='error',error=str(exc))
     finally:
-        checkpoint()
+        # 末次写入失败时保留已发现对象并把失败写进报告。
+        try:
+            checkpoint()
+        except OSError as exc:
+            report['export_error']=str(exc)
+            logger.warning('地区目录写入失败，已发现对象仍返回：%s',exc)
         logger.info('多地区目录发现结束：%s',report['reason'])
     return report
