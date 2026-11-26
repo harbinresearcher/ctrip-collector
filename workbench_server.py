@@ -20,7 +20,7 @@ from workbench_preview import read_preview, read_mobile_preview, read_scoped_mob
 from mobile_observations import read_observations
 from mobile_review_recovery import open_saved_review_sample, saved_review_runs
 from workbench_result_files import (open_hotel_report, open_task_csv, open_review_thumbnails,
-                                    open_sight_gallery, open_sight_photo_gallery, open_sight_replay_csv,
+                                    open_restaurant_review_gallery, open_sight_gallery, open_sight_photo_gallery, open_sight_replay_csv,
                                     open_output_file)
 from hotel_review_bundle import open_hotel_review_bundle
 
@@ -306,10 +306,14 @@ def create_server(output, adb_path=None, port=8765, *, adb_serial=None):
                     self.send_header('X-Content-Type-Options', 'nosniff')
                     self.end_headers()
                     shutil.copyfileobj(stream, self.wfile, length=65536)
-            elif urlsplit(self.path).path == '/api/review-thumbnails':
-                run = parse_qs(urlsplit(self.path).query).get('run', [''])[0]
+            elif urlsplit(self.path).path in {'/api/review-thumbnails', '/api/restaurant-review-gallery'}:
+                request_url = urlsplit(self.path)
+                gallery = request_url.path == '/api/restaurant-review-gallery'
+                runs = parse_qs(request_url.query, keep_blank_values=gallery).get('run', [''])
+                open_zip = open_restaurant_review_gallery if gallery else open_review_thumbnails
+                run = runs[0] if not gallery or len(runs) == 1 else ''
                 try:
-                    stream, filename = open_review_thumbnails(output, manager.snapshot(), run)
+                    stream, filename = open_zip(output, manager.snapshot(), run)
                 except (ValueError, OSError) as exc:
                     self.reply(404, {'error': str(exc) if isinstance(exc, ValueError) else '点评图片文件不可用'})
                     return

@@ -244,6 +244,28 @@ def make_job(request, output, adb_path=None, *, adb_serial=None):
         logger.info('评论图片任务入口核验完成')
         return result
     # 1.0 手机任务有各自的页数限制和参数校验，交由专用适配器处理。
+    if mode == 'restaurant_review_gallery':
+        name = request.get('name')
+        object_id = request.get('resource_id')
+        max_pages = request.get('max_pages', 10)
+        if not isinstance(name, str) or not 1 <= len(name.strip()) <= 100 or not adb_path:
+            raise ValueError('请填写餐厅名称并配置安卓设备')
+        if not isinstance(object_id, str) or not re.fullmatch(r'[0-9]{1,20}', object_id) or int(object_id) <= 0:
+            raise ValueError('请填写正整数餐厅对象 ID')
+        if type(max_pages) is not int or not 1 <= max_pages <= 50:
+            raise ValueError('点评图集页数须为 1 至 50')
+        name, folder = name.strip(), Path(output).resolve()
+
+        def restaurant_gallery_job(stop, emit):
+            if stop.is_set():
+                return {'reason': 'cancelled', 'complete': False}
+            from restaurant_review_gallery import capture_restaurant_review_gallery
+            with Adb(adb_path, serial=adb_serial, ui_backend='uiautomator2') as device:
+                device.connect()
+                return capture_restaurant_review_gallery(device, folder, name, object_id, stop,
+                                                         max_pages=max_pages, emit=emit)
+
+        return restaurant_gallery_job
     if mode in {'app_reviews', 'app_ai', 'app_gallery'}:
         device_options = {'adb_serial': adb_serial} if adb_serial is not None else {}
         result = prepare_app_job(request, output, adb_path, **device_options)

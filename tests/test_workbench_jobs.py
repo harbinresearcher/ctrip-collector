@@ -111,6 +111,38 @@ class JobTests(unittest.TestCase):
                 with self.subTest(invalid=invalid), self.assertRaisesRegex(ValueError, '推荐菜'):
                     make_job({**request, 'scan_recommended_dishes': invalid}, output, 'adb')
 
+    def test_restaurant_review_gallery_uses_only_its_required_fields(self):
+        request = {'mode': 'restaurant_review_gallery', 'name': ' Mercato ', 'resource_id': '00123',
+                   'limit': 0, 'max_swipes': 0, 'kind': 'hotel'}
+        with tempfile.TemporaryDirectory() as folder:
+            output = Path(folder).resolve()
+            for settings, pages in (({}, 10), ({'max_pages': 50}, 50)):
+                capture = Mock()
+                module = SimpleNamespace(capture_restaurant_review_gallery=capture)
+                with self.subTest(pages=pages), patch('workbench_jobs.Adb') as adb, \
+                        patch.dict('sys.modules', {'restaurant_review_gallery': module}):
+                    job = make_job({**request, **settings}, output, 'adb', adb_serial='emulator-5556')
+                    stop, emit = Event(), Mock()
+                    self.assertIs(job(stop, emit), capture.return_value)
+                    adb.assert_called_once_with('adb', serial='emulator-5556', ui_backend='uiautomator2')
+                    device = adb.return_value.__enter__.return_value
+                    device.connect.assert_called_once_with()
+                    capture.assert_called_once_with(device, output, 'Mercato', '00123', stop,
+                                                    max_pages=pages, emit=emit)
+            with patch('workbench_jobs.Adb') as adb:
+                stop = Event()
+                stop.set()
+                self.assertEqual(make_job(request, output, 'adb')(stop, Mock()),
+                                 {'reason': 'cancelled', 'complete': False})
+                adb.assert_not_called()
+            for invalid in ({'resource_id': None}, {'resource_id': '0'}, {'resource_id': '1e6'},
+                            {'resource_id': '1' * 21}, {'name': '   '}, {'max_pages': 51},
+                            {'max_pages': '3'}, {'max_pages': True}):
+                with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                    make_job({**request, **invalid}, output, 'adb')
+            with self.assertRaises(ValueError):
+                make_job(request, output)
+
     def test_sight_gallery_uses_android_job_and_its_own_page_limit(self):
         with tempfile.TemporaryDirectory() as folder:
             output = Path(folder).resolve()

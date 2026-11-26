@@ -59,6 +59,22 @@ def open_review_thumbnails(output, snapshot, run):
     return open_output_file(root, root / name), f'{kind}-review-thumbnails.zip'
 
 
+def open_restaurant_review_gallery(output, snapshot, run):
+    result = snapshot.get('result')
+    if (snapshot.get('status') not in {'finished', 'cancelled', 'error'} or not isinstance(result, dict)
+            or result.get('kind') != 'restaurant' or result.get('source') != 'ctrip_android_ui'
+            or result.get('source_method') != 'android_restaurant_review_gallery'
+            or not isinstance(run, str) or not MOBILE_REVIEW_RUN_ID.fullmatch(run)
+            or result.get('run_id') != run):
+        raise ValueError('当前任务没有对应的餐厅点评图集')
+    root = Path(output).resolve()
+    basename = f'restaurant-review-gallery-{run}'
+    name = f'{basename}.zip'
+    if result.get('archive') != name or result.get('file') != str(root / f'{basename}.json'):
+        raise ValueError('当前任务没有保存该餐厅点评图集')
+    return open_output_file(root, root / name), 'restaurant-review-gallery.zip'
+
+
 def open_sight_gallery(output, snapshot, report_id):
     result = snapshot.get('result')
     if (snapshot.get('status') != 'finished' or not isinstance(result, dict)

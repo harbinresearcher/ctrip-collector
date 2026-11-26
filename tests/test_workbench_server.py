@@ -101,6 +101,66 @@ class ServerTests(unittest.TestCase):
                 server.server_close()
                 thread.join(3)
 
+    def test_current_restaurant_review_gallery_download_matches_this_task(self):
+        from zipfile import ZipFile
+
+        with TemporaryDirectory() as folder:
+            root = Path(folder).resolve()
+            server = create_server(root, port=0)
+            thread = Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            conn = http.client.HTTPConnection('127.0.0.1', server.server_port, timeout=3)
+            try:
+                run = '20261126T020159-574b79'
+                base = f'restaurant-review-gallery-{run}'
+                name = f'{base}.zip'
+                sample = root / f'restaurant-sample-{run}.csv'
+                sample.write_bytes(b'run_order\r\n1\r\n')
+                report_path = root / f'{base}.json'
+                with ZipFile(root / name, 'w') as archive:
+                    archive.writestr('manifest.json', '{}')
+                result = {'kind': 'restaurant', 'source': 'ctrip_android_ui',
+                          'source_method': 'android_restaurant_review_gallery',
+                          'run_id': run, 'archive': name, 'file': str(report_path), 'reason': 'cancelled',
+                          'sample_csv': str(sample)}
+                report_path.write_text(json.dumps(result), encoding='utf-8')
+
+                for data, query, status in (
+                    (result, f'run={run}', 200),
+                    (result, '', 404),
+                    (result, f'run={run}&run={run}', 404),
+                    (result, 'run=..%2F' + run, 404),
+                    (result, 'run=20261126T020159-574b78', 404),
+                    ({**result, 'kind': 'hotel'}, f'run={run}', 404),
+                    ({**result, 'source_method': 'other'}, f'run={run}', 404),
+                    ({**result, 'archive': '../' + name}, f'run={run}', 404),
+                    ({**result, 'file': str(root / 'other.json')}, f'run={run}', 404),
+                ):
+                    with self.subTest(query=query, status=status):
+                        server.manager.start(lambda stop, emit: data)
+                        server.manager.worker.join(3)
+                        conn.request('GET', f'/api/restaurant-review-gallery?{query}')
+                        response = conn.getresponse()
+                        content = response.read()
+                        self.assertEqual(response.status, status)
+                        if status == 200:
+                            self.assertEqual(response.getheader('Content-Type'), 'application/zip')
+                            self.assertEqual(response.getheader('Content-Disposition'),
+                                             'attachment; filename="restaurant-review-gallery.zip"')
+                            self.assertEqual(content, (root / name).read_bytes())
+
+                server.manager.start(lambda stop, emit: result)
+                server.manager.worker.join(3)
+                conn.request('GET', '/api/task-sample-csv')
+                response = conn.getresponse()
+                self.assertEqual(response.status, 200)
+                self.assertEqual(response.read(), sample.read_bytes())
+            finally:
+                conn.close()
+                server.shutdown()
+                server.server_close()
+                thread.join(3)
+
     def test_current_sight_photo_gallery_zip_download(self):
         from io import BytesIO
         from zipfile import ZipFile
