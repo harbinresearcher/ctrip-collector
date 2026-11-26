@@ -41,6 +41,20 @@ python app.py --drive --output <目录> [--city-list <入口链接> | --region-s
 （有进展→继续 / 无进展→no_progress / 目标全达成→all_targets_met /
 轮数预算→round_budget_reached / 单对象失败不影响整轮）。
 
+#### C1c 验收记录：已达标（2026-11-26）
+
+真实网络验收（全新目录，`--rounds 2 --discovery-pages 1 --max-objects 2
+--limit 2 --gap-limit 2`，抚松景点目录）：
+
+| 轮 | missing | collected | delta | 本轮 reason |
+| --- | --- | --- | --- | --- |
+| 1 | 1510 → **1506** | 8 → 12 | 4 | continued |
+| 2 | 1506 → **1502** | 12 → 16 | 4 | round_budget_reached |
+
+目录发现只执行 1 次（`object_budget_reached`，`listing_total=3000`，发现 2 个对象）；
+`complete=false`；`limitations` 明确写出「手机与酒店对象只报不采」「清单内清零 ≠ 平台全量」
+「运行期间新增对象不会被发现」。517 项测试全绿，CI success。
+
 ### C1 覆盖台账与缺口对账
 
 - 新增只读命令 `python app.py --audit --output <输出目录>`，输出 JSON，包含：
