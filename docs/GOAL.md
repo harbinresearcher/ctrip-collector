@@ -41,6 +41,29 @@ python app.py --drive --output <目录> [--city-list <入口链接> | --region-s
 （有进展→继续 / 无进展→no_progress / 目标全达成→all_targets_met /
 轮数预算→round_budget_reached / 单对象失败不影响整轮）。
 
+### C1e 长跑保护：每日配额 + 熔断 + 降速（下一步）
+
+目标：`--drive` 能连续跑几小时而不失控——配额到点自己停，连续失败自己熔断，
+速率掉到阈值以下自动降速并在报告里说明。
+
+```powershell
+python app.py --drive --output <目录> --rounds <N> `
+  --daily-quota <每天最多新增条数> --breaker-failures <连续失败阈值> `
+  --min-per-minute <低于该速率视为降级>
+```
+
+验收：
+
+- 配额：同一天累计新增条数达到 `--daily-quota` 后停止，原因 `daily_quota_reached`；
+  状态按日期落在输出目录（例如 `drive-state.json`），跨进程重启仍然生效，隔天自动归零；
+- 熔断：一轮里连续 `--breaker-failures` 个对象失败（`reason=error`）→ 立即停止，
+  原因 `circuit_open`，并把触发对象与错误原文记进报告；
+- 降速：本轮 `reviews_per_minute` 低于 `--min-per-minute` → 报告标 `degraded`，
+  下一轮把对象处理数减半（不清零、不放弃），并写明降速原因；
+- 三种保护都要出现在报告字段里（`quota` / `breaker` / `pacing`），且**不得**
+  把被保护停下的运行写成成功；
+- 单测 5 项（配额到点 / 隔天归零 / 熔断 / 降速减半 / 保护字段随报告输出），不触网。
+
 #### C1c 验收记录：已达标（2026-11-26）
 
 真实网络验收（全新目录，`--rounds 2 --discovery-pages 1 --max-objects 2
