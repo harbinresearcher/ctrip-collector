@@ -95,10 +95,21 @@ def run_concurrently(selected, limit, workers, stop, emit, run_object, quota_rem
     pending = list(selected)
     active = {}
     halted = None
+    # 3.4.0.1 已经提交但还没开跑的任务也要能停：拦到就置位，任务进采集前先看这个标志，
+    #         否则瞬间返回的采集会让排队任务在 pending 清空前就发出请求。
+    blocked_flag = Event()
+    if stop is None:
+        stop = Event()
+
+    def guarded(obj, add):
+        if blocked_flag.is_set() or stop.is_set():
+            return None
+        return run_object(obj, add)
+
     with ThreadPoolExecutor(max_workers=workers, thread_name_prefix='gap-collect') as pool:
         while True:
             while len(active) < workers and pending:
-                if stop.is_set():
+                if stop.is_set() or blocked_flag.is_set():
                     pending.clear()
                     break
                 obj = pending.pop(0)
@@ -110,19 +121,24 @@ def run_concurrently(selected, limit, workers, stop, emit, run_object, quota_rem
                         pending.clear()
                         emit('配额到点：不再开始新对象，已开对象跑完就停')
                         break
-                active[pool.submit(run_object, obj, add)] = (obj, add)
+                active[pool.submit(guarded, obj, add)] = (obj, add)
             if not active:
                 break
             done, _ = wait(active, return_when=FIRST_COMPLETED)
             # 3.4.4 完成顺序不确定：按对象键处理，被拦对象与在途对象的先后不随线程调度变化。
             for future in sorted(done, key=lambda item: active[item][0]['object_key']):
                 obj, add = active.pop(future)
-                effective, result = future.result()
+                outcome = future.result()
+                if outcome is None:
+                    # 3.4.4.1 提交后才发现被拦：这个对象一次请求都没发，不写进 processed。
+                    continue
+                effective, result = outcome
                 finished[obj['object_key']] = (obj, result, add, effective)
                 signal = blocked_signal(result)
                 if signal is not None and halted is None:
                     # 3.4.5 被平台拦住：已排队的后续对象全部取消，在途请求跑完就停，不再开新对象。
                     halted = {'object_key': obj['object_key'], 'status': signal}
+                    blocked_flag.set()
                     pending.clear()
                 if budget is not None:
                     # 3.4.2 只按实测新增退还差额；采集没报新增就按已预占算，宁少开对象也不超发。

@@ -3,6 +3,8 @@ import io
 import json
 import logging
 import tempfile
+import time
+import threading
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -137,16 +139,26 @@ class BlockedCircuitTests(unittest.TestCase):
                 elif identity == 2:
                     second = url
             seen = []
+            release = threading.Event()
+            # 3.2.1 非被拦对象先挂住，保证「被拦结果先被观察到」是确定的，不靠线程启动顺序。
+            #       没有这一步，瞬间返回的假采集会让 3、4 号在观察之前就发请求（测试会抖动）。
+            def delayed_release():
+                time.sleep(0.2)
+                release.set()
+
+            timer = threading.Thread(target=delayed_release, daemon=True)
+            timer.start()
 
             def collector(url, output, limit, stop, emit):
                 seen.append(url)
                 if url == first:
                     return blocked_result()
+                release.wait(5)
                 return {'reason': 'target_reached', 'error': '', 'export_error': '', 'complete': False}
 
             report = collect_gaps(folder, 5, gap_limit=4, workers=2, collector=collector)
             self.assertEqual(report['reason'], 'blocked')
-            # 已经开出去的对象最多两个（sight-1 被拦、sight-2 在途）；sight-3、sight-4 不得发请求。
+            # 3.2.2 被拦结果被观察到之后，排队的 3、4 号不再提交；此时在途的只有 1、2 号。
             self.assertTrue(set(seen) <= {first, second}, seen)
             self.assertNotIn('https://you.ctrip.com/sight/a1/3.html', seen)
             self.assertNotIn('https://you.ctrip.com/sight/a1/4.html', seen)
