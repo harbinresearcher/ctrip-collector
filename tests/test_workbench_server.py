@@ -148,6 +148,31 @@ with patch.object(ThreadingHTTPServer, 'serve_forever', interrupted):
                 server.server_close()
         logger.info('图标请求测试完成')
 
+    def test_hotel_report_endpoint_only_serves_root_app_hotel_json(self):
+        # /* ===== 步骤1：核对报告下载；数据源：输出目录文件；操作：1) 只认规范文件名 2) 拒绝越界 ===== */
+        logger.info('开始酒店报告下载测试')
+        with TemporaryDirectory() as folder:
+            server = create_server(folder, port=0)
+            thread = Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                name = 'app-hotel-' + 'a' * 32 + '.json'
+                (Path(folder) / name).write_text('{"kind":"hotel"}', encoding='utf-8')
+                (Path(folder) / 'secret.json').write_text('{}', encoding='utf-8')
+                conn = http.client.HTTPConnection('127.0.0.1', server.server_port, timeout=3)
+                conn.request('GET', f'/api/hotel-report?file={name}')
+                response = conn.getresponse()
+                self.assertEqual(response.status, 200)
+                self.assertEqual(response.read(), b'{"kind":"hotel"}')
+                # 1.1 规范名以外、越界名和不存在的文件名都不能读到目录里的其他内容。
+                for bad in ('secret.json', '../secret.json', 'app-hotel-' + 'b' * 32 + '.json'):
+                    conn.request('GET', f'/api/hotel-report?file={bad}')
+                    self.assertEqual(conn.getresponse().status, 404, bad)
+            finally:
+                server.shutdown()
+                server.server_close()
+        logger.info('酒店报告下载测试完成')
+
     def test_origin_validation_and_real_status(self):
         # /* ===== 步骤1：核验本地接口；数据源：真实HTTP请求；操作：1) 状态读取 2) 拒绝外站控制 ===== */
         logger.info('开始工作台HTTP测试')
