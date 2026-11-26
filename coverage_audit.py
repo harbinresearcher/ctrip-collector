@@ -170,6 +170,9 @@ def write_coverage_audit(folder):
     def add_report(item, path, data):
         item['reports'].append({'file': path.name, 'reason': data.get('reason'),
                                 'error': data.get('error') if isinstance(data.get('error'), str) else '',
+                                'blocked': data.get('blocked') is True,
+                                'blocked_status': data.get('blocked_status')
+                                if isinstance(data.get('blocked_status'), str) else '',
                                 'mtime': path.stat().st_mtime})
 
     # 3.2 对象快照是详情页/接口回显的落盘证据，优先级最高。
@@ -391,6 +394,9 @@ def write_coverage_audit(folder):
         target = item['target']
         missing = max(target - total, 0) if target is not None else None
         report = latest_report(item['reports'])
+        # 5.0.1 被平台拦住与「没数据」分开：最新报告标了 blocked 就不算可续采缺口，
+        #       也不能降级成普通 failed，否则 --drive 会把它当成还能继续采的对象。
+        blocked = bool(report and report.get('blocked'))
         failed = bool(report and (report['reason'] == 'error' or report['error']))
         attempted = item['web_attempted'] or total > 0
         # 5.1 连续两次都「翻到空页」且没采到目标数：这条通道已经采不出来，
@@ -398,6 +404,8 @@ def write_coverage_audit(folder):
         exhausted = bool(missing and not failed and exhausted_runs(item['reports']))
         if missing == 0:
             gap = None
+        elif blocked:
+            gap = 'blocked'
         elif failed:
             gap = 'failed'
         elif exhausted:
@@ -413,6 +421,8 @@ def write_coverage_audit(folder):
                                                 for store in ('network_reviews', 'reviews_scoped', 'reviews')},
                         'app_all_run': app_comparisons.get(key),
                         'missing': missing, 'gap_reason': gap,
+                        'blocked': blocked,
+                        'blocked_status': report.get('blocked_status') if report else '',
                         'reachable_missing': 0 if gap == 'source_exhausted' else missing,
                         'latest_reason': report['reason'] if report else None,
                         'latest_error': report['error'] if report else '',

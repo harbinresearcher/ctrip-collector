@@ -16,9 +16,10 @@ from gap_collect import MAX_WORKERS, collect_gaps
 
 logger = logging.getLogger(__name__)
 # 停止原因：前四种由轮次进度决定，后两种由长跑保护触发（配额到点 / 连续失败熔断）；
-# rounds[].reason 另有一个 continued，表示缺口变小、进入下一轮。
+# rounds[].reason 另有一个 continued，表示缺口变小、进入下一轮；
+# blocked 表示平台已拒绝（403/429/432/511 或验证提示），当天必须停跑。
 STOP_REASONS = ('round_budget_reached', 'no_progress', 'all_targets_met', 'cancelled',
-                'daily_quota_reached', 'circuit_open')
+                'daily_quota_reached', 'circuit_open', 'blocked')
 LIMITATIONS = ['继续的唯一条件是 after.missing 严格小于 before.missing；采集调用自己报的成功不算数。',
                '目录发现只在第一轮执行，后续轮次不再请求目录接口，因此运行期间新增的对象不会被发现。',
                '手机对象与酒店浏览器对象不在自动续采范围，缺口只报不采，会直接表现为 no_progress。',
@@ -28,7 +29,8 @@ LIMITATIONS = ['继续的唯一条件是 after.missing 严格小于 before.missi
                '每日配额按轮结束时的累计新增判定，最后一轮可能超过剩余额度；只统计本命令各轮的实测新增。',
                '熔断只看本轮内连续失败的对象，成功一次即清零；降速只调下一轮的每轮对象数（gap_limit），不改每对象条数（limit）。',
                '并发只并行不同对象：同一对象内部仍按原有间隔串行翻页，任一对象同一时刻只有一个线程在请求。',
-               '并发时配额按对象预占、按实际新增退还，总新增不超过当日剩余额度；串行（workers=1）仍按轮结束累计判定，可能跨过额度。']
+               '并发时配额按对象预占、按实际新增退还，总新增不超过当日剩余额度；串行（workers=1）仍按轮结束累计判定，可能跨过额度。',
+               '被平台拦住（403/429/432/511 或验证码/人机校验）时本轮立即停止并记 blocked，不再请求后续对象；当天应停跑，不换 IP 或账号。']
 # 配额状态落在输出目录：同一天重启接着算，本地日期变了自动归零。
 STATE_FILE = 'drive-state.json'
 
@@ -171,6 +173,7 @@ def drive_rounds(folder, rounds, discovery_pages, max_objects, limit, gap_limit,
               'limit': limit, 'gap_limit': gap_limit, 'workers': workers, 'limitations': LIMITATIONS,
               'quota': quota_view(daily_quota, state['collected_today']),
               'breaker': {'threshold': breaker_failures, 'tripped': False, 'object_key': None, 'error': ''},
+              'blocked': None,
               'pacing': {'min_per_minute': min_per_minute, 'degraded': False, 'gap_limit_next': gap_limit}}
     # 4.1 整体吞吐只按全部轮次的实测累计算，不掺目录发现和参数校验的时间。
     spent, gained = 0.0, 0
@@ -226,8 +229,14 @@ def drive_rounds(folder, rounds, discovery_pages, max_objects, limit, gap_limit,
             report['pacing'].update(degraded=True, gap_limit_next=round_gap)
             emit(f"降速：本轮 {rate} 条/分钟低于 {min_per_minute}，下一轮每轮对象数减为 {round_gap}")
         # 4.7 停止原因：长跑保护优先于进度判断，被保护停下的运行 complete 仍为 false。
+        blocked = gap.get('blocked')
         if stop.is_set():
             reason = 'cancelled'
+        elif blocked:
+            # 4.7.1 被平台拦住比熔断更先判定：这一轮已经整轮停手，记录对象与原始状态。
+            reason = 'blocked'
+            report['blocked'] = blocked
+            emit(f"平台拦截：{blocked['object_key']}（{blocked['status']}），本轮立即停止，不再请求后续对象")
         elif trip['tripped']:
             reason = 'circuit_open'
             key = next((row['object_key'] for row in gap['processed'] if row['url'] == trip['object_url']), None)

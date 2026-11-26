@@ -166,6 +166,23 @@ python app.py --drive --output <目录> --workers 2 --rounds 3 --limit 200 --gap
 - 单测 4 项（432 识别 / 其他 HTTP 错误不算 blocked / blocked 后不再请求下一个对象 /
   命令行提示与退出码），不触网。
 
+### C1h 验收记录：已达标（2026-11-26）
+
+- `network.blocked_status` / `network.is_blocked`：HTTP 403 / 429 / 432 / 511，或异常原文与响应提示里的
+  验证码、人机校验、请稍后再试特征判为被拦；500、超时、连接重置不算。
+- `collect_network` 报告写 `blocked` / `blocked_status`（`reason` 仍为 `error`）；
+  `load_target` 阶段的被拦由 `batch.collect_batch` 把异常状态码写进对象结果，不会被降级成普通错误。
+- `gap_collect.collect_gaps` 与 `drive.drive_rounds` 看到 `blocked=True` 立即整轮停止（`reason='blocked'`），
+  串行与并发都不再对后续对象发请求，报告记录被拦对象与状态。
+- `--audit` 对象行新增 `blocked` / `blocked_status`；被拦对象 `gap_reason='blocked'`，
+  不再进入续采队列，与「没数据」的 `missing` 分开。
+- 命令行捕获被拦时只打印一句「平台限流（HTTP 432），请停止今天的采集……不要换 IP 或换账号重试。」并退出 1，无堆栈。
+- 单测 4 项（`tests/test_platform_block.py`），不触网；582 项测试全绿（skipped=2）。
+
+模拟验证（构造 432 响应，不触网）：对象报告 `blocked=True, blocked_status='432', reason='error'`；
+`--audit` 同一对象为 `gap_reason='blocked'`、`blocked=true`、`missing` 仍如实保留 1095；
+`--collect-gaps` 命令行退出码 1，只多一行当天停跑提示，`reason='blocked'`，后续对象零请求。
+
 ### C1g 验收记录：已达标（2026-11-26）
 
 - `layout_fingerprint.py`：UI XML 走「节点序列」指纹，网页走「页面状态 JSON」指纹，

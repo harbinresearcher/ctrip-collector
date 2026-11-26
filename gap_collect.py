@@ -52,9 +52,19 @@ def is_collectable(obj):
 
 def gap_candidates(objects):
     # 1.2 缺口大的先采；同缺口按对象键排序，保证同一目录每次输出顺序稳定。
-    # 1.3 通道已采尽（source_exhausted）的对象不再进续采队列：它们的缺口不在这一侧。
-    return sorted((obj for obj in objects if is_collectable(obj) and obj.get('gap_reason') != 'source_exhausted'),
+    # 1.3 通道已采尽（source_exhausted）或被平台拦住（blocked）的对象不再进续采队列：
+    #     前者缺口不在这一侧，后者当天必须停跑，不能被当成普通缺口继续打。
+    return sorted((obj for obj in objects if is_collectable(obj)
+                   and obj.get('gap_reason') not in {'source_exhausted', 'blocked'}),
                   key=lambda obj: (-obj['missing'], obj['object_key']))
+
+
+def blocked_signal(result):
+    # /* ===== 步骤1.4：识别被拦结果；数据源：单对象采集报告；操作：1) 只认 blocked=True 2) 返回原始状态 ===== */
+    # 1.4.1 被拦不能退回普通 error：缺口续采与驱动循环都要据此整轮停手。
+    if not isinstance(result, dict) or result.get('blocked') is not True:
+        return None
+    return str(result.get('blocked_status') or 'unknown')
 
 
 def idle_reason(objects):
@@ -84,6 +94,7 @@ def run_concurrently(selected, limit, workers, stop, emit, run_object, quota_rem
     finished = {}
     pending = list(selected)
     active = {}
+    halted = None
     with ThreadPoolExecutor(max_workers=workers, thread_name_prefix='gap-collect') as pool:
         while True:
             while len(active) < workers and pending:
@@ -103,17 +114,23 @@ def run_concurrently(selected, limit, workers, stop, emit, run_object, quota_rem
             if not active:
                 break
             done, _ = wait(active, return_when=FIRST_COMPLETED)
-            for future in done:
+            # 3.4.4 完成顺序不确定：按对象键处理，被拦对象与在途对象的先后不随线程调度变化。
+            for future in sorted(done, key=lambda item: active[item][0]['object_key']):
                 obj, add = active.pop(future)
                 effective, result = future.result()
                 finished[obj['object_key']] = (obj, result, add, effective)
+                signal = blocked_signal(result)
+                if signal is not None and halted is None:
+                    # 3.4.5 被平台拦住：已排队的后续对象全部取消，在途请求跑完就停，不再开新对象。
+                    halted = {'object_key': obj['object_key'], 'status': signal}
+                    pending.clear()
                 if budget is not None:
                     # 3.4.2 只按实测新增退还差额；采集没报新增就按已预占算，宁少开对象也不超发。
                     actual = result.get('new_count')
                     if type(actual) is int and 0 <= actual < add:
                         budget.refund(add - actual)
     # 3.4.3 完成先后不确定：按对象键排序输出，报告不随线程调度变化。
-    return [finished[key] for key in sorted(finished)]
+    return [finished[key] for key in sorted(finished)], halted
 
 
 def collect_gaps(folder, limit, gap_limit=10, stop=None, emit=None, collector=None,
@@ -138,7 +155,7 @@ def collect_gaps(folder, limit, gap_limit=10, stop=None, emit=None, collector=No
         # 3.2 没有可处理对象不是错误：写清原因，调用方按退出码 0 处理。
         reason = idle_reason(objects)
         logger.info('没有可处理的缺口对象：%s', reason)
-        return {'reason': reason, 'limit': limit, 'gap_limit': gap_limit, 'workers': workers,
+        return {'reason': reason, 'blocked': None, 'limit': limit, 'gap_limit': gap_limit, 'workers': workers,
                 'before': before['summary'], 'after': before['summary'],
                 'selected': [], 'processed': [], 'output': str(folder)}
     emit(f"缺口续采：{len(selected)} 个对象（候选 {len(candidates)} 个）")
@@ -163,16 +180,21 @@ def collect_gaps(folder, limit, gap_limit=10, stop=None, emit=None, collector=No
 
     if workers == 1:
         # 3.3.2 默认串行：保持原有处理顺序与日志，一个对象采完再开下一个。
-        serial = []
+        serial, halted = [], None
         for obj in selected:
             if stop.is_set():
                 break
             effective, result = run_object(obj, limit)
             serial.append((obj, result, limit, effective))
+            signal = blocked_signal(result)
+            if signal is not None:
+                # 3.3.4 被平台拦住就整轮停：后面的对象一个请求都不发。
+                halted = {'object_key': obj['object_key'], 'status': signal}
+                break
         runs = serial
     else:
         # 3.3.3 串行路径不传配额：配额仍按轮结束累计判定，workers=1 的行为与以前完全一致。
-        runs = run_concurrently(selected, limit, workers, stop, emit, run_object, quota_remaining)
+        runs, halted = run_concurrently(selected, limit, workers, stop, emit, run_object, quota_remaining)
     # 3.4 采完重新对账：after 是数据库与证据的真实计数，不是对本次调用的推测。
     after = write_coverage_audit(folder)
     by_key = {row['object_key']: row for row in after['objects']}
@@ -186,8 +208,12 @@ def collect_gaps(folder, limit, gap_limit=10, stop=None, emit=None, collector=No
                           'after_collected': row.get('collected'), 'after_missing': row.get('missing'),
                           'reason': result.get('reason') or 'unknown',
                           'error': result.get('error') or '',
-                          'export_error': result.get('export_error') or ''})
-    report = {'reason': 'cancelled' if stop.is_set() else 'gap_processed',
+                          'export_error': result.get('export_error') or '',
+                          'blocked': result.get('blocked') is True,
+                          'blocked_status': result.get('blocked_status') or ''})
+    # 3.5 被拦优先于取消：平台拒绝本身就是这一轮的停止原因，报告里要留下对象与状态。
+    report = {'reason': 'blocked' if halted else 'cancelled' if stop.is_set() else 'gap_processed',
+              'blocked': halted,
               'limit': limit, 'gap_limit': gap_limit, 'workers': workers,
               'before': before['summary'], 'after': after['summary'],
               'selected': [obj['object_key'] for obj in selected], 'processed': processed,

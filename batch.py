@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from threading import Event
 
-from network import canonical_url
+from network import blocked_status, canonical_url
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +90,11 @@ def collect_batch(urls, output, limit, collector, stop=None, emit=None, *, refre
                           else collector(url, output, limit, stop, emit))
             except Exception as exc:
                 result = {'reason': 'error', 'error': str(exc), 'export_error': '', 'complete': False}
+                # 3.1.2 详情页读取阶段被拦（如 432）在这里抛出；结果必须带 blocked，
+                #       否则 --collect-gaps / --drive 只会看到普通 error，继续打下一个对象。
+                signal = blocked_status(exc)
+                if signal is not None:
+                    result['blocked'], result['blocked_status'] = True, str(signal)
             hashes = {}
             # 3.2 仅在成功导出后允许下次跳过；摘要失败保留错误并停止后续请求。
             if result.get('reason') == 'target_reached' and not result.get('error') and not result.get('export_error'):

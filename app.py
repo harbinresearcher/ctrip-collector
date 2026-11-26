@@ -10,7 +10,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
 from runner import Adb, collect
-from network import canonical_url, collect_network, load_target
+from network import BlockedError, canonical_url, collect_network, load_target
 from hotel_browser import collect_hotel
 from capture_io import import_capture
 from ai_capture import capture_ai
@@ -395,8 +395,11 @@ def main():
             parser.error('--collect-gaps 不能与采集任务、覆盖统计或对账同时使用')
         if args.limit < 1 or args.gap_limit < 1:
             parser.error('limit 和 gap-limit 必须大于零')
-        print(json.dumps(collect_gaps(args.output, args.limit, args.gap_limit, collector=collect_url),
-                         ensure_ascii=False, indent=2))
+        result = collect_gaps(args.output, args.limit, args.gap_limit, collector=collect_url)
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        # 3.0.3.1 被平台拦住不是普通的「这轮没采到」：命令行只留一句可照做的提示，退出 1。
+        if result['reason'] == 'blocked':
+            raise BlockedError((result.get('blocked') or {}).get('status'))
         return
     # 3.0.4 无人值守驱动循环：目录发现只交给第一轮，之后每轮按缺口续采；是否继续由缺口是否下降决定。
     if args.drive:
@@ -425,11 +428,14 @@ def main():
                 result['region_seed_report'] = seeds['report_file']
             return result
         discover_entry = discover if args.city_list or args.region_seeds else None
-        print(json.dumps(drive_rounds(args.output, args.rounds, args.discovery_pages, args.max_objects,
-                                      args.limit, args.gap_limit, discover=discover_entry, collector=collect_url,
-                                      daily_quota=args.daily_quota, breaker_failures=args.breaker_failures,
-                                      min_per_minute=args.min_per_minute, workers=args.workers),
-                         ensure_ascii=False, indent=2))
+        drive_report = drive_rounds(args.output, args.rounds, args.discovery_pages, args.max_objects,
+                                    args.limit, args.gap_limit, discover=discover_entry, collector=collect_url,
+                                    daily_quota=args.daily_quota, breaker_failures=args.breaker_failures,
+                                    min_per_minute=args.min_per_minute, workers=args.workers)
+        print(json.dumps(drive_report, ensure_ascii=False, indent=2))
+        # 3.0.4.3 被拦时整轮已停，命令行再给一句当天停跑的提示，退出 1。
+        if drive_report['reason'] == 'blocked':
+            raise BlockedError((drive_report.get('blocked') or {}).get('status'))
         return
     if args.coverage:
         if args.url or args.url_file or args.city_list or args.region_seeds or args.resume_regions or args.hotel_public or args.shopping_district is not None or args.collect or args.capture_ai or args.import_capture or args.download_media:
@@ -489,6 +495,10 @@ def main():
         result = collect_public_hotels(args.url, args.output, args.limit) if args.hotel_public else collect_batch(args.url, args.output, args.limit, collect_url)
         print(json.dumps(result, ensure_ascii=False, indent=2))
         if result['reason'] == 'error':
+            # 3.1.0 被平台拦住时给一句当天停跑的提示，与普通错误分开；两者都退出 1。
+            blocked = next((item for item in result.get('results') or [] if item.get('blocked')), None)
+            if blocked is not None:
+                raise BlockedError(blocked.get('blocked_status'))
             raise SystemExit(1)
     elif args.capture_ai:
         with Adb(args.adb, ui_backend=args.ui_backend) as adb:
@@ -534,6 +544,10 @@ def cli():
     # 实测「手机停在旅拍页」就是它，原来会打一屏栈。
     try:
         main()
+    except BlockedError as exc:
+        # 3.3.0 平台已经明确拒绝（限流/验证码）：只给一句可照做的提示，不打印堆栈。
+        logger.error('%s', exc)
+        raise SystemExit(1)
     except (ValueError, OSError, RuntimeError) as exc:
         logger.error('%s', exc)
         raise SystemExit(1)

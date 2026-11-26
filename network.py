@@ -25,6 +25,81 @@ PRIVATE_KEYS = {'clientauth', 'auth', 'token', 'accesstoken', 'refreshtoken', 'c
                 'signature', 'trace', 'ubtdata', 'authinfo'}
 # 页面正文上限；读取上限加一字节，用来区分刚好达到上限和实际被截断。
 MAX_HTML_BYTES = 12_000_000
+# 风控信号：平台明确拒绝的状态码，命中即整轮停手，不换号换 IP 硬刷。
+BLOCKED_STATUS = frozenset({403, 429, 432, 511})
+# 原文特征按小写包含判断：响应体或异常里出现这些字样就是要求人工验证或稍后再试。
+BLOCKED_MARKERS = ('验证码', '人机校验', '人机验证', '请稍后再试', '访问验证', 'captcha', 'too many requests')
+# 响应体里只查状态位与提示语，不扫点评正文，避免把用户评论里的「验证码」误判成风控。
+BLOCKED_STATUS_FIELDS = ('code', 'status', 'http_status', 'httpStatus', 'statusCode', 'errorCode')
+BLOCKED_MESSAGE_FIELDS = ('msg', 'message', 'Message', 'error', 'errorMsg', 'errmsg')
+
+
+class BlockedError(ValueError):
+    """已被平台拦截；命令行只给一句可照做的提示，不打印堆栈。"""
+
+    def __init__(self, status):
+        self.status = status
+        super().__init__(blocked_message(status))
+
+
+def status_code(value):
+    # /* ===== 步骤0：取状态码；数据源：整数或数字字符串；操作：1) 只认整数 2) 其他返回 None ===== */
+    if type(value) is int:
+        return value
+    if isinstance(value, str) and value.strip().isdigit():
+        return int(value.strip())
+    return None
+
+
+def text_signal(value):
+    # /* ===== 步骤0.1：取原文特征；数据源：异常原文或响应提示；操作：1) 小写包含判断 2) 返回命中的字样 ===== */
+    if not isinstance(value, str):
+        return None
+    lowered = value.lower()
+    return next((marker for marker in BLOCKED_MARKERS if marker.lower() in lowered), None)
+
+
+def blocked_status(value):
+    # /* ===== 步骤0.2：识别风控信号；数据源：异常/状态码/响应体；操作：1) 先认状态码 2) 再认验证与限流原文 ===== */
+    logger.info('开始识别风控信号')
+    # 0.2.1 超时、500、结构错误都不算被拦：只认平台明确拒绝的那个信号。
+    if isinstance(value, Exception):
+        for attr in ('code', 'status'):
+            code = status_code(getattr(value, attr, None))
+            if code in BLOCKED_STATUS:
+                return code
+        signal = text_signal(str(value))
+    else:
+        code = status_code(value)
+        if code in BLOCKED_STATUS:
+            return code
+        if isinstance(value, dict):
+            for field in BLOCKED_STATUS_FIELDS:
+                code = status_code(value.get(field))
+                if code in BLOCKED_STATUS:
+                    return code
+            signal = None
+            for field in BLOCKED_MESSAGE_FIELDS:
+                signal = text_signal(value.get(field))
+                if signal:
+                    break
+        else:
+            signal = text_signal(value)
+    logger.info('风控信号识别完成：%s', signal)
+    return signal
+
+
+def is_blocked(value):
+    # 是否被平台拦截：状态码或原文任一命中即为真。
+    return blocked_status(value) is not None
+
+
+def blocked_message(status):
+    # /* ===== 步骤0.3：命令行提示；数据源：原始状态码或原文；操作：1) 状态码写成 HTTP N 2) 给当天停跑的做法 ===== */
+    code = status_code(status)
+    label = f'HTTP {code}' if code is not None else str(status or '未知信号')
+    return (f'平台限流（{label}），请停止今天的采集：记录时间与页面现象后明天再试；'
+            '不要换 IP 或换账号重试。')
 
 
 def sanitize(value):
@@ -379,7 +454,7 @@ def collect_network(target, output, limit=500, stop=None, emit=None, fetch=None,
               'source_method': 'public_restaurant_poi_api' if uses_restaurant_poi(target) else target.get('source_method', 'public_comment_api'),
               'target': limit, 'display_total': target['display_total'], 'server_counts': {},
               'complete': False, 'reason': 'capture_exhausted' if target.get('source_method') == 'app_proxy_capture' else 'page_budget_reached',
-              'error': '', 'export_error': '',
+              'error': '', 'export_error': '', 'blocked': False, 'blocked_status': '',
               'pages': 0, 'count': 0, 'new_count': 0, 'read_unique': 0,
               'jsonl': None, 'csv': None, 'observations_jsonl': None,
               'sort_type': None if target['kind'] == 'hotel' else 3,
@@ -447,6 +522,8 @@ def collect_network(target, output, limit=500, stop=None, emit=None, fetch=None,
                 report['reason'] = 'cancelled'
                 break
             if data.get('code') != 200 or not isinstance(data.get('result'), dict):
+                # 被拦响应也可能以 HTTP 200 返回一个错误 JSON：先记下信号，再按错误停止。
+                report['blocked_status'] = blocked_status(data) or ''
                 raise ValueError('接口返回错误、验证或未知结构，已停止；不是空数据。')
             result = data['result']
             if 'items' not in result or not isinstance(result.get('totalCount'), int) or (result['items'] is not None and not isinstance(result['items'], list)):
@@ -523,6 +600,10 @@ def collect_network(target, output, limit=500, stop=None, emit=None, fetch=None,
         report['new_count'] = report['count'] - before
     except Exception as exc:
         report['reason'], report['error'] = 'error', str(exc)
+        # 7.2.3 被拦（403/429/432/511 或验证提示）保留原因 error，但必须标出 blocked 与原始状态。
+        signal = report['blocked_status'] or blocked_status(exc)
+        report['blocked'] = signal is not None
+        report['blocked_status'] = '' if signal is None else str(signal)
         report['count'] = db.execute('SELECT COUNT(*) FROM network_reviews WHERE object_key=?', (key,)).fetchone()[0]
         report['new_count'] = report['count'] - before
     finally:
