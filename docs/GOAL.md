@@ -89,3 +89,17 @@ python app.py --audit --output <目录>
 两列图片行补上图片数徽标（4 个子节点）时，该点评现在记
 `card_fields.media_layout_unrecognized = 1`，不再表现成「没有图片」；
 测试 `tests/test_restaurant_review_tiles.py::test_two_columns_with_a_badge_is_reported_as_unadapted`。
+
+### C1 追加验收：缺口会随采集下降（2026-11-26）
+
+在同一个真实目录上，把 `sight-136039` 从 3 条采到 30 条后再对账：
+
+| 对象 | 目标 | 已采 | 缺口 |
+| --- | --- | --- | --- |
+| sight-136039 | 1099 | 3 → **30** | 1096 → **1069** |
+| sight-1407863 | 357 | 3 | 354 |
+| sight-5706212 | 62 | 3 | 59 |
+
+`summary`：`collected 9 → 36`、`missing 1509 → 1482`。增量正好等于新增的 27 条，
+说明对账读的是最新数据、去重没有重复计数——「报缺口 → 补采 → 缺口变小」这条
+闭环在真实数据上成立。
