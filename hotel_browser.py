@@ -209,7 +209,14 @@ def collect_hotel_page(page, url, output, limit=500, stop=None, emit=None, login
         options = {'refresh': True} if refresh else {}
         result = collect_network(target, output, limit, stop, emit, fetch=fetch, delay=0, **options)
         # 3.1 筛选元数据独立留存，不保存包含认证头的原请求。
-        Path(output, f'hotel-{identity}-filters.json').write_text(json.dumps(filters, ensure_ascii=False, indent=2), encoding='utf-8')
+        # 3.2 元数据写不进去不能丢掉已经采到的结果；与其他导出一样把失败写进报告。
+        filters_path = Path(output, f'hotel-{identity}-filters.json')
+        try:
+            filters_path.write_text(json.dumps(filters, ensure_ascii=False, indent=2), encoding='utf-8')
+            result['filters_file'] = filters_path.name
+        except OSError as exc:
+            result['filters_error'] = str(exc)
+            logger.warning('酒店筛选元数据写入失败，点评结果已保留：%s', exc)
         return result
     finally:
         page.remove_listener('response', receive)

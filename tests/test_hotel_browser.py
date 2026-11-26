@@ -102,6 +102,31 @@ class HotelBrowserTests(unittest.TestCase):
             self.assertEqual(target['ai_summary']['content']['summaryItemList'][0]['title'], '停止前总结')
         logger.info('停止后的 AI 留存检查完成')
 
+    def test_metadata_write_failure_keeps_collected_reviews(self):
+        # /* ===== 步骤4：检查元数据写入失败；数据源：筛选文件被占用；操作：1) 保留点评结果 2) 记录失败 ===== */
+        logger.info('开始检查筛选元数据写入失败')
+        initial = {'totalCount': 1, 'groupList': [{'commentList': [{'id': 1, 'hotelId': 123}]}]}
+        class Page:
+            def on(self, event, callback): self.callback = callback
+            def goto(self, *args, **kwargs): pass
+            def evaluate(self, script): return initial if 'preloadedCommentData' in script else True
+            def wait_for_timeout(self, *args): pass
+            def remove_listener(self, *args): pass
+        original = Path.write_text
+        def write_text(path, data, *args, **kwargs):
+            # 4.1 只让筛选文件写入失败，点评本体已正常提交。
+            if path.name.endswith('-filters.json'):
+                raise OSError('模拟筛选文件被占用')
+            return original(path, data, *args, **kwargs)
+        with tempfile.TemporaryDirectory() as folder, patch('hotel_browser.load_target', return_value={'details': {}}), patch.object(Path, 'write_text', write_text):
+            result = collect_hotel_page(Page(), 'https://hotels.ctrip.com/hotels/123.html', folder, limit=1)
+            self.assertEqual(result['reason'], 'target_reached')
+            self.assertEqual(result['count'], 1)
+            self.assertIn('模拟筛选文件被占用', result['filters_error'])
+            self.assertTrue(Path(folder, 'hotel-123.jsonl').is_file())
+            self.assertFalse(Path(folder, 'hotel-123-filters.json').exists())
+        logger.info('筛选元数据写入失败检查完成')
+
     def test_failed_atomic_update_keeps_previous_object_and_status(self):
         # /* ===== 步骤3：检查写入失败；数据源：模拟浏览器响应；操作：1) 中断替换 2) 保留旧对象 ===== */
         logger.info('开始检查 AI 字段写入失败')
