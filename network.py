@@ -243,12 +243,15 @@ def export_records(db, object_key, folder):
               'replyInfo', 'replyCount', 'usefulCount', 'ipLocatedName', 'touristTypeDisplay',
               'resourceId', 'resourceType', 'businessId', 'businessType', 'sourceType']
     # 6.1 主文件每行保留完整的已清理响应，不丢嵌套媒体及回复。
-    rows = db.execute('SELECT data, fetched_at FROM network_reviews WHERE object_key=? ORDER BY rowid', (object_key,))
+    # 6.1.1 取回后在内存里按写入顺序排：不让 SQLite 为 ORDER BY 建临时文件，
+    #       系统临时目录不可写时导出也不会失败（实测该环境会报 unable to open database file）。
+    rows = sorted(db.execute('SELECT rowid, data, fetched_at FROM network_reviews WHERE object_key=?',
+                             (object_key,)).fetchall(), key=lambda row: row[0])
     try:
         with jsonl_temp.open('w', encoding='utf-8') as jf, csv_temp.open('w', encoding='utf-8-sig', newline='') as cf:
             writer = csv.writer(cf)
             writer.writerow(['object_key', 'fetched_at', *fields, 'full_json'])
-            for raw, fetched_at in rows:
+            for _, raw, fetched_at in rows:
                 data = sanitize(json.loads(raw))
                 jf.write(json.dumps({'object_key': object_key, 'fetched_at': fetched_at, 'data': data}, ensure_ascii=False) + '\n')
                 values = [object_key, fetched_at, *[data.get(field) for field in fields], data]
@@ -353,6 +356,9 @@ def collect_network(target, output, limit=500, stop=None, emit=None, fetch=None,
                               '图片视频保留返回元数据与链接；未下载媒体文件。',
                               '主评论可合并补全字段；不同原始观察及其来源另存在观察文件。']}
     db = sqlite3.connect(output / 'network.sqlite3')
+    # 7.0.2 系统临时目录不可写（受限环境、磁盘满、TEMP 指向已删除目录）时，SQLite 排序
+    #       会因为建不了临时文件报 'unable to open database file'；本地证据库放内存即可。
+    db.execute('PRAGMA temp_store = MEMORY')
     # 7.0 新餐饮通道必须实际读取目标数量，旧库累计条数不能替代通道核验。
     refresh_poi = uses_restaurant_poi(target)
     # 7.0.1 显式刷新按本次不同评论 ID 计目标，旧库已达标也要读取新来源。
@@ -489,7 +495,8 @@ def collect_network(target, output, limit=500, stop=None, emit=None, fetch=None,
         try:
             report['jsonl'], report['csv'] = export_records(db, key, output)
             report['observations_jsonl'] = export_review_observations(db, key, output)
-        except OSError as exc:
+        except (OSError, sqlite3.Error) as exc:
+            # 7.3.1 SQLite 打不开临时文件也属于导出问题，不能把已入库的采集判成失败。
             report['export_error'] = str(exc)
         finally:
             db.close()
