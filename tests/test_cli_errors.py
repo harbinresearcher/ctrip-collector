@@ -4,6 +4,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -45,6 +46,15 @@ class CliErrorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             self.assert_readable_failure(
                 run_cli('--url', 'not-a-url', '--output', folder), '携程')
+
+    def test_device_state_errors_stay_one_line(self):
+        # 1.5 手机没停在目标页面等设备状态是 RuntimeError，也不能甩栈。
+        import app
+        with patch.object(app, 'main', side_effect=RuntimeError('未识别为评论页面，请先在手机打开目标对象的全部评论。')):
+            with self.assertRaises(SystemExit) as caught:
+                app.cli()
+        self.assertEqual(caught.exception.code, 1)
+        logger.info('设备状态错误检查完成')
 
     def test_argument_errors_keep_usage_exit_code(self):
         # 1.4 argparse 自身错误仍是 2，不被上面的处理吞成 1。

@@ -426,16 +426,22 @@ def main():
     logger.info('程序结束')
 
 
-if __name__ == '__main__':
+def cli():
     # 3.2 冻结后的程序也统一使用 UTF-8 输出日志。
     for stream in (sys.stdout, sys.stderr):
         if stream is not None and hasattr(stream, 'reconfigure'):
             stream.reconfigure(encoding='utf-8', errors='replace')
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
-    # 3.3 目录不存在、链接不符合入口、设备读取失败等属于可预期错误：
+    # 3.3 目录不存在、链接不符合入口、设备读取失败、手机没停在目标页面等属于可预期错误：
     # 只打印一行原因并返回 1，不再把 Python 栈丢给命令行用户。其他异常保持原样。
+    # 3.3.1 RuntimeError 在本仓库只用于这类可预期状态（设备/页面/OCR/任务占用），
+    # 实测「手机停在旅拍页」就是它，原来会打一屏栈。
     try:
         main()
-    except (ValueError, OSError) as exc:
+    except (ValueError, OSError, RuntimeError) as exc:
         logger.error('%s', exc)
         raise SystemExit(1)
+
+
+if __name__ == '__main__':
+    cli()
