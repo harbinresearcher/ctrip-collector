@@ -154,7 +154,9 @@ class ObjectRefTests(unittest.TestCase):
                          ('sight', '136039', SIGHT_NAME))
         self.assertEqual(identity['identity_evidence'], 'discovery-sight-fusong2479.json')
         # 5.1 相对目录也要能解析：命令行常传相对 --output，证据文件须按普通文件读取。
-        with TemporaryDirectory() as folder:
+        #     临时目录必须与当前工作目录同盘，否则 Windows 上 os.path.relpath 直接抛
+        #     ValueError（path is on mount 'C:', start on mount 'D:'），CI 上就会红。
+        with TemporaryDirectory(dir=Path.cwd()) as folder:
             report['objects'] = [{'kind': 'sight', 'resource_id': 7, 'name': '相对路径景点',
                                   'url': 'https://you.ctrip.com/sight/a1/7.html', 'comment_count': 1}]
             (Path(folder) / 'discovery-sight-relative.json').write_text(json.dumps(report), encoding='utf-8')
