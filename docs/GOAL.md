@@ -64,6 +64,18 @@ python app.py --drive --output <目录> --rounds <N> `
   把被保护停下的运行写成成功；
 - 单测 5 项（配额到点 / 隔天归零 / 熔断 / 降速减半 / 保护字段随报告输出），不触网。
 
+#### C1e 验收记录：已达标（2026-11-26）
+
+真实配额验收（全新目录，抚松景点 2 个对象，`--limit 4 --gap-limit 2 --daily-quota 5`）：
+
+| 次 | reason | rounds_used | used_today | 说明 |
+| --- | --- | --- | --- | --- |
+| 第 1 次 | `daily_quota_reached` | 1 | 8 | 一轮补了 8 条后停（配额 5，一轮跨过边界，已写入 limitations） |
+| 第 2 次（新进程） | `daily_quota_reached` | 0 | 8 | 配额已用完，直接 0 轮停下 |
+
+`drive-state.json` 按日期持久（`{"date":"2026-11-26","collected_today":8}`），跨进程生效。
+熔断与降速由 5 项单测覆盖（真实场景下未触发，如实记为未验证）。533 项测试全绿。
+
 #### C1c 验收记录：已达标（2026-11-26）
 
 真实网络验收（全新目录，`--rounds 2 --discovery-pages 1 --max-objects 2
