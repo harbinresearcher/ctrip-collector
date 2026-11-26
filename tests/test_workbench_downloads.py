@@ -87,6 +87,31 @@ class DownloadEndpointTests(unittest.TestCase):
             self.assertEqual(self.get(f'/api/sight-gallery?run={REPORT}&tile={tile}')[0], 404, tile)
         logger.info('景点晒图下载测试完成')
 
+    def test_preview_returns_503_while_database_is_locked(self):
+        # /* ===== 步骤4：库被占用；数据源：并发写事务；操作：1) 返回 503 2) 不静默断连 ===== */
+        logger.info('开始预览占用测试')
+        import sqlite3
+        from contextlib import closing
+        database = self.root / 'network.sqlite3'
+        # 4.0 建表和写锁各用独立连接，结束后关闭，否则 Windows 无法清理临时目录。
+        with closing(sqlite3.connect(database)) as db:
+            db.execute('CREATE TABLE network_reviews (object_key TEXT, comment_id TEXT, data TEXT, fetched_at TEXT)')
+            db.commit()
+        writer = sqlite3.connect(database, timeout=1)
+        writer.execute('BEGIN EXCLUSIVE')
+        writer.execute("INSERT INTO network_reviews VALUES ('sight-1','1','{}','now')")
+        try:
+            status, body, _ = self.get('/api/preview')
+            self.assertEqual(status, 503, body[:120])
+            self.assertIn('正被写入', json.loads(body)['error'])
+        finally:
+            writer.rollback()
+            writer.close()
+        # 4.1 释放写锁后同一接口恢复正常，说明只影响占用期间。
+        status, body, _ = self.get('/api/preview')
+        self.assertEqual(status, 200, body[:120])
+        logger.info('预览占用测试完成')
+
     def test_no_task_result_never_serves_files(self):
         # /* ===== 步骤3：没有任务结果；数据源：空闲工作台；操作：1) 各下载接口一律 404 ===== */
         logger.info('开始空闲工作台下载测试')

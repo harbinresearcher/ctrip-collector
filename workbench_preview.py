@@ -66,7 +66,7 @@ def read_mobile_preview(folder, before=None, *, scoped=False):
         logger.info('手机评论预览结束：尚无评论库')
         return {'items': [], 'has_more': False, 'next_cursor': None, 'scope': 'mobile_scoped_database' if scoped else 'mobile_ui_database'}
     # 1.1 手机评论使用内容指纹，不能伪装成网络评论ID。
-    with closing(sqlite3.connect(database.as_uri() + '?mode=ro', uri=True)) as db:
+    with closing(sqlite3.connect(database.as_uri() + '?mode=ro', uri=True, timeout=1)) as db:
         table = 'reviews_scoped' if scoped else 'reviews'
         if not db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)).fetchone():
             logger.info('手机评论预览结束：所选数据表不存在')
@@ -130,7 +130,7 @@ def read_preview(folder, before=None):
     if not database.is_file():
         logger.info('预览结束：尚无评论库')
         return {'items': [], 'has_more': False, 'next_cursor': None, 'scope': 'local_database'}
-    with closing(sqlite3.connect(database.as_uri() + '?mode=ro', uri=True)) as db:
+    with closing(sqlite3.connect(database.as_uri() + '?mode=ro', uri=True, timeout=1)) as db:
         # 1.0 游标使用已展示的最小rowid，新插入记录不改变后续页边界。
         rows = db.execute('SELECT rowid,object_key,comment_id,data,fetched_at FROM network_reviews '
                           + ('WHERE rowid < ? ' if before is not None else '')

@@ -26,6 +26,8 @@ from runner import Adb, AndroidReadinessError
 from sight_photo_gallery import MAX_REPORT_BYTES, SOURCE as SIGHT_PHOTO_GALLERY_SOURCE
 
 logger = logging.getLogger(__name__)
+# 1.0 本地库正被采集任务写入时，读接口给固定说明而不是断开连接。
+BUSY_REPLY = '本地数据库正被写入，请稍后再试'
 SIGHT_GALLERY_REPORT = re.compile(r'sight-photo-gallery-([a-f0-9]{32})\.json')
 
 
@@ -331,18 +333,24 @@ def create_server(output, adb_path=None, port=8765, *, adb_serial=None):
                     self.reply(200, read_preview(output, before=int(cursor) if cursor is not None else None))
                 except ValueError as exc:
                     self.reply(400, {'error': str(exc)})
+                except sqlite3.Error:
+                    self.reply(503, {'error': BUSY_REPLY})
             elif urlsplit(self.path).path == '/api/mobile-preview':
                 try:
                     cursor = parse_qs(urlsplit(self.path).query).get('before', [None])[0]
                     self.reply(200, read_mobile_preview(output, before=int(cursor) if cursor is not None else None))
                 except ValueError as exc:
                     self.reply(400, {'error': str(exc)})
+                except sqlite3.Error:
+                    self.reply(503, {'error': BUSY_REPLY})
             elif urlsplit(self.path).path == '/api/scoped-mobile-preview':
                 try:
                     cursor = parse_qs(urlsplit(self.path).query).get('before', [None])[0]
                     self.reply(200, read_scoped_mobile_preview(output, before=int(cursor) if cursor is not None else None))
                 except ValueError as exc:
                     self.reply(400, {'error': str(exc)})
+                except sqlite3.Error:
+                    self.reply(503, {'error': BUSY_REPLY})
             elif urlsplit(self.path).path == '/api/mobile-observations':
                 # 1.4 只读取所选评论的观察摘要，不接受文件路径或返回原始界面。
                 try:
@@ -352,6 +360,8 @@ def create_server(output, adb_path=None, port=8765, *, adb_serial=None):
                     self.reply(200, read_observations(output, key, before=int(cursor) if cursor is not None else None))
                 except ValueError as exc:
                     self.reply(400, {'error': str(exc)})
+                except sqlite3.Error:
+                    self.reply(503, {'error': BUSY_REPLY})
                 except (FileNotFoundError, LookupError) as exc:
                     self.reply(404, {'error': str(exc)})
             elif urlsplit(self.path).path == '/api/export':

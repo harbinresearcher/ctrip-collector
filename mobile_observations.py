@@ -34,7 +34,7 @@ def read_observations(folder, review_key, before=None):
     logger.info('手机观察预览输入核验完成')
     # /* ===== 步骤2：读取指定评论历史；数据源：作用域评论及观察表；操作：1) 限定对象 2) 游标分页 ===== */
     logger.info('开始读取手机观察历史')
-    with closing(sqlite3.connect(database.as_uri() + '?mode=ro', uri=True)) as db:
+    with closing(sqlite3.connect(database.as_uri() + '?mode=ro', uri=True, timeout=1)) as db:
         # 2.1 同一只读事务中确认主评论存在，不返回游离观察记录。
         db.execute('BEGIN')
         if not db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='reviews_scoped'").fetchone():
