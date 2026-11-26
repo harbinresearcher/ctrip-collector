@@ -39,7 +39,8 @@ class CoverageAuditTests(unittest.TestCase):
             self.assertEqual(obj['target_source'], 'sight-1-object.json:display_total')
             self.assertFalse(obj['target_unknown'])
             self.assertEqual((obj['missing'], obj['gap_reason'], obj['complete']), (0, None, True))
-            self.assertEqual(report['summary'], {'target': 2, 'collected': 2, 'missing': 0, 'unknown_target': 0,
+            self.assertEqual(report['summary'], {'target': 2, 'collected': 2, 'missing': 0,
+                                                 'reachable_missing': 0, 'unknown_target': 0,
                                                  'object_count': 1, 'directory_count': 0, 'complete': False})
             # 1.1 报告文件写进同一目录，但下一次对账不能把它当成采集证据。
             saved = json.loads(Path(report['report_file']).read_text(encoding='utf-8'))
@@ -214,3 +215,31 @@ class CoverageAuditTests(unittest.TestCase):
                 self.assertEqual(result['objects'][0]['object_key'], 'sight-9')
                 self.assertTrue(Path(result['report_file']).is_file())
         logger.info('覆盖对账命令测试完成')
+
+    def test_repeated_empty_pages_are_marked_source_exhausted(self):
+        # /* ===== 步骤7：通道采尽；数据源：连续两次空页；操作：1) 标 source_exhausted 2) 可达缺口为 0 ===== */
+        logger.info('开始通道采尽分类测试')
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / 'sight-9-object.json').write_text(json.dumps(
+                {'kind': 'sight', 'resource_id': 9, 'name': '景点9', 'display_total': 100,
+                 'url': 'https://you.ctrip.com/sight/a1/9.html'}), encoding='utf-8')
+            for index, reason in enumerate(('empty_page', 'queue_exhausted'), start=1):
+                (root / f'sight-9-report-2026010{index}T000000000000Z.json').write_text(json.dumps(
+                    {'object_key': 'sight-9', 'kind': 'sight', 'reason': reason, 'error': '',
+                     'pages': index, 'count': 5}), encoding='utf-8')
+            report = write_coverage_audit(root)
+            obj = report['objects'][0]
+            # 7.1 缺口数字仍然保留（平台说 100），但可达缺口归零，不能让它一直驱动续采。
+            self.assertEqual((obj['missing'], obj['gap_reason'], obj['reachable_missing']),
+                             (100, 'source_exhausted', 0))
+            self.assertEqual(report['summary']['missing'], 100)
+            self.assertEqual(report['summary']['reachable_missing'], 0)
+            # 7.2 只空过一次的对象仍算可采，避免把临时抖动当采尽。
+            (root / 'sight-9-report-20260103T000000000000Z.json').write_text(json.dumps(
+                {'object_key': 'sight-9', 'kind': 'sight', 'reason': 'target_reached', 'error': '',
+                 'pages': 3, 'count': 5}),
+                encoding='utf-8')
+            again = write_coverage_audit(root)['objects'][0]
+            self.assertEqual((again['gap_reason'], again['reachable_missing']), ('missing', 100))
+        logger.info('通道采尽分类测试完成')

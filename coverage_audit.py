@@ -60,6 +60,15 @@ def latest_report(reports):
     return max(reports, key=lambda item: (item['mtime'], item['file']))
 
 
+def exhausted_runs(reports, needed=2):
+    # /* ===== 步骤2.1：判断通道是否采不出来；数据源：最近几次报告；操作：1) 只看空页 2) 连续才算数 ===== */
+    # 2.1.1 单次空页可能只是临时抖动；连续两次都以 empty_page/queue_exhausted 结束才算采尽。
+    recent = sorted(reports, key=lambda item: (item['mtime'], item['file']), reverse=True)[:needed]
+    if len(recent) < needed:
+        return False
+    return all(item.get('reason') in {'empty_page', 'queue_exhausted'} for item in recent)
+
+
 def evidence_url(value):
     # 对象链接只收 https 地址：报告或快照里出现其他协议时不猜，保持 None。
     return value.strip() if isinstance(value, str) and value.strip().startswith('https://') else None
@@ -293,10 +302,15 @@ def write_coverage_audit(folder):
         report = latest_report(item['reports'])
         failed = bool(report and (report['reason'] == 'error' or report['error']))
         attempted = bool(item['files']) or total > 0
+        # 5.1 连续两次都「翻到空页」且没采到目标数：这条通道已经采不出来，
+        #     缺口要标成 source_exhausted，否则 --drive 会一直空转报 no_progress。
+        exhausted = bool(missing and not failed and exhausted_runs(item['reports']))
         if missing == 0:
             gap = None
         elif failed:
             gap = 'failed'
+        elif exhausted:
+            gap = 'source_exhausted'
         elif attempted:
             gap = 'missing'
         else:
@@ -307,6 +321,7 @@ def write_coverage_audit(folder):
                         'collected_by_source': {store: counts.get(store, 0)
                                                 for store in ('network_reviews', 'reviews_scoped', 'reviews')},
                         'missing': missing, 'gap_reason': gap,
+                        'reachable_missing': 0 if gap == 'source_exhausted' else missing,
                         'latest_reason': report['reason'] if report else None,
                         'latest_error': report['error'] if report else '',
                         'evidence_files': sorted(item['files']),
@@ -315,6 +330,7 @@ def write_coverage_audit(folder):
     summary = {'target': sum(obj['target'] for obj in known),
                'collected': sum(obj['collected'] for obj in objects),
                'missing': sum(obj['missing'] for obj in known),
+               'reachable_missing': sum(obj['reachable_missing'] for obj in known),
                'unknown_target': sum(1 for obj in objects if obj['target_unknown']),
                'object_count': len(objects), 'directory_count': len(directories),
                'complete': False}
