@@ -20,7 +20,7 @@ FRAMES = ((1, 2, (0, 0, 1080, 2337), (970, 154, 1054, 238)),
 
 
 class RestaurantGalleryCaptureTests(unittest.TestCase):
-    def run_gallery(self, output, downloads, *, rows=None):
+    def run_gallery(self, output, downloads, *, rows=None, **identity):
         device = Mock()
         device.snapshot.return_value = '<hierarchy />'
         stop = Mock(spec=Event)
@@ -31,7 +31,7 @@ class RestaurantGalleryCaptureTests(unittest.TestCase):
                 patch('restaurant_review_gallery.read_photo_viewer', side_effect=(FRAMES[0], *FRAMES)), \
                 patch('restaurant_review_gallery.download_visible_photo', side_effect=downloads) as download:
             report = capture_restaurant_review_gallery(device, output, '样本餐厅', '42',
-                                                      stop, max_pages=2, emit=Mock())
+                                                      stop, max_pages=2, emit=Mock(), **identity)
         return report, device, download
 
     def test_complete_files_are_bound_to_the_validated_review_csv(self):
@@ -66,6 +66,23 @@ class RestaurantGalleryCaptureTests(unittest.TestCase):
             self.assertEqual(report['page_count'], 1)
             with ZipFile(Path(folder) / report['archive']) as archive:
                 self.assertEqual(len(json.loads(archive.read('manifest.json'))['pages']), 1)
+
+    def test_catalog_identity_is_written_to_the_report_archive_and_review(self):
+        with TemporaryDirectory() as folder:
+            report, _, _ = self.run_gallery(
+                folder, [(b'first App download', 'webp', (640, 960)), (b'second App download', 'webp', (640, 426))],
+                identity_source='evidence_manifest', identity_evidence='restaurant-42-object.json',
+            )
+            saved = json.loads(Path(report['file']).read_text(encoding='utf-8'))
+            with ZipFile(Path(folder) / report['archive']) as archive:
+                manifest = json.loads(archive.read('manifest.json'))
+            for artifact in (report, saved, manifest):
+                self.assertEqual(artifact['identity_source'], 'evidence_manifest')
+                self.assertEqual(artifact['identity_evidence'], 'restaurant-42-object.json')
+                self.assertFalse(artifact['identity_id_verified'])
+            with Path(report['sample_csv']).open(encoding='utf-8-sig', newline='') as stream:
+                sample, = list(csv.DictReader(stream))
+            self.assertEqual(sample['identity_source'], 'evidence_manifest')
 
     def test_entry_layout_change_prevents_tapping(self):
         moved = {**ROW, 'media_tile_bounds': [(0, 30, 200, 230)]}

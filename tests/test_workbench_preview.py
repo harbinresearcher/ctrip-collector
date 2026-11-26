@@ -10,6 +10,46 @@ logger = logging.getLogger(__name__)
 
 
 class PreviewTests(unittest.TestCase):
+    def test_scoped_preview_uses_the_original_review_identity_source(self):
+        from mobile_scoped_store import EVIDENCE_MANIFEST, MobileScopedStore, OPERATOR_DECLARED
+        from workbench_preview import read_scoped_mobile_preview
+
+        row = {'author': 'a', 'date': '2026', 'date_kind': 'published', 'rating': '5',
+               'content': '首条', 'has_expand': False, 'raw_texts': []}
+        with TemporaryDirectory() as folder:
+            store = MobileScopedStore(folder, 'sight', '123')
+            try:
+                store.save('景点', [row], 'first.xml')
+            finally:
+                store.close()
+            store = MobileScopedStore(folder, 'sight', '123', identity_source=EVIDENCE_MANIFEST)
+            try:
+                store.save('景点', [row, {**row, 'content': '第二条'}], 'next.xml')
+            finally:
+                store.close()
+            items = {item['content']: item for item in read_scoped_mobile_preview(folder)['items']}
+            self.assertEqual(items['首条'].get('identity_source'), OPERATOR_DECLARED)
+            self.assertEqual(items['第二条'].get('identity_source'), EVIDENCE_MANIFEST)
+            self.assertIs(items['第二条'].get('identity_id_verified'), False)
+            self.assertNotEqual(items['第二条']['identity_verification'], OPERATOR_DECLARED)
+
+    def test_scoped_preview_without_the_source_column_keeps_identity_unknown(self):
+        from contextlib import closing
+        from workbench_preview import read_scoped_mobile_preview
+
+        with TemporaryDirectory() as folder:
+            with closing(sqlite3.connect(Path(folder) / 'reviews.sqlite3')) as db:
+                db.execute('''CREATE TABLE reviews_scoped (
+                    key TEXT PRIMARY KEY, kind TEXT, place TEXT, content TEXT, rating TEXT,
+                    captured_at TEXT, has_expand INTEGER, raw_texts TEXT, object_id TEXT, source TEXT)''')
+                db.execute("INSERT INTO reviews_scoped VALUES (?,?,?,?,?,?,?,?,?,?)",
+                           ('a'*64, 'sight', '旧景点', '正文', '5', '2026', 0, '[]', '123', 'old.xml'))
+                db.commit()
+            item, = read_scoped_mobile_preview(folder)['items']
+            self.assertIsNone(item['identity_source'])
+            self.assertIs(item.get('identity_id_verified'), False)
+            self.assertNotEqual(item['identity_verification'], 'operator_declared_unverified')
+
     def test_preview_identifies_first_saved_screen_without_returning_untrusted_paths(self):
         from mobile_scoped_store import MobileScopedStore
         from workbench_preview import read_scoped_mobile_preview

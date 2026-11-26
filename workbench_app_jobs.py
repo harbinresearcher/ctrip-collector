@@ -5,9 +5,25 @@ from pathlib import Path
 
 from ai_capture import capture_ai
 from gallery_entry import capture_ai_gallery
+from object_identity import resolve_object_ref
 from runner import Adb, collect
 
 logger = logging.getLogger(__name__)
+
+
+def resolve_app_job_object(request, output, *, expected_kind=None):
+    object_ref = request.get('object_ref', '')
+    if object_ref == '':
+        return None
+    if not isinstance(object_ref, str):
+        raise ValueError('对象引用必须为文本')
+    if request.get('name', '') != '' or request.get('resource_id', '') != '':
+        raise ValueError('从本地目录选择对象时，请清空手填名称和对象 ID')
+    evidence = resolve_object_ref(output, object_ref)
+    kind = evidence['kind']
+    if (expected_kind is not None and kind != expected_kind) or request.get('kind', kind) != kind:
+        raise ValueError('所选对象与任务类型不一致')
+    return evidence
 
 
 def prepare_app_job(request, output, adb_path, *, adb_serial=None):
@@ -17,6 +33,9 @@ def prepare_app_job(request, output, adb_path, *, adb_serial=None):
     kind = request.get('kind', 'hotel')
     name = request.get('name', '')
     resource_id = request.get('resource_id', '')
+    evidence = resolve_app_job_object(request, output) if mode == 'app_reviews' else None
+    if evidence is not None:
+        kind, name, resource_id = evidence['kind'], evidence['name'], evidence['object_id']
     limit = request.get('limit', 500)
     pages = request.get('max_pages', 10)
     display_fallback = request.get('gallery_display_fallback', False)
@@ -32,7 +51,6 @@ def prepare_app_job(request, output, adb_path, *, adb_serial=None):
         raise ValueError('AI总结和图集当前仅支持酒店')
     if not isinstance(name, str) or not name.strip() or not adb_path:
         raise ValueError('手机采集需要对象名称和ADB路径')
-    # 1.1 ID 由操作者填写；不将手填身份伪装成自动核验。
     if not isinstance(resource_id, str) or not re.fullmatch(r'[0-9]{1,20}', resource_id) or int(resource_id) <= 0:
         raise ValueError('请填写正整数对象 ID')
     if type(limit) is not int or not 1 <= limit <= 100000:
@@ -89,6 +107,9 @@ def prepare_app_job(request, output, adb_path, *, adb_serial=None):
                         options.update(save_visible_ai=True, refresh=True)
                     if save_review_thumbnails:
                         options.update(save_review_thumbnails=True, refresh=True)
+                    if evidence is not None:
+                        options.update(identity_source=evidence['identity_source'],
+                                       identity_evidence=evidence['identity_evidence'])
                     result = collect(device, kind, name, folder, limit, swipes, stop, emit, object_id=resource_id,
                                      **options)
         except InterruptedError:

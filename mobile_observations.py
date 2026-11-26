@@ -5,6 +5,8 @@ import sqlite3
 from contextlib import closing
 from pathlib import Path
 
+from mobile_scoped_store import IDENTITY_SOURCES
+
 logger = logging.getLogger(__name__)
 
 
@@ -27,9 +29,9 @@ def read_observations(folder, review_key, before=None):
     result = {'items': [], 'has_more': False, 'next_cursor': None,
               'history_status': 'not_recorded',
               'review_identity': 'content_fingerprint_not_platform_id',
-              'object_identity': 'operator_declared_unverified',
+              'object_identity': None, 'identity_id_verified': False,
               'limitations': ['内容指纹不是平台评论ID，可能合并不同评论。',
-                              '对象ID由操作者填写，不能证明当前手机页面归属。',
+                              '此摘要保留原始点评记录的编号来源，生成时未核验 App 页面编号。',
                               '无观察记录不代表历史上没有变化。']}
     logger.info('手机观察预览输入核验完成')
     # /* ===== 步骤2：读取指定评论历史；数据源：作用域评论及观察表；操作：1) 限定对象 2) 游标分页 ===== */
@@ -39,8 +41,14 @@ def read_observations(folder, review_key, before=None):
         db.execute('BEGIN')
         if not db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='reviews_scoped'").fetchone():
             raise ValueError('本地作用域评论表不存在')
-        if not db.execute('SELECT 1 FROM reviews_scoped WHERE key=?', (review_key,)).fetchone():
+        has_identity_source = any(column[1] == 'identity_source'
+                                  for column in db.execute('PRAGMA table_info(reviews_scoped)'))
+        identity_column = 'identity_source' if has_identity_source else 'NULL'
+        review = db.execute(f'SELECT {identity_column} FROM reviews_scoped WHERE key=?', (review_key,)).fetchone()
+        if review is None:
             raise LookupError('指定的手机评论不存在')
+        if review[0] in IDENTITY_SOURCES:
+            result['object_identity'] = review[0]
         if not db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='reviews_scoped_observations'").fetchone():
             result['history_status'] = 'unavailable'
         else:

@@ -9,6 +9,7 @@ from contextlib import closing
 from pathlib import Path
 
 from mobile_review_fields import resolve_card_fields
+from mobile_scoped_store import IDENTITY_SOURCES, OPERATOR_DECLARED
 
 logger = logging.getLogger(__name__)
 REVIEW_SCREEN_SOURCE = re.compile(r'raw/([0-9]{8}T[0-9]{6}-[0-9a-f]{6})/([0-9]{5,6})\.xml')
@@ -71,8 +72,12 @@ def read_mobile_preview(folder, before=None, *, scoped=False):
         if not db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)).fetchone():
             logger.info('手机评论预览结束：所选数据表不存在')
             return {'items': [], 'has_more': False, 'next_cursor': None, 'scope': 'mobile_scoped_database' if scoped else 'mobile_ui_database'}
+        has_identity_source = scoped and any(
+            column[1] == 'identity_source' for column in db.execute('PRAGMA table_info(reviews_scoped)'))
+        identity_column = 'identity_source' if has_identity_source else 'NULL'
         rows = db.execute('SELECT rowid,kind,place,content,rating,captured_at,has_expand,raw_texts,'
-                          + ('object_id,key' if scoped else 'NULL,NULL') + ',source FROM ' + table + ' '
+                          + ('object_id,key' if scoped else 'NULL,NULL')
+                          + f',source,{identity_column} FROM {table} '
                           + ('WHERE rowid < ? ' if before is not None else '')
                           + 'ORDER BY rowid DESC LIMIT 21', (before,) if before is not None else ()).fetchall()
         observed = scoped and db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='reviews_scoped_observations'").fetchone()
@@ -88,12 +93,17 @@ def read_mobile_preview(folder, before=None, *, scoped=False):
                         'SELECT expanded_content FROM reviews_scoped_expansions WHERE review_key=?', (row[9],)).fetchone())}
     items = []
     # 1.2 只返回预览所需字段，不暴露作者、原始界面或其他个人信息。
-    for (_, kind, place, content, rating, captured_at, has_expand, _, object_id, local_key, source), fields in zip(rows[:20], card_fields):
+    for row, fields in zip(rows[:20], card_fields):
+        _, kind, place, content, rating, captured_at, has_expand, _, object_id, local_key, source, origin = row
+        identity_source = origin if origin in IDENTITY_SOURCES else None
+        if not scoped:
+            identity_source = OPERATOR_DECLARED
         text = str(expanded.get(local_key, content) or '')
         item = {'kind': kind, 'place': place, 'content': text[:4000], 'score': str(rating or '')[:80],
                 'fetched_at': captured_at, 'truncated': len(text) > 4000,
                 'has_expand': bool(has_expand), 'object_id': object_id,
-                'identity_verification': 'operator_declared_unverified'}
+                'identity_source': identity_source, 'identity_id_verified': False,
+                'identity_verification': OPERATOR_DECLARED if identity_source == OPERATOR_DECLARED else 'app_id_unverified'}
         if local_key in expanded:
             item['expanded_content_observed'] = True
         if fields:
@@ -114,7 +124,7 @@ def read_mobile_preview(folder, before=None, *, scoped=False):
 
 
 def read_scoped_mobile_preview(folder, before=None):
-    # /* ===== 步骤1：读取ID作用域；数据源：新手机表；操作：1) 独立读取 2) 保留人工声明标签 ===== */
+    # 从作用域表读取点评及其首次保存时的编号来源。
     logger.info('开始读取作用域评论预览')
     result = read_mobile_preview(folder, before=before, scoped=True)
     logger.info('作用域评论预览读取完成')

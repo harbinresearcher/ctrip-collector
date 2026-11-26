@@ -19,6 +19,8 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 button{font-weight:500;border-color:#d5d0c5;min-height:44px}button.primary{box-shadow:0 4px 12px rgba(134,61,41,.14)}
 .stream{border-color:#e4dfd4;background:#faf8f2;padding:16px;border-radius:8px;overflow-wrap:anywhere}
 .empty{padding:32px 0}.error:not(:empty){padding:10px 12px;background:#fbefeb;border-radius:7px}
+#objectPicker{min-width:0;margin:16px 0;padding:0 16px 12px;border:1px solid #e6dbce;border-radius:9px;background:#faf6ef}
+#objectPicker .hint{margin:8px 0 0;overflow-wrap:anywhere}#clearObjectSelection{margin-top:10px}
 #previewSource{max-width:480px}#previewNotice{color:var(--muted);font-size:13px}
 #previewItems article>p:not(.hint){line-height:1.85;max-width:85ch}
 #previewItems details{margin:18px 0 14px;padding:14px 16px;background:#f7f4ed;border:1px solid #e7e1d6;border-radius:9px}
@@ -63,7 +65,17 @@ button{font-weight:500;border-color:#d5d0c5;min-height:44px}button.primary{box-s
   <div role="status"><strong id="deviceTitle" class="device-title">检查设备</strong><p id="deviceDetail">请选择 App 采集方式。</p></div>
   <button id="recheckDevice" type="button">重新检查</button>
 </div>
-<label for="name" id="phoneNameLabel">对象名称</label><input id="name" placeholder="与手机页面标题完全一致"><p class="hint" id="phoneHint">保持手机解锁并打开对应页面。</p><div id="appDetails" hidden><div id="appKindWrap"><label for="appKind">对象类型</label><select id="appKind"><option value="hotel">酒店</option><option value="sight">景点</option><option value="restaurant">餐厅</option><option value="shopping">购物地点</option></select></div><div id="idField"><label for="resourceId">携程对象数字 ID</label><input id="resourceId" inputmode="numeric" placeholder="酒店或景点详情链接中的数字 ID"><p class="hint">ID 用于隔离不同对象，由操作者核对；程序尚不能确认当前手机页面属于该 ID。</p></div><div id="swipesField"><label for="swipes">手机评论滚动次数上限</label><input id="swipes" type="number" min="1" max="10000" value="1500"></div><div id="restaurantGalleryPagesWrap" hidden><label for="restaurantGalleryPages">点评图集页数上限</label><input id="restaurantGalleryPages" type="number" min="1" max="50" value="10" disabled></div></div></div>
+<div id="appKindWrap" hidden><label for="appKind">对象类型</label><select id="appKind"><option value="hotel">酒店</option><option value="sight">景点</option><option value="restaurant">餐厅</option><option value="shopping">购物地点</option></select></div>
+<div id="objectPicker" hidden>
+  <label for="objectQuery">从本地目录选择</label>
+  <input id="objectQuery" type="search" maxlength="100" placeholder="搜索对象名称或数字 ID" aria-describedby="objectPickerStatus">
+  <label for="objectOption">本地对象</label>
+  <select id="objectOption" aria-describedby="objectPickerStatus" disabled><option value="">手动填写对象</option></select>
+  <p class="hint" id="objectPickerStatus" role="status"></p>
+  <p class="hint" id="objectEvidence" aria-live="polite" hidden></p>
+  <button type="button" id="clearObjectSelection" hidden>改为手动填写</button>
+</div>
+<label for="name" id="phoneNameLabel">对象名称</label><input id="name" placeholder="与手机页面标题完全一致"><p class="hint" id="phoneHint">保持手机解锁并打开对应页面。</p><div id="appDetails" hidden><div id="idField"><label for="resourceId">携程对象数字 ID</label><input id="resourceId" inputmode="numeric" placeholder="酒店或景点详情链接中的数字 ID"><p class="hint" id="resourceIdHint">ID 用于隔离不同对象，由操作者核对。程序尚不能确认当前手机页面属于该 ID。</p></div><div id="swipesField"><label for="swipes">手机评论滚动次数上限</label><input id="swipes" type="number" min="1" max="10000" value="1500"></div><div id="restaurantGalleryPagesWrap" hidden><label for="restaurantGalleryPages">点评图集页数上限</label><input id="restaurantGalleryPages" type="number" min="1" max="50" value="10" disabled></div></div></div>
 <div id="ocrForm" hidden>
 <label for="ocrFile">携程截图</label><input id="ocrFile" type="file" accept="image/png,image/jpeg">
 <p class="hint">拖动鼠标框选要读的区域。未框选时读取整张。</p>
@@ -107,7 +119,7 @@ const logger=console,$=id=>document.getElementById(id);let lastResult=null,pendi
 /* ===== 步骤1：绑定表单；数据源：用户选择；操作：1) 显示对应输入 2) 不提交无关字段 ===== */
 logger.info('开始绑定工作台表单');
 // 1.1 根据实际通道展示输入和手机页面准备说明。
-$('mode').onchange=()=>{const mode=$('mode').value,app=mode.startsWith('app_'),pageFields=mode==='app_page_fields',ocr=mode==='screenshot_ocr',restaurantGallery=mode==='restaurant_review_gallery',phone=restaurantGallery||(app&&(!pageFields||!$('fieldArchiveRun').value))||(mode.startsWith('sight_')&&mode!=='sight_review_replay'),hotelList=mode==='app_hotel_list',restaurantList=mode==='app_restaurant_list',restaurantDetail=mode==='app_restaurant_detail',shoppingList=mode==='app_shopping_list',shoppingDetail=mode==='app_shopping_detail',hotelPages=hotelList||mode==='app_hotel',discovery=mode==='auto_discovery',resume=mode==='resume_discovery',graph=mode==='related_graph',media=['media','video_media'].includes(mode),capture=mode==='capture_import',sightGallery=mode==='sight_gallery',coverage=mode==='coverage',sightReplay=mode==='sight_review_replay',replay=mode==='ai_replay'||sightReplay;$('phone').hidden=!phone;$('pageFieldsForm').hidden=!pageFields;$('ocrForm').hidden=!ocr;$('phoneNameLabel').hidden=$('name').hidden=pageFields;$('hotelPagesWrap').hidden=!hotelPages;$('hotelPages').disabled=!hotelPages;$('hotelPagesLabel').textContent=hotelList?'酒店列表读取屏数上限':'房型读取屏数上限';$('restaurantPagesWrap').hidden=$('restaurantPages').disabled=!restaurantList;$('shoppingPagesWrap').hidden=$('shoppingPages').disabled=!shoppingList;$('appDetails').hidden=!restaurantGallery&&!['app_reviews','app_ai','app_gallery'].includes(mode);$('appKindWrap').hidden=restaurantGallery;$('restaurantGalleryPagesWrap').hidden=$('restaurantGalleryPages').disabled=!restaurantGallery;$('phoneNameLabel').textContent=hotelList?'搜索地区':restaurantList||shoppingList||mode==='app_city'?'页面显示的城市':restaurantDetail||restaurantGallery?'餐厅名称':shoppingDetail?'购物地点名称':'对象名称';$('name').placeholder=hotelList?'与手机酒店搜索栏一致':restaurantList||shoppingList?'例如：上海':mode==='app_city'?'例如：抚松':'与 App 页面标题完全一致';$('idField').hidden=!restaurantGallery&&!['app_reviews','app_ai','app_gallery'].includes(mode);$('swipesField').hidden=mode!=='app_reviews';$('appKind').disabled=restaurantGallery||['app_ai','app_gallery'].includes(mode);if($('appKind').disabled&&!restaurantGallery)$('appKind').value='hotel';$('links').hidden=phone||ocr||pageFields||discovery||resume||media||capture||coverage||replay;$('discovery').hidden=!discovery;$('resume').hidden=!resume;$('graph').hidden=!graph;$('refreshWrap').hidden=!(mode==='reviews'||mode==='app_reviews'||capture);$('refreshHint').hidden=$('refreshWrap').hidden;$('media').hidden=!media;$('mediaLabel').textContent=mode==='video_media'?'视频数量上限':'图片数量上限';$('mediaHint').textContent=mode==='video_media'?'下载评论返回的 MP4 版本；链接可能失效，程序只检查容器标记，尚未验证能否播放。':'下载评论中携程返回的图片版本，不保证是原图，也不等于 AI 优选图集。';$('captureImport').hidden=!capture;$('coverageInfo').hidden=!(coverage||replay);$('coverageInfo').firstElementChild.textContent=sightReplay?'从当前目录已保存的景点点评和对应的 App 页面重新提取字段，另存 CSV。无需连接手机。':replay?'从当前目录的 AI 总结和原始页面中补提字段，另存报告。无需连接手机。':'查当前目录已保存的网页点评、App 评论、AI 总结、图集和景点详情。不同来源分开统计，无需连接手机。';$('reloadFiles').hidden=!(resume||graph||media||capture||sightGallery);if(!$('reloadFiles').hidden)loadLocalFiles();$('limit').disabled=ocr||pageFields||(phone&&mode!=='app_reviews')||media||coverage||replay||graph;$('limitWrap').hidden=$('limit').disabled;$('pages').disabled=!['sight_policy','app_gallery','sight_gallery'].includes(mode);$('pagesWrap').hidden=$('pages').disabled;$('pages').max=['app_gallery','sight_gallery'].includes(mode)?500:50;if(Number($('pages').value)>Number($('pages').max))$('pages').value='10';$('pagesLabel').textContent=['app_gallery','sight_gallery'].includes(mode)?'图集页数上限':'政策屏数上限';$('phoneHint').textContent=({app_page_fields:'在手机打开要读取的公开页面，让页面名称和目标标签可见。',app_hotel:'打开酒店详情顶部，保持酒店名称和首个房型可见。',app_hotel_list:'在携程完成酒店搜索，停留在结果列表。按屏读取，需要多屏时请保持查询条件不变。',app_restaurant_list:'在手机或模拟器打开携程的城市「美食」列表，让城市名称和餐厅卡片可见。',app_restaurant_detail:'在手机或模拟器打开餐厅详情顶部，让餐厅名称和评分栏可见。',app_shopping_list:'在手机或模拟器打开携程的城市「购物」列表，让城市名称和购物地点卡片可见。',app_shopping_detail:'在手机或模拟器打开购物地点详情顶部，让地点名称和详情栏可见。',app_city:'在携程打开城市搜索结果，停在“必看推荐”卡片可见的位置。',app_reviews:'打开该对象的全部点评列表；名称须由你核对，程序暂不能确认点评所属对象。',restaurant_review_gallery:'在模拟器打开该餐厅的全部点评，让一条点评和完整图片同时可见。程序会采集第一条符合条件的点评。携程会将图片写入 Android 相册，工作台用同一份文件生成 ZIP。图片可能经过携程压缩。',app_ai:'打开酒店评论页面，AI 总结须在页面中可见。',sight_ai:'打开景点的「用户点评」，滚到 AI 总结卡。程序会尝试展开总结。',app_gallery:'打开酒店 AI 优选住客晒图，停在网格顶部。',sight_gallery:sightGalleryEntryHint,sight_policy:'打开景点优待政策表格，从完整表头开始。',sight_detail:'打开对应景点详情页。',sight_guide:'打开景点的「必看指南」，停在开放时间或门票信息可见的位置。'})[mode]||'保持手机解锁并打开对应页面。'};
+$('mode').onchange=()=>{const mode=$('mode').value,app=mode.startsWith('app_'),pageFields=mode==='app_page_fields',ocr=mode==='screenshot_ocr',restaurantGallery=mode==='restaurant_review_gallery',phone=restaurantGallery||(app&&(!pageFields||!$('fieldArchiveRun').value))||(mode.startsWith('sight_')&&mode!=='sight_review_replay'),hotelList=mode==='app_hotel_list',restaurantList=mode==='app_restaurant_list',restaurantDetail=mode==='app_restaurant_detail',shoppingList=mode==='app_shopping_list',shoppingDetail=mode==='app_shopping_detail',hotelPages=hotelList||mode==='app_hotel',discovery=mode==='auto_discovery',resume=mode==='resume_discovery',graph=mode==='related_graph',media=['media','video_media'].includes(mode),capture=mode==='capture_import',sightGallery=mode==='sight_gallery',coverage=mode==='coverage',sightReplay=mode==='sight_review_replay',replay=mode==='ai_replay'||sightReplay;$('phone').hidden=!phone;$('pageFieldsForm').hidden=!pageFields;$('ocrForm').hidden=!ocr;$('phoneNameLabel').hidden=$('name').hidden=pageFields;$('hotelPagesWrap').hidden=!hotelPages;$('hotelPages').disabled=!hotelPages;$('hotelPagesLabel').textContent=hotelList?'酒店列表读取屏数上限':'房型读取屏数上限';$('restaurantPagesWrap').hidden=$('restaurantPages').disabled=!restaurantList;$('shoppingPagesWrap').hidden=$('shoppingPages').disabled=!shoppingList;$('appDetails').hidden=!restaurantGallery&&!['app_reviews','app_ai','app_gallery'].includes(mode);$('appKindWrap').hidden=restaurantGallery||$('appDetails').hidden;$('restaurantGalleryPagesWrap').hidden=$('restaurantGalleryPages').disabled=!restaurantGallery;$('phoneNameLabel').textContent=hotelList?'搜索地区':restaurantList||shoppingList||mode==='app_city'?'页面显示的城市':restaurantDetail||restaurantGallery?'餐厅名称':shoppingDetail?'购物地点名称':'对象名称';$('name').placeholder=hotelList?'与手机酒店搜索栏一致':restaurantList||shoppingList?'例如：上海':mode==='app_city'?'例如：抚松':'与 App 页面标题完全一致';$('idField').hidden=!restaurantGallery&&!['app_reviews','app_ai','app_gallery'].includes(mode);$('swipesField').hidden=mode!=='app_reviews';$('appKind').disabled=restaurantGallery||['app_ai','app_gallery'].includes(mode);if($('appKind').disabled&&!restaurantGallery)$('appKind').value='hotel';$('links').hidden=phone||ocr||pageFields||discovery||resume||media||capture||coverage||replay;$('discovery').hidden=!discovery;$('resume').hidden=!resume;$('graph').hidden=!graph;$('refreshWrap').hidden=!(mode==='reviews'||mode==='app_reviews'||capture);$('refreshHint').hidden=$('refreshWrap').hidden;$('media').hidden=!media;$('mediaLabel').textContent=mode==='video_media'?'视频数量上限':'图片数量上限';$('mediaHint').textContent=mode==='video_media'?'下载评论返回的 MP4 版本；链接可能失效，程序只检查容器标记，尚未验证能否播放。':'下载评论中携程返回的图片版本，不保证是原图，也不等于 AI 优选图集。';$('captureImport').hidden=!capture;$('coverageInfo').hidden=!(coverage||replay);$('coverageInfo').firstElementChild.textContent=sightReplay?'从当前目录已保存的景点点评和对应的 App 页面重新提取字段，另存 CSV。无需连接手机。':replay?'从当前目录的 AI 总结和原始页面中补提字段，另存报告。无需连接手机。':'查当前目录已保存的网页点评、App 评论、AI 总结、图集和景点详情。不同来源分开统计，无需连接手机。';$('reloadFiles').hidden=!(resume||graph||media||capture||sightGallery);if(!$('reloadFiles').hidden)loadLocalFiles();$('limit').disabled=ocr||pageFields||(phone&&mode!=='app_reviews')||media||coverage||replay||graph;$('limitWrap').hidden=$('limit').disabled;$('pages').disabled=!['sight_policy','app_gallery','sight_gallery'].includes(mode);$('pagesWrap').hidden=$('pages').disabled;$('pages').max=['app_gallery','sight_gallery'].includes(mode)?500:50;if(Number($('pages').value)>Number($('pages').max))$('pages').value='10';$('pagesLabel').textContent=['app_gallery','sight_gallery'].includes(mode)?'图集页数上限':'政策屏数上限';$('phoneHint').textContent=({app_page_fields:'在手机打开要读取的公开页面，让页面名称和目标标签可见。',app_hotel:'打开酒店详情顶部，保持酒店名称和首个房型可见。',app_hotel_list:'在携程完成酒店搜索，停留在结果列表。按屏读取，需要多屏时请保持查询条件不变。',app_restaurant_list:'在手机或模拟器打开携程的城市「美食」列表，让城市名称和餐厅卡片可见。',app_restaurant_detail:'在手机或模拟器打开餐厅详情顶部，让餐厅名称和评分栏可见。',app_shopping_list:'在手机或模拟器打开携程的城市「购物」列表，让城市名称和购物地点卡片可见。',app_shopping_detail:'在手机或模拟器打开购物地点详情顶部，让地点名称和详情栏可见。',app_city:'在携程打开城市搜索结果，停在“必看推荐”卡片可见的位置。',app_reviews:'打开该对象的全部点评列表；名称须由你核对，程序暂不能确认点评所属对象。',restaurant_review_gallery:'在模拟器打开该餐厅的全部点评，让一条点评和完整图片同时可见。程序会采集第一条符合条件的点评。携程会将图片写入 Android 相册，工作台用同一份文件生成 ZIP。图片可能经过携程压缩。',app_ai:'打开酒店评论页面，AI 总结须在页面中可见。',sight_ai:'打开景点的「用户点评」，滚到 AI 总结卡。程序会尝试展开总结。',app_gallery:'打开酒店 AI 优选住客晒图，停在网格顶部。',sight_gallery:sightGalleryEntryHint,sight_policy:'打开景点优待政策表格，从完整表头开始。',sight_detail:'打开对应景点详情页。',sight_guide:'打开景点的「必看指南」，停在开放时间或门票信息可见的位置。'})[mode]||'保持手机解锁并打开对应页面。'};
 /* ===== 步骤2：更新操作名称；数据源：当前采集方式；操作：1) 按用途匹配名称 2) 其余模式保留采集 ===== */
 logger.info('开始绑定操作名称');
 // 2.1 只更改按钮文案，不更改任务参数或提交方式。
@@ -163,6 +175,99 @@ function showReviewOptions(){
   if(reviews)$('phoneHint').textContent=verifiedTitle?'在手机或模拟器打开该'+verifiedTitle+'的全部点评。程序会核对页面标题，数字 ID 需由你核对。':'打开该对象的全部点评列表，并核对名称和数字 ID。';
 }
 $('mode').addEventListener('change',showReviewOptions);$('appKind').addEventListener('change',showReviewOptions);
+const objectOption=$('objectOption'),objectQuery=$('objectQuery');
+const manualIdHint=$('resourceIdHint').textContent;
+let objectMatches=new Map(),selectedObject=null,manualObjectDraft=null,objectRequest=0,objectSearchTimer;
+function objectPickerKind(){
+  if($('mode').value==='app_reviews')return $('appKind').value;
+  if($('mode').value==='restaurant_review_gallery')return 'restaurant';
+  return '';
+}
+function objectEvidenceText(result){
+  if(!result.identity_evidence)return '';
+  const appStatus=result.identity_id_verified===true?'App 页面编号已核验。':'App 页面编号未核验，请核对页面。';
+  return '对象编号来自本地记录 '+result.identity_evidence+'。'+appStatus;
+}
+function clearObjectSelection(){
+  if(manualObjectDraft){
+    $('name').value=manualObjectDraft.name;
+    $('resourceId').value=manualObjectDraft.id;
+    manualObjectDraft=null;
+  }
+  selectedObject=null;
+  objectOption.value='';
+  $('name').readOnly=$('resourceId').readOnly=false;
+  $('resourceIdHint').textContent=manualIdHint;
+  $('objectEvidence').hidden=$('clearObjectSelection').hidden=true;
+  $('objectEvidence').textContent='';
+}
+function selectedObjectRef(){
+  if(selectedObject?.mode!==$('mode').value||selectedObject.object.kind!==objectPickerKind()){
+    if(selectedObject)clearObjectSelection();
+    return '';
+  }
+  return selectedObject.object.object_ref;
+}
+async function loadObjectOptions(request,kind,query){
+  const status=$('objectPickerStatus');
+  try{
+    const params=new URLSearchParams({kind,q:query});
+    const data=await api('/api/object-options?'+params);
+    if(request!==objectRequest||kind!==objectPickerKind())return;
+    for(const object of data.objects){
+      if(object.kind!==kind)continue;
+      objectMatches.set(object.object_ref,object);
+      objectOption.add(new Option(object.name+' · '+object.object_id,object.object_ref));
+    }
+    objectOption.disabled=!objectMatches.size;
+    status.textContent=data.truncated?'还有更多本地对象，可以按名称或编号缩小范围。':objectMatches.size?'可从目录选择，也可直接填写。':'当前目录没有匹配对象，可手动填写。';
+  }catch{
+    if(request===objectRequest&&kind===objectPickerKind())status.textContent='本地目录读取失败，可手动填写。';
+  }
+}
+function updateObjectOptions(resetQuery){
+  const request=++objectRequest,kind=objectPickerKind();
+  clearTimeout(objectSearchTimer);
+  clearObjectSelection();
+  objectMatches.clear();
+  objectOption.length=1;
+  objectOption.disabled=true;
+  if(resetQuery)objectQuery.value='';
+  $('objectPicker').hidden=!kind;
+  if(!kind)return;
+  $('objectPickerStatus').textContent='正在查询本地目录…';
+  const query=objectQuery.value.trim();
+  if(resetQuery)loadObjectOptions(request,kind,query);
+  else objectSearchTimer=setTimeout(()=>loadObjectOptions(request,kind,query),200);
+}
+objectOption.addEventListener('change',()=>{
+  const object=objectMatches.get(objectOption.value);
+  if(!object||object.kind!==objectPickerKind()){
+    clearObjectSelection();
+    return;
+  }
+  if(!manualObjectDraft)manualObjectDraft={name:$('name').value,id:$('resourceId').value};
+  selectedObject={mode:$('mode').value,object};
+  $('name').value=object.name;
+  $('resourceId').value=object.object_id;
+  $('name').readOnly=$('resourceId').readOnly=true;
+  $('resourceIdHint').textContent='此编号随本地对象填入。';
+  const evidence=objectEvidenceText(object);
+  $('objectEvidence').textContent=evidence;
+  $('objectEvidence').hidden=!evidence;
+  $('clearObjectSelection').hidden=false;
+});
+$('clearObjectSelection').addEventListener('click',()=>{
+  clearObjectSelection();
+  $('name').focus();
+});
+objectQuery.addEventListener('input',()=>updateObjectOptions(false));
+objectQuery.addEventListener('keydown',event=>{
+  if(event.key==='Enter')event.preventDefault();
+});
+$('mode').addEventListener('change',()=>updateObjectOptions(true));
+$('appKind').addEventListener('change',()=>updateObjectOptions(true));
+
 $('mode').addEventListener('change',()=>{
   const active=$('mode').value==='app_restaurant_detail';
   $('restaurantDishesWrap').hidden=$('scanRecommendedDishes').disabled=!active;
@@ -290,7 +395,7 @@ async function submitOcr(){
   const state=await response.json();
   if(!response.ok)throw Error(state.error||'无法开始识别');
 }
-$('task').onsubmit=async e=>{e.preventDefault();pending=true;$('start').disabled=true;$('formError').textContent='';try{const mode=$('mode').value;if(mode==='screenshot_ocr'){await submitOcr();return}await api('/api/start',{mode,urls:$('urls').value.split('\n').map(s=>s.trim()).filter(Boolean),name:mode==='app_page_fields'?$('pageFieldName').value:$('name').value,field_archive_run:mode==='app_page_fields'?$('fieldArchiveRun').value:'',field_labels:mode==='app_page_fields'?$('fieldLabels').value.split('\n').map(label=>label.trim()).filter(Boolean):[],limit:Number($('limit').value),refresh:$('refreshExisting').checked,expand_sight_ai:mode==='sight_ai',save_sight_gallery_thumbnails:mode==='sight_ai'&&$('sightGallery').checked,save_review_thumbnails:mode==='app_reviews'&&['hotel','restaurant'].includes($('appKind').value)&&$('reviewThumbnails').checked,save_visible_ai:mode==='app_reviews'&&$('appKind').value==='hotel'&&$('reviewAi').checked,expand_reviews:mode==='app_reviews'&&$('appKind').value==='hotel'&&$('reviewExpand').checked,gallery_start_page:mode==='app_gallery'&&$('galleryStart').value!==''?Number($('galleryStart').value):null,gallery_display_fallback:mode==='app_gallery'&&$('galleryFallback').checked,resume_sight_gallery_run:mode==='sight_gallery'?$('sightGalleryResume').value:'',max_pages:Number($(mode==='restaurant_review_gallery'?'restaurantGalleryPages':'pages').value),hotel_max_pages:['app_hotel','app_hotel_list'].includes(mode)?Number($('hotelPages').value):1,restaurant_max_pages:mode==='app_restaurant_list'?Number($('restaurantPages').value):1,...(mode==='app_restaurant_detail'?{scan_recommended_dishes:$('scanRecommendedDishes').checked}:{}),shopping_max_pages:mode==='app_shopping_list'?Number($('shoppingPages').value):1,kind:mode==='auto_discovery'?$('discoveryKind').value:mode==='restaurant_review_gallery'?'restaurant':$('appKind').value,resource_id:$('resourceId').value,max_swipes:Number($('swipes').value),max_regions:Number($('regions').value),max_objects:Number($('objects').value),discovery_pages:Number($('discoveryPages').value),collect_discovered:mode==='resume_discovery'?$('resumeCollect').checked:$('collectDiscovered').checked,report_file:$('reportFile').value,graph_report:$('graphReport').value,graph_visits:Number($('graphVisits').value),source_file:$('sourceFile').value,media_limit:Number($('mediaLimit').value),capture_file:$('captureFile').value})}catch(error){$('formError').textContent=error.message}finally{pending=false;await refresh()}};
+$('task').onsubmit=async e=>{e.preventDefault();pending=true;$('start').disabled=true;$('formError').textContent='';try{const mode=$('mode').value;if(mode==='screenshot_ocr'){await submitOcr();return}const objectRef=selectedObjectRef();await api('/api/start',{mode,urls:$('urls').value.split('\n').map(s=>s.trim()).filter(Boolean),...(objectRef?{object_ref:objectRef}:{name:mode==='app_page_fields'?$('pageFieldName').value:$('name').value,resource_id:$('resourceId').value}),field_archive_run:mode==='app_page_fields'?$('fieldArchiveRun').value:'',field_labels:mode==='app_page_fields'?$('fieldLabels').value.split('\n').map(label=>label.trim()).filter(Boolean):[],limit:Number($('limit').value),refresh:$('refreshExisting').checked,expand_sight_ai:mode==='sight_ai',save_sight_gallery_thumbnails:mode==='sight_ai'&&$('sightGallery').checked,save_review_thumbnails:mode==='app_reviews'&&['hotel','restaurant'].includes($('appKind').value)&&$('reviewThumbnails').checked,save_visible_ai:mode==='app_reviews'&&$('appKind').value==='hotel'&&$('reviewAi').checked,expand_reviews:mode==='app_reviews'&&$('appKind').value==='hotel'&&$('reviewExpand').checked,gallery_start_page:mode==='app_gallery'&&$('galleryStart').value!==''?Number($('galleryStart').value):null,gallery_display_fallback:mode==='app_gallery'&&$('galleryFallback').checked,resume_sight_gallery_run:mode==='sight_gallery'?$('sightGalleryResume').value:'',max_pages:Number($(mode==='restaurant_review_gallery'?'restaurantGalleryPages':'pages').value),hotel_max_pages:['app_hotel','app_hotel_list'].includes(mode)?Number($('hotelPages').value):1,restaurant_max_pages:mode==='app_restaurant_list'?Number($('restaurantPages').value):1,...(mode==='app_restaurant_detail'?{scan_recommended_dishes:$('scanRecommendedDishes').checked}:{}),shopping_max_pages:mode==='app_shopping_list'?Number($('shoppingPages').value):1,kind:mode==='auto_discovery'?$('discoveryKind').value:mode==='restaurant_review_gallery'?'restaurant':$('appKind').value,max_swipes:Number($('swipes').value),max_regions:Number($('regions').value),max_objects:Number($('objects').value),discovery_pages:Number($('discoveryPages').value),collect_discovered:mode==='resume_discovery'?$('resumeCollect').checked:$('collectDiscovered').checked,report_file:$('reportFile').value,graph_report:$('graphReport').value,graph_visits:Number($('graphVisits').value),source_file:$('sourceFile').value,media_limit:Number($('mediaLimit').value),capture_file:$('captureFile').value})}catch(error){$('formError').textContent=error.message}finally{pending=false;await refresh()}};
 $('stop').onclick=async()=>{try{await api('/api/stop',{});await refresh()}catch(error){$('formError').textContent=error.message}};
 $('download').onclick=()=>{if(!lastResult)return;const url=URL.createObjectURL(new Blob([JSON.stringify(lastResult,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='采集报告.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
 logger.info('工作台表单绑定完成');
@@ -470,6 +575,10 @@ function renderRestaurantReviewGallery(box,result){
     cancelled:'已按请求停止。'
   })[result.reason]||'本次任务已结束。';
   panel.append(title,summary,reason);
+  const evidence=objectEvidenceText(result);
+  if(evidence){
+    const source=document.createElement('p');source.className='hint';source.textContent=evidence;panel.append(source);
+  }
   const actions=document.createElement('div');actions.className='graph-actions';
   function addDownload(href,label){
     const link=document.createElement('a');link.href=href;link.download='';
@@ -813,6 +922,8 @@ function renderMobileSampling(box,result){
   const panel=document.createElement('section');panel.className='graph-index';panel.setAttribute('aria-label','手机点评采样条件');
   const title=document.createElement('h3');title.textContent='手机点评采样条件';panel.append(title);
   const line=text=>{const p=document.createElement('p');p.className='hint';p.textContent=text;panel.append(p)};
+  const identityEvidence=objectEvidenceText(result);
+  if(identityEvidence)line(identityEvidence);
   const reasons={target_reached:'达到设置的条数',screen_budget_reached:'达到滚动次数上限',stalled_unverified:'页面重复或连续未识别点评，无法确认已到底',stopped_by_user:'收到停止请求',identity_unverified:'无法确认点评页面名称',review_filter_changed:'检测到页面筛选切换',review_screen_changed:'截图前后页面发生变化，已保留之前的结果',requires_manual_action:'页面需要手动处理',error:'读取中断'};
   if(reasons[result.reason])line('停止原因：'+reasons[result.reason]+'。');
   if(check){
@@ -1130,6 +1241,16 @@ function makeCardFields(item){
   if(fields.hotel_reply){const reply=document.createElement('p');reply.style.whiteSpace='pre-wrap';reply.textContent='酒店回复：'+fields.hotel_reply+(item.hotel_reply_truncated?'…（预览已截断）':'');box.append(reply)}
   return box;
 }
+function mobilePreviewLabel(item){
+  const kind=relatedKindLabels[item.kind]||'对象';
+  if(!item.object_id)return kind+' · '+item.place+' · 对象由操作者填写';
+  const source=({
+    operator_declared_unverified:'操作者填写',
+    evidence_manifest:'本地证据',
+    screen_verified_id:'历史记录标为页面核验'
+  })[item.identity_source]||'来源未知';
+  return kind+' · '+item.place+' · 对象编号 '+item.object_id+'（'+source+'） · 本次预览未核验 App 页面编号';
+}
 async function loadPreview(){
   const generation=++previewGeneration,button=$('previewButton');button.disabled=true;
   // 3.0 来源变化后立即清空旧数据，避免等待期间显示错误来源。
@@ -1137,7 +1258,7 @@ async function loadPreview(){
   try{
     const source=$('previewSource').value,mobile=source!=='network',endpoint=source==='scoped'?'/api/scoped-mobile-preview':mobile?'/api/mobile-preview':'/api/preview';const data=await api(endpoint+(previewCursor===null?'':'?before='+previewCursor));if(generation!==previewGeneration)return;previewNext=data.next_cursor;$('previewItems').replaceChildren();
     // 3.1 不将评论正文插入HTML，避免外部内容变成页面代码。
-    for(const item of data.items){const article=document.createElement('article');article.style.cssText='border-top:1px solid var(--line);padding:20px 0;overflow-wrap:anywhere';const meta=document.createElement('p');meta.className='hint';meta.textContent=(mobile?((relatedKindLabels[item.kind]||'对象')+' · '+item.place+(item.object_id?' · 声明 ID '+item.object_id:'')+(['restaurant','shopping'].includes(item.kind)?' · 数字 ID 由操作者声明':' · 对象由操作者填写，未自动核验')):item.object_key)+' · '+(item.score?'评分 '+item.score+' · ':'')+item.fetched_at;const body=document.createElement('p');body.style.whiteSpace='pre-wrap';body.textContent=item.content+(item.truncated?'…（预览已截断）':'')+(item.expanded_content_observed?'（正文来自展开后的卡片，完整性未验证）':mobile&&item.has_expand?'（页面有折叠内容，完整性未验证）':'');article.append(meta,body);if(mobile&&item.first_saved_screen){const first=document.createElement('p');first.className='hint';first.textContent='原始正文首次保存：任务 '+item.first_saved_screen.run_id+' · 第 '+item.first_saved_screen.screen+' 屏';article.append(first)}if(mobile&&item.card_fields)article.append(makeCardFields(item));if(source==='scoped'&&item.local_key)article.append(makeObservationView(item));for(const format of (mobile?[]:['csv','jsonl'])){const link=document.createElement('a');link.href='/api/export?object='+encodeURIComponent(item.object_key)+'&format='+format;link.textContent='下载此对象 '+format.toUpperCase();link.style.cssText='color:var(--accent);font-size:12px;margin-right:18px';article.append(link)}if(!mobile&&item.observations_available){const link=document.createElement('a');link.href='/api/export?object='+encodeURIComponent(item.object_key)+'&format=observations';link.textContent='下载此对象评论观察记录';link.style.cssText='color:var(--accent);font-size:12px;margin-right:18px';article.append(link);const note=document.createElement('p');note.className='hint';note.textContent='观察记录包含不同来源的评论字段。采集中下载的文件可能是上次导出的版本。';article.append(note)}$('previewItems').append(article)}
+    for(const item of data.items){const article=document.createElement('article');article.style.cssText='border-top:1px solid var(--line);padding:20px 0;overflow-wrap:anywhere';const meta=document.createElement('p');meta.className='hint';meta.textContent=(mobile?mobilePreviewLabel(item):item.object_key)+' · '+(item.score?'评分 '+item.score+' · ':'')+item.fetched_at;const body=document.createElement('p');body.style.whiteSpace='pre-wrap';body.textContent=item.content+(item.truncated?'…（预览已截断）':'')+(item.expanded_content_observed?'（正文来自展开后的卡片，完整性未验证）':mobile&&item.has_expand?'（页面有折叠内容，完整性未验证）':'');article.append(meta,body);if(mobile&&item.first_saved_screen){const first=document.createElement('p');first.className='hint';first.textContent='原始正文首次保存：任务 '+item.first_saved_screen.run_id+' · 第 '+item.first_saved_screen.screen+' 屏';article.append(first)}if(mobile&&item.card_fields)article.append(makeCardFields(item));if(source==='scoped'&&item.local_key)article.append(makeObservationView(item));for(const format of (mobile?[]:['csv','jsonl'])){const link=document.createElement('a');link.href='/api/export?object='+encodeURIComponent(item.object_key)+'&format='+format;link.textContent='下载此对象 '+format.toUpperCase();link.style.cssText='color:var(--accent);font-size:12px;margin-right:18px';article.append(link)}if(!mobile&&item.observations_available){const link=document.createElement('a');link.href='/api/export?object='+encodeURIComponent(item.object_key)+'&format=observations';link.textContent='下载此对象评论观察记录';link.style.cssText='color:var(--accent);font-size:12px;margin-right:18px';article.append(link);const note=document.createElement('p');note.className='hint';note.textContent='观察记录包含不同来源的评论字段。采集中下载的文件可能是上次导出的版本。';article.append(note)}$('previewItems').append(article)}
     $('previewNotice').textContent=data.items.length?'显示 '+data.items.length+' 条'+(data.has_more?(mobile?'，可继续翻页。':'，可继续翻页或下载完整文件。'):'。'):(mobile?'当前目录还没有手机评论。':'当前目录还没有网页评论。');
   }catch(error){if(generation===previewGeneration)$('previewNotice').textContent='读取失败：'+error.message}finally{if(generation===previewGeneration){button.disabled=false;$('previewPrev').disabled=!previewHistory.length;$('previewNext').disabled=previewNext===null}}
 };
@@ -1146,7 +1267,7 @@ function makeObservationView(item){
   const key=item.local_key;
   logger.info('开始创建观察记录入口');
   const details=document.createElement('details'),summary=document.createElement('summary'),note=document.createElement('p'),list=document.createElement('div'),more=document.createElement('button'),download=document.createElement('button');
-  summary.textContent='查看评论变化记录';note.className='hint';note.textContent='内容指纹不是平台评论 ID 或匿名化标识，可能合并不同评论；对象 ID 由操作者声明。摘要不包含昵称、原始文本或来源路径。';
+  summary.textContent='查看评论变化记录';note.className='hint';note.textContent='内容指纹可能合并不同评论。摘要保留首次保存时的对象编号来源。';
   more.type='button';more.textContent='加载更早记录';more.hidden=true;download.type='button';download.textContent='下载全部观察摘要';download.hidden=true;
   let next=null,loaded=false,loading=false;
   const url=cursor=>'/api/mobile-observations?review='+encodeURIComponent(key)+(cursor===null?'':'&before='+cursor);
@@ -1154,10 +1275,10 @@ function makeObservationView(item){
   async function load(cursor){if(loading)return;loading=true;more.disabled=true;try{const data=await api(url(cursor));if(cursor===null)list.replaceChildren();if(data.history_status!=='available'){note.textContent=data.history_status==='unavailable'?'旧数据没有观察表，不能推断没有变化。':'这条评论尚无观察记录。';more.hidden=true;download.hidden=true;return}for(const row of data.items){const line=document.createElement('p');line.className='hint';line.textContent=(row.captured_at||'时间未知')+' · 评分 '+(row.score??'未知')+' · '+(row.has_expand===null?'展开状态未知':row.has_expand?'页面有展开按钮':'页面未显示展开按钮')+' · '+(row.raw_texts_changed===null?'首次记录':row.raw_texts_changed?'界面原文有变化':'界面原文未变化');list.append(line)}next=data.next_cursor;more.hidden=next===null;download.hidden=false;loaded=true}catch(error){note.textContent='读取观察记录失败：'+error.message}finally{loading=false;more.disabled=false}}
   details.ontoggle=()=>{if(details.open&&!loaded)load(null)};more.onclick=()=>load(next);
   // 4.2 导出全部已记录摘要；页数过大时明确报错，不将不完整结果称为全部。
-  download.onclick=async()=>{download.disabled=true;try{let cursor=null,items=[],data;do{data=await api(url(cursor));items.push(...data.items);cursor=data.next_cursor;if(items.length>20000)throw Error('记录超过 20000 条，请分批查看');}while(cursor!==null);const payload={local_key:key,object:{kind:item.kind,object_id:item.object_id,place:item.place},review_identity:'content_fingerprint_not_platform_id',object_identity:'operator_declared_unverified',limitations:data.limitations,items};const objectUrl=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=objectUrl;a.download='手机评论观察摘要.json';a.click();setTimeout(()=>URL.revokeObjectURL(objectUrl),1000)}catch(error){note.textContent='导出失败：'+error.message}finally{download.disabled=false}};
+  download.onclick=async()=>{download.disabled=true;try{let cursor=null,items=[],data;do{data=await api(url(cursor));items.push(...data.items);cursor=data.next_cursor;if(items.length>20000)throw Error('记录超过 20000 条，请分批查看');}while(cursor!==null);const payload={local_key:key,object:{kind:item.kind,object_id:item.object_id,place:item.place},review_identity:'content_fingerprint_not_platform_id',object_identity:data.object_identity,identity_id_verified:data.identity_id_verified,limitations:data.limitations,items};const objectUrl=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=objectUrl;a.download='手机评论观察摘要.json';a.click();setTimeout(()=>URL.revokeObjectURL(objectUrl),1000)}catch(error){note.textContent='导出失败：'+error.message}finally{download.disabled=false}};
   details.append(summary,note,list,more,download);logger.info('观察记录入口创建完成');return details;
 }
-$('previewSource').onchange=()=>{$('previewHint').textContent=$('previewSource').value!=='network'?'手机界面采集结果。数字 ID 由操作者填写，核验范围见各次采集报告。':'当前输出目录的网页评论，每页20条，包含历史任务。';previewCursor=null;previewHistory=[];previewNext=null;return loadPreview()};
+$('previewSource').onchange=()=>{$('previewHint').textContent=$('previewSource').value!=='network'?'手机界面采集结果。每条记录显示首次保存时的对象编号来源，核验范围见对应采集报告。':'当前输出目录的网页评论，每页20条，包含历史任务。';previewCursor=null;previewHistory=[];previewNext=null;return loadPreview()};
 $('previewButton').onclick=()=>{previewCursor=null;previewHistory=[];return loadPreview()};
 $('previewNext').onclick=()=>{if($('previewButton').disabled||previewNext===null)return;previewHistory.push(previewCursor);previewCursor=previewNext;return loadPreview()};
 $('previewPrev').onclick=()=>{if($('previewButton').disabled||!previewHistory.length)return;previewCursor=previewHistory.pop();return loadPreview()};

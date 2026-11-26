@@ -12,6 +12,7 @@ from urllib.parse import urlsplit, parse_qs
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from zipfile import BadZipFile, ZipFile
+from object_identity import list_object_refs
 from workbench_jobs import make_job
 from app_page_fields import list_raw_page_runs
 from screenshot_ocr import MAX_IMAGE_BYTES, recognize_screenshot
@@ -139,6 +140,18 @@ def create_server(output, adb_path=None, port=8765, *, adb_serial=None):
                 self.reply(200, manager.snapshot())
             elif self.path == '/api/android-readiness':
                 self.reply(200, android_readiness(adb_path, adb_serial))
+            elif urlsplit(self.path).path == '/api/object-options':
+                try:
+                    params = parse_qs(urlsplit(self.path).query, keep_blank_values=True)
+                    if params.keys() - {'kind', 'q'} or any(len(values) != 1 for values in params.values()):
+                        raise ValueError('对象目录查询条件无效')
+                    kind = params.get('kind', [None])[0]
+                    query = params.get('q', [''])[0]
+                    self.reply(200, list_object_refs(output, kind=kind, query=query))
+                except ValueError as exc:
+                    self.reply(400, {'error': str(exc)})
+                except OSError:
+                    self.reply(500, {'error': '无法读取本地对象目录'})
             elif self.path == '/api/local-files':
                 # 1.2 只检查输出目录直属的规范报告和评论文件。
                 reports, media_sources, capture_files, graph_reports = [], [], [], []

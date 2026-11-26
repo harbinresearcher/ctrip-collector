@@ -13,6 +13,23 @@ logger = logging.getLogger(__name__)
 
 
 class MobileObservationsTests(unittest.TestCase):
+    def test_history_labels_each_review_with_its_stored_identity_source(self):
+        from mobile_scoped_store import EVIDENCE_MANIFEST
+
+        row = {'author': 'a', 'date': '2026', 'date_kind': 'published', 'rating': '5',
+               'content': '正文', 'has_expand': False, 'raw_texts': []}
+        with TemporaryDirectory() as folder:
+            store = MobileScopedStore(folder, 'sight', '123', identity_source=EVIDENCE_MANIFEST)
+            try:
+                store.save('景点', [row], 'private.xml')
+                key = store.review_key(row)
+            finally:
+                store.close()
+            report = read_observations(folder, key)
+            self.assertEqual(report['object_identity'], EVIDENCE_MANIFEST)
+            self.assertIs(report.get('identity_id_verified'), False)
+            self.assertNotIn('操作者填写', str(report['limitations']))
+
     def test_history_is_projected_without_personal_or_raw_fields(self):
         # /* ===== 步骤1：核验观察预览；数据源：真实存储；操作：1) 对比原文变化 2) 隐藏个人信息 ===== */
         logger.info('开始观察预览测试')
@@ -103,7 +120,10 @@ class MobileObservationsTests(unittest.TestCase):
                 db.execute('CREATE TABLE reviews_scoped (key TEXT PRIMARY KEY)')
                 db.execute('INSERT INTO reviews_scoped VALUES (?)',(key,))
                 db.commit()
-            self.assertEqual(read_observations(folder,key)['history_status'],'unavailable')
+            old_history = read_observations(folder, key)
+            self.assertEqual(old_history['history_status'], 'unavailable')
+            self.assertIsNone(old_history['object_identity'])
+            self.assertIs(old_history.get('identity_id_verified'), False)
             with self.assertRaises(LookupError):
                 read_observations(folder,'b'*64)
             with closing(sqlite3.connect(Path(folder)/'reviews.sqlite3')) as db:

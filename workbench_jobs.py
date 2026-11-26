@@ -23,7 +23,7 @@ from region_seeds import discover_regions
 from multi_discovery import discover_many, resume_details
 from discovery import discover_objects
 from shopping_discovery import discover_shopping
-from workbench_app_jobs import prepare_app_job
+from workbench_app_jobs import prepare_app_job, resolve_app_job_object
 from workbench_media_jobs import prepare_media_job
 from workbench_capture_jobs import prepare_capture_job
 from coverage_report import write_coverage_report
@@ -247,6 +247,12 @@ def make_job(request, output, adb_path=None, *, adb_serial=None):
     if mode == 'restaurant_review_gallery':
         name = request.get('name')
         object_id = request.get('resource_id')
+        evidence = resolve_app_job_object(request, output, expected_kind='restaurant')
+        identity_options = {}
+        if evidence is not None:
+            name, object_id = evidence['name'], evidence['object_id']
+            identity_options = {'identity_source': evidence['identity_source'],
+                                'identity_evidence': evidence['identity_evidence']}
         max_pages = request.get('max_pages', 10)
         if not isinstance(name, str) or not 1 <= len(name.strip()) <= 100 or not adb_path:
             raise ValueError('请填写餐厅名称并配置安卓设备')
@@ -263,7 +269,7 @@ def make_job(request, output, adb_path=None, *, adb_serial=None):
             with Adb(adb_path, serial=adb_serial, ui_backend='uiautomator2') as device:
                 device.connect()
                 return capture_restaurant_review_gallery(device, folder, name, object_id, stop,
-                                                         max_pages=max_pages, emit=emit)
+                                                         max_pages=max_pages, emit=emit, **identity_options)
 
         return restaurant_gallery_job
     if mode in {'app_reviews', 'app_ai', 'app_gallery'}:

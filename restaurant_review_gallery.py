@@ -10,7 +10,7 @@ from xml.etree import ElementTree as ET
 from zipfile import ZipFile
 
 from core import parse_reviews
-from mobile_scoped_store import MobileScopedStore
+from mobile_scoped_store import MobileScopedStore, OPERATOR_DECLARED
 from restaurant_gallery_download import download_visible_photo
 from restaurant_gallery_scene import read_photo_viewer, read_review_note
 from runner import restaurant_review_screen
@@ -125,7 +125,8 @@ def collect_pages(device, stop, name, review, entry_box, max_pages, archive, rep
         return 'device_error', 'Android 设备读取或保存图片时中断'
 
 
-def capture_restaurant_review_gallery(device, output, name, object_id, stop, *, max_pages, emit):
+def capture_restaurant_review_gallery(device, output, name, object_id, stop, *, max_pages, emit,
+                                      identity_source=OPERATOR_DECLARED, identity_evidence=None):
     if type(max_pages) is not int or not 1 <= max_pages <= 50:
         raise ValueError('点评大图页数须为 1 至 50')
     if stop.is_set():
@@ -143,7 +144,7 @@ def capture_restaurant_review_gallery(device, output, name, object_id, stop, *, 
     archive_path = folder / f'{basename}.zip'
     temp_report = report_path.with_suffix('.json.part')
     temp_archive = archive_path.with_suffix('.zip.part')
-    store = MobileScopedStore(folder, 'restaurant', object_id)
+    store = MobileScopedStore(folder, 'restaurant', object_id, identity_source=identity_source)
     try:
         selected_key = store.review_key(review)
         entry_xml = snapshot(device)
@@ -164,8 +165,11 @@ def capture_restaurant_review_gallery(device, output, name, object_id, stop, *, 
                   'run_id': run_id, 'gallery_total': None, 'pages': [], 'file': str(report_path),
                   'sample_csv': str(sample_csv), 'sample_csv_count': 1, 'sample_order': 1,
                   'review_key': next(iter(observed)), 'object_id': store.object_id,
+                  'identity_source': store.identity_source,
                   'identity_id_verified': False, 'entry_raw_hash': hashlib.sha256(entry_xml.encode('utf-8')).hexdigest(),
                   'original_files_verified': False, 'complete': False, 'acquisition': 'app_album_download'}
+        if identity_evidence is not None:
+            report['identity_evidence'] = identity_evidence
         archive_written = False
         try:
             with ZipFile(temp_archive, 'x') as archive:
