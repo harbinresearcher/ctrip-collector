@@ -331,6 +331,20 @@ def main():
     if args.adb_serial is not None or args.port is not None or args.no_browser:
         parser.error('--adb-serial、--port 和 --no-browser 需要使用 --workbench')
     args.adb = args.adb or 'adb'
+    # 3.0 采集模式互斥：同时给了多个入口时明确拒绝，而不是悄悄只跑其中一个。
+    modes = []
+    if args.url or args.url_file or args.hotel_public:
+        modes.append('对象点评（--url / --url-file / --hotel-public）')
+    if args.capture_ai:
+        modes.append('AI 总结（--capture-ai）')
+    if args.check:
+        modes.append('设备自检（--check）')
+    if args.collect:
+        modes.append('手机采集（--collect）')
+    if args.city_list or args.region_seeds or args.resume_regions or args.shopping_district is not None:
+        modes.append('目录发现（--city-list / --region-seeds / --resume-regions / --shopping-district）')
+    if len(modes) > 1:
+        parser.error('一次只能运行一种模式，当前同时给了：' + '、'.join(modes))
     if args.coverage:
         if args.url or args.url_file or args.city_list or args.region_seeds or args.resume_regions or args.hotel_public or args.shopping_district is not None or args.collect or args.capture_ai or args.import_capture or args.download_media:
             parser.error('--coverage 不能与采集任务同时使用')

@@ -41,9 +41,10 @@ class CliErrorTests(unittest.TestCase):
 
     def test_rejected_link_is_explained(self):
         # 1.3 既不是携程详情页也不是合法 URL 时，给出入口要求。
+        # 1.3.1 只给 --url；与 --collect 同时给属于模式冲突，由 test_cli_modes 覆盖。
         with tempfile.TemporaryDirectory() as folder:
             self.assert_readable_failure(
-                run_cli('--collect', '--url', 'not-a-url', '--output', folder), '携程')
+                run_cli('--url', 'not-a-url', '--output', folder), '携程')
 
     def test_argument_errors_keep_usage_exit_code(self):
         # 1.4 argparse 自身错误仍是 2，不被上面的处理吞成 1。
