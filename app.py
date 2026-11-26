@@ -24,6 +24,7 @@ from region_seeds import discover_regions
 from coverage_report import write_coverage_report
 from coverage_audit import write_coverage_audit
 from gap_collect import collect_gaps
+from drive import drive_rounds
 from object_identity import resolve_object_ref
 from hotel_public_batch import collect_public_hotels
 
@@ -291,7 +292,9 @@ def main():
     parser.add_argument('--coverage', action='store_true', help='统计输出目录内已有网络评论及字段覆盖')
     parser.add_argument('--audit', action='store_true', help='对账输出目录内已有证据：平台目标数、已采数与缺口原因')
     parser.add_argument('--collect-gaps', action='store_true', help='按对账缺口续采：只处理目标已知、缺口最大且有链接的对象')
-    parser.add_argument('--gap-limit', type=int, default=10, help='--collect-gaps 最多处理几个对象，默认 10')
+    parser.add_argument('--gap-limit', type=int, default=10, help='--collect-gaps / --drive 每轮最多处理几个对象，默认 10')
+    parser.add_argument('--drive', action='store_true', help='无人值守驱动循环：只在首轮发现目录，之后按缺口续采直到轮数用完或没有进展')
+    parser.add_argument('--rounds', type=int, default=1, help='--drive 最多运行几轮，默认 1；不会无限循环')
     parser.add_argument('--hotel-public', action='store_true', help='采酒店公开详情及评论样本，不登录浏览器')
     parser.add_argument('--collect', action='store_true')
     parser.add_argument('--object-ref', default='', help='手机采集的对象引用，如 sight-136039；身份取自 --output 里的落盘证据')
@@ -318,7 +321,8 @@ def main():
     parser.add_argument('--ui-backend', choices=['adb', 'uiautomator2'], default='uiautomator2')
     args = parser.parse_args()
     if args.workbench:
-        if any((args.check, args.gui_smoke, args.coverage, args.audit, args.collect_gaps, args.hotel_public, args.collect,
+        if any((args.check, args.gui_smoke, args.coverage, args.audit, args.collect_gaps, args.drive,
+                args.hotel_public, args.collect,
                 args.object_ref, args.url,
                 args.url_file, args.import_capture, args.download_media, args.capture_ai, args.city_list,
                 args.region_seeds, args.resume_regions, args.shopping_district is not None, args.collect_discovered)):
@@ -349,8 +353,11 @@ def main():
         modes.append('设备自检（--check）')
     if args.collect:
         modes.append('手机采集（--collect）')
+    if args.drive:
+        modes.append('驱动循环（--drive）')
     if args.city_list or args.region_seeds or args.resume_regions or args.shopping_district is not None:
-        modes.append('目录发现（--city-list / --region-seeds / --resume-regions / --shopping-district）')
+        if not args.drive:
+            modes.append('目录发现（--city-list / --region-seeds / --resume-regions / --shopping-district）')
     if len(modes) > 1:
         parser.error('一次只能运行一种模式，当前同时给了：' + '、'.join(modes))
     # 3.0.1 对象身份只取一个来源：证据引用与手填名称/编号同时给出时明确拒绝，不悄悄选一个。
@@ -363,7 +370,7 @@ def main():
     if args.audit:
         if any((args.url, args.url_file, args.city_list, args.region_seeds, args.resume_regions, args.hotel_public,
                 args.shopping_district is not None, args.collect, args.capture_ai, args.import_capture,
-                args.download_media, args.coverage, args.collect_gaps)):
+                args.download_media, args.coverage, args.collect_gaps, args.drive)):
             parser.error('--audit 不能与采集任务或覆盖统计同时使用')
         print(json.dumps(write_coverage_audit(args.output), ensure_ascii=False, indent=2))
         return
@@ -371,11 +378,37 @@ def main():
     if args.collect_gaps:
         if any((args.url, args.url_file, args.city_list, args.region_seeds, args.resume_regions, args.hotel_public,
                 args.shopping_district is not None, args.collect, args.capture_ai, args.import_capture,
-                args.download_media, args.coverage, args.audit)):
+                args.download_media, args.coverage, args.audit, args.drive)):
             parser.error('--collect-gaps 不能与采集任务、覆盖统计或对账同时使用')
         if args.limit < 1 or args.gap_limit < 1:
             parser.error('limit 和 gap-limit 必须大于零')
         print(json.dumps(collect_gaps(args.output, args.limit, args.gap_limit, collector=collect_url),
+                         ensure_ascii=False, indent=2))
+        return
+    # 3.0.4 无人值守驱动循环：目录发现只交给第一轮，之后每轮按缺口续采；是否继续由缺口是否下降决定。
+    if args.drive:
+        if any((args.url, args.url_file, args.hotel_public, args.collect, args.capture_ai, args.import_capture,
+                args.download_media, args.coverage, args.audit, args.collect_gaps, args.resume_regions,
+                args.collect_discovered, args.shopping_district is not None)):
+            parser.error('--drive 不能与对象采集、统计、对账、导入或其他续采入口同时使用')
+        if args.rounds < 1 or args.discovery_pages < 1 or args.max_objects < 1 or args.limit < 1 or args.gap_limit < 1:
+            parser.error('rounds、discovery-pages、max-objects、limit 和 gap-limit 必须大于零')
+        if args.city_list and args.region_seeds:
+            parser.error('--city-list 与 --region-seeds 一次只能用一个')
+
+        def discover(output, pages, objects):
+            # 3.0.4.1 目录入口沿用既有函数；地区种子与购物目录的参数口径与独立发现模式一致。
+            finder = discover_shopping if args.region_seeds == 'shopping' else discover_objects
+            seeds = discover_regions(output, args.region_seeds, args.max_regions) if args.region_seeds else None
+            entries = seeds['entries'] if seeds else args.city_list
+            result = (discover_many(entries, output, pages, objects, threading.Event(), finder)
+                      if len(entries) > 1 else finder(entries[0], output, pages, objects))
+            if seeds:
+                result['region_seed_report'] = seeds['report_file']
+            return result
+        discover_entry = discover if args.city_list or args.region_seeds else None
+        print(json.dumps(drive_rounds(args.output, args.rounds, args.discovery_pages, args.max_objects,
+                                      args.limit, args.gap_limit, discover=discover_entry, collector=collect_url),
                          ensure_ascii=False, indent=2))
         return
     if args.coverage:
