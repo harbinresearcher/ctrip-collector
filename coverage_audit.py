@@ -84,6 +84,16 @@ def evidence_url(value):
     return value.strip() if isinstance(value, str) and value.strip().startswith('https://') else None
 
 
+def blocked_today(report):
+    # /* ===== 步骤2.2：拦截是否仍在今天；数据源：报告修改时间；操作：1) 换算本地日期 2) 只认当天 ===== */
+    # 2.2.1 平台限流的处置是「停今天、明天再试」，所以隔天的被拦报告要放行续采。
+    try:
+        stamp = datetime.fromtimestamp(report['mtime']).date()
+    except (KeyError, TypeError, ValueError, OSError):
+        return False
+    return stamp == datetime.now().date()
+
+
 def app_all_run_evidence(path, data):
     run_id, check = data.get('run_id'), data.get('review_count_check')
     if (not isinstance(run_id, str) or not MOBILE_REVIEW_RUN_ID.fullmatch(run_id)
@@ -396,7 +406,9 @@ def write_coverage_audit(folder):
         report = latest_report(item['reports'])
         # 5.0.1 被平台拦住与「没数据」分开：最新报告标了 blocked 就不算可续采缺口，
         #       也不能降级成普通 failed，否则 --drive 会把它当成还能继续采的对象。
-        blocked = bool(report and report.get('blocked'))
+        # 5.0.2 但拦截只在**当天**有效：纪律是「停今天、明天再试」，所以昨天的被拦报告
+        #       不再挡住续采，否则一次偶发 429 会让这个对象永久退出队列。
+        blocked = bool(report and report.get('blocked') and blocked_today(report))
         failed = bool(report and (report['reason'] == 'error' or report['error']))
         attempted = item['web_attempted'] or total > 0
         # 5.1 连续两次都「翻到空页」且没采到目标数：这条通道已经采不出来，
