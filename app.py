@@ -24,6 +24,7 @@ from region_seeds import discover_regions
 from coverage_report import write_coverage_report
 from coverage_audit import write_coverage_audit
 from gap_collect import collect_gaps
+from object_identity import resolve_object_ref
 from hotel_public_batch import collect_public_hotels
 
 logger = logging.getLogger(__name__)
@@ -293,6 +294,7 @@ def main():
     parser.add_argument('--gap-limit', type=int, default=10, help='--collect-gaps 最多处理几个对象，默认 10')
     parser.add_argument('--hotel-public', action='store_true', help='采酒店公开详情及评论样本，不登录浏览器')
     parser.add_argument('--collect', action='store_true')
+    parser.add_argument('--object-ref', default='', help='手机采集的对象引用，如 sight-136039；身份取自 --output 里的落盘证据')
     parser.add_argument('--url', action='append', default=[], help='公开点评对象详情链接，可重复指定')
     parser.add_argument('--import-capture', type=Path, help='导入受限 App 点评响应 JSONL')
     parser.add_argument('--download-media', type=Path, help='从已导出评论 JSONL 下载返回的图片版本')
@@ -316,7 +318,8 @@ def main():
     parser.add_argument('--ui-backend', choices=['adb', 'uiautomator2'], default='uiautomator2')
     args = parser.parse_args()
     if args.workbench:
-        if any((args.check, args.gui_smoke, args.coverage, args.audit, args.collect_gaps, args.hotel_public, args.collect, args.url,
+        if any((args.check, args.gui_smoke, args.coverage, args.audit, args.collect_gaps, args.hotel_public, args.collect,
+                args.object_ref, args.url,
                 args.url_file, args.import_capture, args.download_media, args.capture_ai, args.city_list,
                 args.region_seeds, args.resume_regions, args.shopping_district is not None, args.collect_discovered)):
             parser.error('--workbench 不能与其他运行模式同时使用')
@@ -350,6 +353,12 @@ def main():
         modes.append('目录发现（--city-list / --region-seeds / --resume-regions / --shopping-district）')
     if len(modes) > 1:
         parser.error('一次只能运行一种模式，当前同时给了：' + '、'.join(modes))
+    # 3.0.1 对象身份只取一个来源：证据引用与手填名称/编号同时给出时明确拒绝，不悄悄选一个。
+    if args.object_ref:
+        if not args.collect:
+            parser.error('--object-ref 只能与 --collect 一起使用')
+        if args.place.strip() or args.resource_id.strip():
+            parser.error('--object-ref 与 --place/--resource-id 互斥：编号和名称都从证据取，请去掉手填值')
     # 3.0.2 覆盖对账只读取落盘证据；与采集任务、覆盖统计互斥，避免参数混用。
     if args.audit:
         if any((args.url, args.url_file, args.city_list, args.region_seeds, args.resume_regions, args.hotel_public,
@@ -437,11 +446,21 @@ def main():
         adb.connect()
         print(json.dumps({'device': 'authorized', 'ctrip': 'installed'}, ensure_ascii=False))
     elif args.collect:
-        if not args.place.strip() or args.limit < 1 or args.max_swipes < 0:
-            parser.error('必须指定 --place，limit > 0，max-swipes >= 0')
+        # 3.1.1 --object-ref 先从落盘证据解析身份，解析成功才允许采集；失败交给 cli() 打成一行原因。
+        identity = resolve_object_ref(args.output, args.object_ref) if args.object_ref else None
+        if args.limit < 1 or args.max_swipes < 0:
+            parser.error('limit > 0，max-swipes >= 0')
+        if identity is None and not args.place.strip():
+            parser.error('必须指定 --place（或改用 --object-ref）')
         with Adb(args.adb, ui_backend=args.ui_backend) as adb:
             adb.connect()
-            result = collect(adb, args.kind, args.place, args.output, args.limit, args.max_swipes)
+            if identity is None:
+                # 3.1.2 旧入口保持原样：手填名称，身份仍标为操作者声明。
+                result = collect(adb, args.kind, args.place, args.output, args.limit, args.max_swipes)
+            else:
+                result = collect(adb, identity['kind'], identity['name'], args.output, args.limit, args.max_swipes,
+                                 object_id=identity['object_id'], identity_source=identity['identity_source'],
+                                 identity_evidence=identity['identity_evidence'])
         print(json.dumps(result, ensure_ascii=False, indent=2))
         if result['reason'] == 'error' or result['export_error']:
             raise SystemExit(1)

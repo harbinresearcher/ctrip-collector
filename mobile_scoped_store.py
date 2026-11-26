@@ -1,4 +1,4 @@
-"""手机评论作用域存储；对象ID由操作者声明，不能证明页面归属。"""
+"""手机评论作用域存储；对象ID来自操作者声明或落盘证据，不能证明页面归属。"""
 import csv
 import hashlib
 import json
@@ -13,17 +13,25 @@ from mobile_review_fields import CARD_FIELDS, SCOPED_COUNT_FIELDS, SHOPPING_CARD
 
 logger = logging.getLogger(__name__)
 MOBILE_REVIEW_RUN_ID = re.compile(r'[0-9]{8}T[0-9]{6}-[a-f0-9]{6}')
+# 身份来源只认三态：操作者手填、落盘证据清单、屏幕核验；其他字符串一律拒绝。
+OPERATOR_DECLARED = 'operator_declared_unverified'
+EVIDENCE_MANIFEST = 'evidence_manifest'
+SCREEN_VERIFIED_ID = 'screen_verified_id'
+IDENTITY_SOURCES = (OPERATOR_DECLARED, EVIDENCE_MANIFEST, SCREEN_VERIFIED_ID)
 
 
 class MobileScopedStore:
-    def __init__(self, folder, kind, object_id):
-        # /* ===== 步骤1：建立独立作用域；数据源：操作者声明；操作：1) 校验类型和ID 2) 创建新表 ===== */
+    def __init__(self, folder, kind, object_id, *, identity_source=OPERATOR_DECLARED):
+        # /* ===== 步骤1：建立独立作用域；数据源：操作者声明或证据清单；操作：1) 校验类型和ID 2) 创建新表 ===== */
         logger.info('开始建立手机评论作用域')
         if (kind not in ('hotel', 'sight', 'restaurant', 'shopping') or not isinstance(object_id, str)
                 or not re.fullmatch(r'[0-9]{1,20}', object_id) or int(object_id) <= 0):
             raise ValueError('手机点评需要支持的类型及正整数对象 ID')
+        if identity_source not in IDENTITY_SOURCES:
+            raise ValueError('身份来源必须是 ' + ' / '.join(IDENTITY_SOURCES))
         self.kind = kind
         self.object_id = str(int(object_id))
+        self.identity_source = identity_source
         self.scope = f'declared:ctrip:{kind}:{self.object_id}'
         self.folder = Path(folder).resolve()
         self.folder.mkdir(parents=True, exist_ok=True)
@@ -112,7 +120,7 @@ class MobileScopedStore:
                 added += self.db.execute('''INSERT OR IGNORE INTO reviews_scoped
                     (key,kind,scope,object_id,identity_source,place,author,date,date_kind,rating,
                      content,has_expand,raw_texts,source,captured_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
-                    (key, self.kind, self.scope, self.object_id, 'operator_declared_unverified', place,
+                    (key, self.kind, self.scope, self.object_id, self.identity_source, place,
                      row['author'], row['date'], row['date_kind'], row['rating'], row['content'],
                      int(row['has_expand']), raw_texts, source, timestamp)).rowcount
                 if observed_keys is not None:

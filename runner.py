@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from core import Store, bounds, parse_reviews
-from mobile_scoped_store import MobileScopedStore
+from mobile_scoped_store import IDENTITY_SOURCES, OPERATOR_DECLARED, MobileScopedStore
 from mobile_expansion import expand_card, expansion_target
 from mobile_review_context import read_review_context, summarize_review_count
 from mobile_review_fields import SHOPPING_DIMENSION, SHOPPING_RATING_FIELDS
@@ -269,7 +269,8 @@ def shopping_review_screen(root):
 
 
 def collect(adb, kind, place, folder, limit=500, max_swipes=1500, stop=None, progress=None, object_id=None,
-            *, expand_reviews=False, refresh=False, save_visible_ai=False, save_review_thumbnails=False):
+            *, expand_reviews=False, refresh=False, save_visible_ai=False, save_review_thumbnails=False,
+            identity_source=OPERATOR_DECLARED, identity_evidence=None):
     # /* ================================================================
     # 步骤3：按屏幕顺序采集并持久化
     # 目标：当前对象；操作：1) 保存 XML 和评论 2) 小幅滑动保留卡片重叠
@@ -284,6 +285,13 @@ def collect(adb, kind, place, folder, limit=500, max_swipes=1500, stop=None, pro
         raise ValueError('首屏 AI 总结需要按对象编号保存的酒店点评任务')
     if save_review_thumbnails and (kind not in ('hotel', 'restaurant') or object_id is None):
         raise ValueError('点评缩略图需要按对象编号保存的酒店或餐厅点评任务')
+    # 身份来源只认固定三态；证据清单说明编号出处，但不等于与手机屏幕比对过。
+    if identity_source not in IDENTITY_SOURCES:
+        raise ValueError('身份来源必须是 ' + ' / '.join(IDENTITY_SOURCES))
+    if identity_evidence is not None and (not isinstance(identity_evidence, str) or not identity_evidence.strip()):
+        raise ValueError('身份证据文件名必须是非空文本')
+    if identity_source != OPERATOR_DECLARED and object_id is None:
+        raise ValueError('证据身份需要按对象编号保存的手机点评任务')
     stop = stop or threading.Event()
     progress = progress or (lambda message: logger.info('%s', message))
     folder = Path(folder)
@@ -292,7 +300,8 @@ def collect(adb, kind, place, folder, limit=500, max_swipes=1500, stop=None, pro
     sample_orders = {}
     raw = folder / 'raw' / run_id
     raw.mkdir(parents=True)
-    store = MobileScopedStore(folder, kind, object_id) if object_id is not None else Store(folder)
+    store = (MobileScopedStore(folder, kind, object_id, identity_source=identity_source)
+             if object_id is not None else Store(folder))
     # 3.0 新任务按声明的对象 ID 隔离，旧入口继续使用旧表。
     scoped = object_id is not None
     first_screen_ai = {'status': 'not_read'} if save_visible_ai else None
@@ -502,14 +511,20 @@ def collect(adb, kind, place, folder, limit=500, max_swipes=1500, stop=None, pro
                                       '内容指纹去重，不是服务端评论ID；可能合并同名同日同文评论',
                                       '恢复已保存数据，不自动恢复手机滚动位置',
                                       '对象名称由操作者填写；程序未核验评论页面属于该对象']}
-            # 4.3 手填 ID 只隔离存储，不证明该页面属于对应对象。
+            # 4.3 手填 ID 只隔离存储，不证明该页面属于对应对象；证据清单只说明编号出处。
             if scoped:
-                report.update(object_id=store.object_id, identity_source='operator_declared_unverified',
+                report.update(object_id=store.object_id, identity_source=identity_source,
                               identity_id_verified=False, existing_count=initial,
                               sample_csv=sample_csv, sample_csv_count=len(observed_keys) if sample_csv else 0)
+                if identity_evidence is not None:
+                    report['identity_evidence'] = identity_evidence
                 if sample_csv:
                     report['limitations'].append('本次 CSV 按首次读到顺序选择点评；正文或已核验的展开内容来自导出时的本地记录')
-                report['limitations'].append('对象 ID 由操作者填写，未核验页面对象 ID；旧表数据不计入本作用域')
+                if identity_source == OPERATOR_DECLARED:
+                    report['limitations'].append('对象 ID 由操作者填写，未核验页面对象 ID；旧表数据不计入本作用域')
+                else:
+                    report['limitations'].append(
+                        f'对象 ID 来自落盘证据 {identity_evidence or "（未记录文件名）"}，未与手机屏幕比对；旧表数据不计入本作用域')
             if expand_reviews:
                 report['review_expansion'] = expansion_stats
             if refresh:
