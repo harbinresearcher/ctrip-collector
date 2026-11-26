@@ -10,6 +10,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from urllib.parse import unquote
 
 from PIL import Image, ImageOps
 
@@ -24,8 +25,10 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 Add-Type -AssemblyName System.Runtime.WindowsRuntime
-[Windows.Storage.StorageFile,Windows.Storage,ContentType=WindowsRuntime] | Out-Null
-[Windows.Storage.Streams.IRandomAccessStream,Windows.Storage.Streams,ContentType=WindowsRuntime] | Out-Null
+# 用内存流读取图片：StorageFile.GetFileFromPathAsync 会被 WinRT 文件代理拒绝
+# （受限令牌或非常规目录下报「访问被拒绝」），读字节不走这条路径。
+[Windows.Storage.Streams.InMemoryRandomAccessStream,Windows.Storage.Streams,ContentType=WindowsRuntime] | Out-Null
+[Windows.Storage.Streams.DataWriter,Windows.Storage.Streams,ContentType=WindowsRuntime] | Out-Null
 [Windows.Graphics.Imaging.BitmapDecoder,Windows.Graphics.Imaging,ContentType=WindowsRuntime] | Out-Null
 [Windows.Graphics.Imaging.SoftwareBitmap,Windows.Graphics.Imaging,ContentType=WindowsRuntime] | Out-Null
 [Windows.Media.Ocr.OcrEngine,Windows.Foundation,ContentType=WindowsRuntime] | Out-Null
@@ -41,8 +44,13 @@ function Wait-Result($operation, [Type]$type) {
 }
 $engine = [Windows.Media.Ocr.OcrEngine]::TryCreateFromLanguage([Windows.Globalization.Language]::new('zh-Hans-CN'))
 if ($null -eq $engine) { exit 42 }
-$file = Wait-Result ([Windows.Storage.StorageFile]::GetFileFromPathAsync($env:CTRIP_OCR_INPUT_PATH)) ([Windows.Storage.StorageFile])
-$stream = Wait-Result ($file.OpenAsync([Windows.Storage.FileAccessMode]::Read)) ([Windows.Storage.Streams.IRandomAccessStream])
+$bytes = [System.IO.File]::ReadAllBytes($env:CTRIP_OCR_INPUT_PATH)
+$stream = [Windows.Storage.Streams.InMemoryRandomAccessStream]::new()
+$writer = [Windows.Storage.Streams.DataWriter]::new($stream)
+$writer.WriteBytes($bytes)
+Wait-Result ($writer.StoreAsync()) ([uint32]) | Out-Null
+$writer.DetachStream() | Out-Null
+$stream.Seek(0) | Out-Null
 try {
     $decoder = Wait-Result ([Windows.Graphics.Imaging.BitmapDecoder]::CreateAsync($stream)) ([Windows.Graphics.Imaging.BitmapDecoder])
     $max = [Windows.Media.Ocr.OcrEngine]::MaxImageDimension
@@ -54,6 +62,19 @@ try {
     } finally { $bitmap.Dispose() }
 } finally { $stream.Dispose() }
 """
+CLIXML_ERROR = re.compile(r'<S S="Error">(.*?)</S>', re.S)
+
+
+def error_excerpt(text, limit=200):
+    # /* ===== 步骤1：提取可读错误；数据源：PowerShell 输出；操作：1) 去 CLIXML 标记 2) 限量 ===== */
+    # 1.1 PowerShell 5.1 把错误写成 CLIXML；直接给用户看没有意义。
+    if not isinstance(text, str):
+        return ''
+    parts = CLIXML_ERROR.findall(text) or [text]
+    cleaned = ' '.join(re.sub(r'\s+', ' ', part).strip() for part in parts)
+    cleaned = cleaned.replace('_x000D_', ' ').replace('_x000A_', ' ')
+    cleaned = re.sub(r'\s+', ' ', unquote(cleaned)).strip()
+    return cleaned[:limit]
 
 
 def read_windows_ocr(path):
@@ -75,7 +96,9 @@ def read_windows_ocr(path):
     if result.returncode == 43:
         raise RuntimeError('图片边长超过 Windows 文字识别限制，请缩小框选范围')
     if result.returncode:
-        raise RuntimeError('Windows 未能完成文字识别')
+        # 1.2 带上脚本给出的原因，避免只看到「未能完成」而无法判断是权限还是语言包。
+        reason = error_excerpt(result.stderr) or error_excerpt(result.stdout)
+        raise RuntimeError(f'Windows 未能完成文字识别：{reason}' if reason else 'Windows 未能完成文字识别')
     try:
         lines = json.loads(result.stdout)['lines']
     except (KeyError, TypeError, ValueError) as exc:
