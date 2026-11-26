@@ -15,6 +15,32 @@
 
 四项全部满足才算达标；每项都必须有命令输出或数据库计数作为证据。
 
+### C1c 无人值守驱动循环（下一步）
+
+目标：把「发现 → 采集 → 对账 → 续采」串成一条能自己跑的命令，直到预算用完
+或确实推不动为止。
+
+```powershell
+python app.py --drive --output <目录> [--city-list <入口链接> | --region-seeds <类型>] `
+  --rounds <轮数> --discovery-pages <页> --max-objects <对象数> `
+  --limit <每对象再补条数> --gap-limit <每轮处理对象数>
+```
+
+验收：
+
+- 每轮结束重新对账并记录 `missing`；`missing` 必须**严格下降**才继续下一轮，
+  否则停止并给出 `no_progress`；
+- 停止原因必须是以下之一且写进报告：`round_budget_reached` / `no_progress` /
+  `all_targets_met` / `cancelled`；**不允许无限循环**；
+- 单对象的失败（`reason=error`、`export_error`）不能中断整轮，但要原样记进
+  `rounds[]`，不许写成成功；
+- 只在第一轮做目录发现；后续轮次只续采，避免每轮重复打目录接口；
+- 报告里 `complete` 仍固定 `false`（清单内目标达成 ≠ 平台全量）。
+
+验收证据：真实目录连跑 ≥2 轮，贴出 `rounds[]` 的 missing 变化；单测 5 项
+（有进展→继续 / 无进展→no_progress / 目标全达成→all_targets_met /
+轮数预算→round_budget_reached / 单对象失败不影响整轮）。
+
 ### C1 覆盖台账与缺口对账
 
 - 新增只读命令 `python app.py --audit --output <输出目录>`，输出 JSON，包含：
