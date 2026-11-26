@@ -418,4 +418,10 @@ if __name__ == '__main__':
         if stream is not None and hasattr(stream, 'reconfigure'):
             stream.reconfigure(encoding='utf-8', errors='replace')
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
-    main()
+    # 3.3 目录不存在、链接不符合入口、设备读取失败等属于可预期错误：
+    # 只打印一行原因并返回 1，不再把 Python 栈丢给命令行用户。其他异常保持原样。
+    try:
+        main()
+    except (ValueError, OSError) as exc:
+        logger.error('%s', exc)
+        raise SystemExit(1)
