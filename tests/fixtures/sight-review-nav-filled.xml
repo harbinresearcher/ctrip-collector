@@ -1,0 +1,43 @@
+<hierarchy>
+  <node class="android.widget.FrameLayout" bounds="[0,0][1080,2400]" index="0" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true">
+    <node class="android.widget.LinearLayout" bounds="[0,0][1080,2400]" index="0" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true">
+      <node class="android.widget.FrameLayout" resource-id="android:id/content" bounds="[0,0][1080,2400]" index="0" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true">
+        <node class="android.widget.LinearLayout" resource-id="ctrip.android.view:id/a" bounds="[0,0][1080,1517]" index="1" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true">
+          <node class="android.widget.LinearLayout" resource-id="ctrip.android.view:id/a" bounds="[0,0][1080,266]" index="0" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true">
+            <node class="android.widget.RelativeLayout" resource-id="ctrip.android.view:id/a" bounds="[105,128][923,266]" index="1" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true">
+              <node class="android.widget.FrameLayout" resource-id="ctrip.android.view:id/a" bounds="[105,128][923,266]" index="0" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true">
+                <node class="android.widget.EditText" resource-id="ctrip.android.view:id/a" text="长白山西景区" bounds="[105,149][902,245]" index="0" package="ctrip.android.view" clickable="true" enabled="true" focused="true" scrollable="false" visible-to-user="true" />
+              </node>
+            </node>
+            <node class="android.widget.RelativeLayout" resource-id="ctrip.android.view:id/a" bounds="[923,154][1067,238]" index="2" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true">
+              <node class="android.widget.TextView" resource-id="ctrip.android.view:id/a" text="搜索" bounds="[923,154][1067,238]" index="0" package="ctrip.android.view" clickable="true" enabled="true" focused="false" scrollable="false" visible-to-user="true" />
+            </node>
+          </node>
+          <node class="android.widget.RelativeLayout" bounds="[0,266][1080,1516]" index="1" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true">
+            <node class="android.widget.ListView" resource-id="ctrip.android.view:id/a" bounds="[0,266][1080,1516]" index="0" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="true" visible-to-user="true">
+              <node class="android.widget.LinearLayout" bounds="[0,266][1080,469]" index="0" package="ctrip.android.view" clickable="true" enabled="true" focused="false" scrollable="false" visible-to-user="true">
+                <node class="android.widget.LinearLayout" resource-id="ctrip.android.view:id/a" bounds="[0,266][1080,451]" index="0" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true">
+                  <node class="android.view.ViewGroup" bounds="[0,277][1080,345]" index="0" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true">
+                    <node class="android.widget.RelativeLayout" resource-id="ctrip.android.view:id/a" bounds="[84,277][850,345]" index="1" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true">
+                      <node class="android.widget.TextView" resource-id="ctrip.android.view:id/a" text="长白山西景区 可订明日 " bounds="[95,290][850,345]" index="0" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" />
+                    </node>
+                  </node>
+                  <node class="android.widget.TextView" resource-id="ctrip.android.view:id/a" text=" 6.6 | 吉林-抚松-长白山西景区-白山市抚松县松江河镇松天线" bounds="[0,345][1080,398]" index="1" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" />
+                </node>
+              </node>
+              <node class="android.widget.LinearLayout" bounds="[0,963][1080,1063]" index="6" package="ctrip.android.view" clickable="true" enabled="true" focused="false" scrollable="false" visible-to-user="true">
+                <node class="android.widget.LinearLayout" resource-id="ctrip.android.view:id/a" bounds="[0,966][1080,1045]" index="1" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true">
+                  <node class="android.view.ViewGroup" bounds="[0,977][1080,1045]" index="0" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true">
+                    <node class="android.widget.RelativeLayout" resource-id="ctrip.android.view:id/a" bounds="[84,977][896,1045]" index="1" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true">
+                      <node class="android.widget.TextView" resource-id="ctrip.android.view:id/a" text="长白山西景区·景点  吉林-抚松" bounds="[95,990][896,1045]" index="0" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" />
+                    </node>
+                  </node>
+                </node>
+              </node>
+            </node>
+          </node>
+        </node>
+      </node>
+    </node>
+  </node>
+</hierarchy>

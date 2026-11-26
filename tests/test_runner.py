@@ -9,7 +9,7 @@ from pathlib import Path
 from unittest.mock import patch, Mock
 
 from runner import Adb, collect
-from core import Store, parse_reviews
+from core import Store, bounds, parse_reviews
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +47,52 @@ class RunnerTests(unittest.TestCase):
             self.assertEqual(report['reason'], 'stopped_by_user')
             self.assertEqual(report['new_count'], 1)
             adb.run.assert_not_called()
+
+    def test_sight_review_pacing_skips_retry_wait_only_on_verified_forward_motion(self):
+        fixtures = Path(__file__).parent / 'fixtures'
+        first = (fixtures / 'ctrip-comments2.xml').read_text('utf-8')
+        next_review = (fixtures / 'ctrip-comments3.xml').read_text('utf-8')
+        original = parse_reviews(first, 'sight')[0]
+
+        def change_card(delta, *, clipped_date=False, duplicate=False, loading=False):
+            root = ET.fromstring(first)
+            parents = {child: node for node in root.iter() for child in node}
+            date = next(node for node in root.iter('node') if node.get('text') == original['date'])
+            card = parents[date]
+            while not any(node.get('text') == original['content'] for node in card.iter('node')):
+                card = parents[card]
+            for node in card.iter('node'):
+                left, top, right, bottom = bounds(node)
+                node.set('bounds', f'[{left},{top + delta}][{right},{bottom + delta}]')
+            if clipped_date:
+                left, top, right, bottom = bounds(date)
+                date.set('bounds', f'[{left},{top}][{right},{bottom - 8}]')
+            if duplicate:
+                parents[card].append(copy.deepcopy(card))
+            if loading:
+                ET.SubElement(root[0], 'node', {'package': 'ctrip.android.view', 'text': '正在加载'})
+            return ET.tostring(root, encoding='unicode')
+
+        # Preserve the measured 549px/2400px stride at this fixture's 3200px height.
+        moving = change_card(-732)
+        for label, frame, waits in (
+            ('forward motion', moving, [1, 1]),
+            ('identical frame', first, [1, 1.5, 1]),
+            ('reverse motion', change_card(732), [1, 1.5, 1]),
+            ('clipped date', change_card(-732, clipped_date=True), [1, 1.5, 1]),
+            ('ambiguous match', change_card(-732, duplicate=True), [1, 1.5, 1]),
+            ('loading', change_card(-732, loading=True), [1, 1.5, 1]),
+            ('review controls changed', moving.replace('text="1095"', 'text="1096"'), [1, 1.5, 1]),
+        ):
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as folder:
+                adb = Mock()
+                adb.snapshot.side_effect = [first, frame, next_review]
+                stop = Mock(is_set=lambda: False, wait=Mock(return_value=False))
+                report = collect(adb, 'sight', '长白山西景区', folder, max_swipes=2, stop=stop, object_id='123')
+                self.assertEqual(report['reason'], 'screen_budget_reached')
+                self.assertEqual((report['screens'], report['new_count'], report['sample_csv_count']), (3, 3, 3))
+                self.assertEqual(adb.run.call_count, 2)
+                self.assertEqual([entry.args[0] for entry in stop.wait.call_args_list], waits)
 
     def test_rerun_keeps_counts_and_samples_consistent(self):
         # /* ===== 步骤2：端到端一致；数据源：真实酒店样本两屏；操作：1) 同一对象采两轮 2) 三方计数对齐 ===== */

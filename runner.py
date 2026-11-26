@@ -136,6 +136,12 @@ class Adb:
             except (RuntimeError, subprocess.TimeoutExpired):
                 logger.warning('临时页面文件未清理')
 
+    def enter_text(self, text):
+        if self._ui is None:
+            raise RuntimeError('当前连接无法向 App 搜索框输入文本。')
+        self.ensure_foreground()
+        self._ui.send_keys(text, clear=True)
+
     def ensure_foreground(self):
         state = self.run('shell', 'dumpsys', 'window')
         focused = next((line.partition('=')[2].strip() for line in state.splitlines()
@@ -268,9 +274,36 @@ def shopping_review_screen(root):
     return matches[0] if len(matches) == 1 else (None, None, None)
 
 
+def review_date_positions(rows):
+    positions = {}
+    for row in rows:
+        identity = (row['author'], row['date'], row['content'])
+        positions[identity] = None if identity in positions else row['review_date_bounds']
+    return positions
+
+
+def reviews_moved_up(before, after, viewport):
+    left, top, right, bottom = viewport
+    height = bottom - top
+    shifts = []
+    for identity in before.keys() & after.keys():
+        old, current = before[identity], after[identity]
+        if old is None or current is None:
+            return False
+        x1, y1, x2, y2 = current
+        if ((old[0], old[2], old[3] - old[1]) != (x1, x2, y2 - y1)
+                or not left <= x1 < x2 <= right
+                or not (top <= y1 < y2 <= bottom and top <= old[1] < old[3] <= bottom)):
+            return False
+        shifts.append(old[1] - y1)
+    # The normal swipe covers 20% of the screen. Ignore small reflows and require shared anchors to agree.
+    return (bool(shifts) and height * .10 <= min(shifts) <= max(shifts) <= height * .35
+            and max(shifts) - min(shifts) <= height * .01)
+
+
 def collect(adb, kind, place, folder, limit=500, max_swipes=1500, stop=None, progress=None, object_id=None,
             *, expand_reviews=False, refresh=False, save_visible_ai=False, save_review_thumbnails=False,
-            identity_source=OPERATOR_DECLARED, identity_evidence=None):
+            identity_source=OPERATOR_DECLARED, identity_evidence=None, sight_navigation=None):
     # /* ================================================================
     # 步骤3：按屏幕顺序采集并持久化
     # 目标：当前对象；操作：1) 保存 XML 和评论 2) 小幅滑动保留卡片重叠
@@ -292,6 +325,8 @@ def collect(adb, kind, place, folder, limit=500, max_swipes=1500, stop=None, pro
         raise ValueError('身份证据文件名必须是非空文本')
     if identity_source != OPERATOR_DECLARED and object_id is None:
         raise ValueError('证据身份需要按对象编号保存的手机点评任务')
+    if sight_navigation is not None and (kind != 'sight' or sight_navigation not in ('opened', 'already_open')):
+        raise ValueError('景点点评导航状态无效')
     stop = stop or threading.Event()
     progress = progress or (lambda message: logger.info('%s', message))
     folder = Path(folder)
@@ -313,6 +348,8 @@ def collect(adb, kind, place, folder, limit=500, max_swipes=1500, stop=None, pro
     initial = store.count() if scoped else store.count(kind, place)
     total = initial
     previous = None
+    track_review_motion = scoped and kind == 'sight'
+    previous_motion_frame = None
     title_verified_screens = 0
     contexts = []
     seen_contexts = set()
@@ -396,7 +433,18 @@ def collect(adb, kind, place, folder, limit=500, max_swipes=1500, stop=None, pro
                     contexts.append({'screen': screens, **context})
                     seen_contexts.add(signature_context)
             rows = parse_reviews(review_xml, kind, **({'locate_expansion': True} if expand_reviews else {}),
-                                 **({'locate_media': True} if thumbnails else {}))
+                                 **({'locate_media': True} if thumbnails else {}),
+                                 **({'locate_date': True} if track_review_motion else {}))
+            moved_forward = False
+            if track_review_motion:
+                viewport = tuple(bounds(next(root.iter('node'))))
+                if rows and {'正在加载', '加载中', '加载失败', '点击重试'}.isdisjoint(texts):
+                    positions = review_date_positions(rows)
+                    if previous_motion_frame is not None and previous_motion_frame[:2] == (viewport, context):
+                        moved_forward = reviews_moved_up(previous_motion_frame[2], positions, viewport)
+                    previous_motion_frame = (viewport, context, positions)
+                else:
+                    previous_motion_frame = None
             previous_total = total
             previous_read_count = len(observed_keys) if refresh else 0
             expansion_attempted = False
@@ -462,7 +510,7 @@ def collect(adb, kind, place, folder, limit=500, max_swipes=1500, stop=None, pro
                 raise RuntimeError('无法识别屏幕尺寸')
             # New rows show the loop is progressing. Still let Android settle after every swipe.
             gained_reviews = len(observed_keys) > previous_read_count if refresh else total > previous_total
-            if stop.is_set() or ((not gained_reviews or expansion_attempted) and stop.wait(1.5)):
+            if stop.is_set() or ((expansion_attempted or not (gained_reviews or moved_forward)) and stop.wait(1.5)):
                 reason = 'stopped_by_user'
                 break
             adb.ensure_foreground()
@@ -531,6 +579,8 @@ def collect(adb, kind, place, folder, limit=500, max_swipes=1500, stop=None, pro
                 report.update(refresh_requested=True, target_scope='current_run', read_unique=len(observed_keys))
             if first_screen_ai is not None:
                 report['first_screen_ai'] = first_screen_ai
+            if sight_navigation is not None:
+                report['sight_navigation'] = sight_navigation
             if contexts:
                 report['sampling_context'] = {'selected_filter': selected_filter, 'sort_order': sort_order,
                                               'observations': contexts, 'rejected_context': rejected_context,

@@ -5,8 +5,9 @@ from pathlib import Path
 
 from ai_capture import capture_ai
 from gallery_entry import capture_ai_gallery
-from object_identity import resolve_object_ref
+from object_identity import positive_identity, read_evidence, resolve_object_ref
 from runner import Adb, collect
+from sight_review_navigation import open_sight_reviews
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,29 @@ def resolve_app_job_object(request, output, *, expected_kind=None):
     if (expected_kind is not None and kind != expected_kind) or request.get('kind', kind) != kind:
         raise ValueError('所选对象与任务类型不一致')
     return evidence
+
+
+def sight_navigation_address(folder, evidence):
+    path = folder / f"{evidence['object_ref']}-object.json"
+    try:
+        data = read_evidence(path)
+    except (OSError, ValueError) as exc:
+        raise ValueError('自动打开点评需要带地址的景点详情快照。请先读取该景点的网页详情。') from exc
+    if (data.get('kind') != 'sight' or positive_identity(data.get('resource_id')) != evidence['object_id']
+            or data.get('name') != evidence['name']):
+        raise ValueError('景点详情快照与所选对象不一致，请重新读取详情。')
+    addresses = set()
+    for section in ('details', 'comment_info'):
+        info = data.get(section)
+        address = info.get('address') if isinstance(info, dict) else None
+        if isinstance(address, str) and address.strip():
+            addresses.add(address.strip())
+    if len(addresses) != 1:
+        raise ValueError('本地快照缺少可核对的唯一景点地址，请更新详情快照。')
+    address = addresses.pop()
+    if not 5 <= len(address) <= 160 or any(not char.isprintable() for char in address):
+        raise ValueError('本地景点地址格式无法用于自动打开点评。')
+    return address
 
 
 def prepare_app_job(request, output, adb_path, *, adb_serial=None):
@@ -44,6 +68,7 @@ def prepare_app_job(request, output, adb_path, *, adb_serial=None):
     refresh = request.get('refresh', False)
     save_visible_ai = request.get('save_visible_ai', False)
     save_review_thumbnails = request.get('save_review_thumbnails', False)
+    auto_open_sight = request.get('auto_open_sight', False)
     swipes = request.get('max_swipes', max(1500, limit * 8) if type(limit) is int else 1500)
     if mode not in {'app_ai', 'app_gallery', 'app_reviews'} or kind not in {'hotel', 'sight', 'restaurant', 'shopping'}:
         raise ValueError('请选择支持的手机采集类型')
@@ -74,6 +99,9 @@ def prepare_app_job(request, output, adb_path, *, adb_serial=None):
     if type(swipes) is not int or not 1 <= swipes <= 800000:
         raise ValueError('滑动次数须为1至800000')
     name, folder = name.strip(), Path(output).resolve()
+    if type(auto_open_sight) is not bool or (auto_open_sight and (evidence is None or kind != 'sight')):
+        raise ValueError('请从本地目录选择景点后启用自动打开点评。')
+    address = sight_navigation_address(folder, evidence) if auto_open_sight else None
     logger.info('手机采集参数核对完成')
 
     def job(stop, emit):
@@ -99,6 +127,9 @@ def prepare_app_job(request, output, adb_path, *, adb_serial=None):
                                                 **options)
                 else:
                     options = {}
+                    if address is not None:
+                        emit('正在核对景点地址并打开 App 点评')
+                        options['sight_navigation'] = open_sight_reviews(device, name, address, stop)
                     if expand_reviews:
                         options['expand_reviews'] = True
                     if refresh:

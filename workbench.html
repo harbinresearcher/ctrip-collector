@@ -75,6 +75,10 @@ button{font-weight:500;border-color:#d5d0c5;min-height:44px}button.primary{box-s
   <p class="hint" id="objectEvidence" aria-live="polite" hidden></p>
   <button type="button" id="clearObjectSelection" hidden>改为手动填写</button>
 </div>
+<div id="autoSightWrap" hidden>
+  <label for="autoSight"><input id="autoSight" type="checkbox" style="width:auto" aria-describedby="autoSightHint" disabled>自动打开景点点评</label>
+  <p class="hint" id="autoSightHint">将模拟器停在携程首页或该景点的点评页。自动搜索需要本地景点快照保存了地址。</p>
+</div>
 <label for="name" id="phoneNameLabel">对象名称</label><input id="name" placeholder="与手机页面标题完全一致"><p class="hint" id="phoneHint">保持手机解锁并打开对应页面。</p><div id="appDetails" hidden><div id="idField"><label for="resourceId">携程对象数字 ID</label><input id="resourceId" inputmode="numeric" placeholder="酒店或景点详情链接中的数字 ID"><p class="hint" id="resourceIdHint">ID 用于隔离不同对象，由操作者核对。程序尚不能确认当前手机页面属于该 ID。</p></div><div id="swipesField"><label for="swipes">手机评论滚动次数上限</label><input id="swipes" type="number" min="1" max="10000" value="1500"></div><div id="restaurantGalleryPagesWrap" hidden><label for="restaurantGalleryPages">点评图集页数上限</label><input id="restaurantGalleryPages" type="number" min="1" max="50" value="10" disabled></div></div></div>
 <div id="ocrForm" hidden>
 <label for="ocrFile">携程截图</label><input id="ocrFile" type="file" accept="image/png,image/jpeg">
@@ -200,6 +204,12 @@ function clearObjectSelection(){
   $('resourceIdHint').textContent=manualIdHint;
   $('objectEvidence').hidden=$('clearObjectSelection').hidden=true;
   $('objectEvidence').textContent='';
+  showSightNavigationOption();
+}
+function showSightNavigationOption(){
+  const available=$('mode').value==='app_reviews'&&selectedObject?.object.kind==='sight';
+  $('autoSightWrap').hidden=$('autoSight').disabled=!available;
+  $('autoSight').checked=false;
 }
 function selectedObjectRef(){
   if(selectedObject?.mode!==$('mode').value||selectedObject.object.kind!==objectPickerKind()){
@@ -256,6 +266,7 @@ objectOption.addEventListener('change',()=>{
   $('objectEvidence').textContent=evidence;
   $('objectEvidence').hidden=!evidence;
   $('clearObjectSelection').hidden=false;
+  showSightNavigationOption();
 });
 $('clearObjectSelection').addEventListener('click',()=>{
   clearObjectSelection();
@@ -395,7 +406,7 @@ async function submitOcr(){
   const state=await response.json();
   if(!response.ok)throw Error(state.error||'无法开始识别');
 }
-$('task').onsubmit=async e=>{e.preventDefault();pending=true;$('start').disabled=true;$('formError').textContent='';try{const mode=$('mode').value;if(mode==='screenshot_ocr'){await submitOcr();return}const objectRef=selectedObjectRef();await api('/api/start',{mode,urls:$('urls').value.split('\n').map(s=>s.trim()).filter(Boolean),...(objectRef?{object_ref:objectRef}:{name:mode==='app_page_fields'?$('pageFieldName').value:$('name').value,resource_id:$('resourceId').value}),field_archive_run:mode==='app_page_fields'?$('fieldArchiveRun').value:'',field_labels:mode==='app_page_fields'?$('fieldLabels').value.split('\n').map(label=>label.trim()).filter(Boolean):[],limit:Number($('limit').value),refresh:$('refreshExisting').checked,expand_sight_ai:mode==='sight_ai',save_sight_gallery_thumbnails:mode==='sight_ai'&&$('sightGallery').checked,save_review_thumbnails:mode==='app_reviews'&&['hotel','restaurant'].includes($('appKind').value)&&$('reviewThumbnails').checked,save_visible_ai:mode==='app_reviews'&&$('appKind').value==='hotel'&&$('reviewAi').checked,expand_reviews:mode==='app_reviews'&&$('appKind').value==='hotel'&&$('reviewExpand').checked,gallery_start_page:mode==='app_gallery'&&$('galleryStart').value!==''?Number($('galleryStart').value):null,gallery_display_fallback:mode==='app_gallery'&&$('galleryFallback').checked,resume_sight_gallery_run:mode==='sight_gallery'?$('sightGalleryResume').value:'',max_pages:Number($(mode==='restaurant_review_gallery'?'restaurantGalleryPages':'pages').value),hotel_max_pages:['app_hotel','app_hotel_list'].includes(mode)?Number($('hotelPages').value):1,restaurant_max_pages:mode==='app_restaurant_list'?Number($('restaurantPages').value):1,...(mode==='app_restaurant_detail'?{scan_recommended_dishes:$('scanRecommendedDishes').checked}:{}),shopping_max_pages:mode==='app_shopping_list'?Number($('shoppingPages').value):1,kind:mode==='auto_discovery'?$('discoveryKind').value:mode==='restaurant_review_gallery'?'restaurant':$('appKind').value,max_swipes:Number($('swipes').value),max_regions:Number($('regions').value),max_objects:Number($('objects').value),discovery_pages:Number($('discoveryPages').value),collect_discovered:mode==='resume_discovery'?$('resumeCollect').checked:$('collectDiscovered').checked,report_file:$('reportFile').value,graph_report:$('graphReport').value,graph_visits:Number($('graphVisits').value),source_file:$('sourceFile').value,media_limit:Number($('mediaLimit').value),capture_file:$('captureFile').value})}catch(error){$('formError').textContent=error.message}finally{pending=false;await refresh()}};
+$('task').onsubmit=async e=>{e.preventDefault();pending=true;$('start').disabled=true;$('formError').textContent='';try{const mode=$('mode').value;if(mode==='screenshot_ocr'){await submitOcr();return}const objectRef=selectedObjectRef();const autoOpenSight=mode==='app_reviews'&&$('appKind').value==='sight'&&objectRef&&$('autoSight').checked;await api('/api/start',{...(autoOpenSight?{auto_open_sight:true}:{}),mode,urls:$('urls').value.split('\n').map(s=>s.trim()).filter(Boolean),...(objectRef?{object_ref:objectRef}:{name:mode==='app_page_fields'?$('pageFieldName').value:$('name').value,resource_id:$('resourceId').value}),field_archive_run:mode==='app_page_fields'?$('fieldArchiveRun').value:'',field_labels:mode==='app_page_fields'?$('fieldLabels').value.split('\n').map(label=>label.trim()).filter(Boolean):[],limit:Number($('limit').value),refresh:$('refreshExisting').checked,expand_sight_ai:mode==='sight_ai',save_sight_gallery_thumbnails:mode==='sight_ai'&&$('sightGallery').checked,save_review_thumbnails:mode==='app_reviews'&&['hotel','restaurant'].includes($('appKind').value)&&$('reviewThumbnails').checked,save_visible_ai:mode==='app_reviews'&&$('appKind').value==='hotel'&&$('reviewAi').checked,expand_reviews:mode==='app_reviews'&&$('appKind').value==='hotel'&&$('reviewExpand').checked,gallery_start_page:mode==='app_gallery'&&$('galleryStart').value!==''?Number($('galleryStart').value):null,gallery_display_fallback:mode==='app_gallery'&&$('galleryFallback').checked,resume_sight_gallery_run:mode==='sight_gallery'?$('sightGalleryResume').value:'',max_pages:Number($(mode==='restaurant_review_gallery'?'restaurantGalleryPages':'pages').value),hotel_max_pages:['app_hotel','app_hotel_list'].includes(mode)?Number($('hotelPages').value):1,restaurant_max_pages:mode==='app_restaurant_list'?Number($('restaurantPages').value):1,...(mode==='app_restaurant_detail'?{scan_recommended_dishes:$('scanRecommendedDishes').checked}:{}),shopping_max_pages:mode==='app_shopping_list'?Number($('shoppingPages').value):1,kind:mode==='auto_discovery'?$('discoveryKind').value:mode==='restaurant_review_gallery'?'restaurant':$('appKind').value,max_swipes:Number($('swipes').value),max_regions:Number($('regions').value),max_objects:Number($('objects').value),discovery_pages:Number($('discoveryPages').value),collect_discovered:mode==='resume_discovery'?$('resumeCollect').checked:$('collectDiscovered').checked,report_file:$('reportFile').value,graph_report:$('graphReport').value,graph_visits:Number($('graphVisits').value),source_file:$('sourceFile').value,media_limit:Number($('mediaLimit').value),capture_file:$('captureFile').value})}catch(error){$('formError').textContent=error.message}finally{pending=false;await refresh()}};
 $('stop').onclick=async()=>{try{await api('/api/stop',{});await refresh()}catch(error){$('formError').textContent=error.message}};
 $('download').onclick=()=>{if(!lastResult)return;const url=URL.createObjectURL(new Blob([JSON.stringify(lastResult,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='采集报告.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
 logger.info('工作台表单绑定完成');
@@ -924,6 +935,8 @@ function renderMobileSampling(box,result){
   const line=text=>{const p=document.createElement('p');p.className='hint';p.textContent=text;panel.append(p)};
   const identityEvidence=objectEvidenceText(result);
   if(identityEvidence)line(identityEvidence);
+  if(result.sight_navigation==='opened')line('已核对景点名称和地址，并打开 App 点评。');
+  if(result.sight_navigation==='already_open')line('已在目标点评页，核对名称后直接采集。');
   const reasons={target_reached:'达到设置的条数',screen_budget_reached:'达到滚动次数上限',stalled_unverified:'页面重复或连续未识别点评，无法确认已到底',stopped_by_user:'收到停止请求',identity_unverified:'无法确认点评页面名称',review_filter_changed:'检测到页面筛选切换',review_screen_changed:'截图前后页面发生变化，已保留之前的结果',requires_manual_action:'页面需要手动处理',error:'读取中断'};
   if(reasons[result.reason])line('停止原因：'+reasons[result.reason]+'。');
   if(check){

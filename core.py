@@ -204,7 +204,7 @@ def shopping_review_row(nodes, width):
             'raw_texts': texts, 'card_fields': extract_card_fields('shopping', texts, content, rating)}
 
 
-def parse_reviews(xml, kind, *, locate_expansion=False, locate_media=False):
+def parse_reviews(xml, kind, *, locate_expansion=False, locate_media=False, locate_date=False):
     # /* ================================================================
     # 步骤1：定位完整评论卡片
     # 数据源：本次 XML；操作：1) 验证所属应用 2) 按日期和评分定位最近祖先
@@ -280,6 +280,8 @@ def parse_reviews(xml, kind, *, locate_expansion=False, locate_media=False):
                          'rating': rating, 'content': body,
                          'has_expand': '展开' in texts, 'raw_texts': texts,
                          'card_fields': fields})
+            if locate_date:
+                rows[-1]['review_date_bounds'] = bounds(date_node)
             if locate_media and tiles:
                 rows[-1]['media_tile_bounds'] = tiles
             if locate_expansion and kind == 'hotel':
