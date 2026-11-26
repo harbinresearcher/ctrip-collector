@@ -51,3 +51,24 @@ class RestaurantReviewTilesTests(unittest.TestCase):
         self.assertTrue(rows)
         self.assertTrue(all('media_tile_bounds' not in row for row in rows))
         self.assertTrue(all('photo_count_display' not in row['card_fields'] for row in rows))
+
+    def test_two_columns_with_a_badge_is_reported_as_unadapted(self):
+        # /* ===== 步骤3：未知布局；数据源：两列图片行 + 徽标；操作：1) 记未适配 2) 不当作没有图片 ===== */
+        # 3.0 已验证的两列行只有 2 个子节点；这里补上徽标背景与标签，做成 4 个子节点的未知形态。
+        frame = ET.fromstring(FRAMES['confirmed'])
+        row = next(node for node in frame.iter('node')
+                   if node.get('class') == 'android.view.ViewGroup' and len(node) == 2
+                   and node[0].get('class') == 'android.widget.ImageView')
+        left, top, right, bottom = 34, 1436, 1046, 1937
+        ET.SubElement(row, 'node', {
+            'package': 'ctrip.android.view', 'class': 'android.view.ViewGroup',
+            'bounds': f'[{right - 93},{bottom - 42}][{right},{bottom}]'})
+        ET.SubElement(row, 'node', {
+            'package': 'ctrip.android.view', 'class': 'android.widget.TextView', 'text': '11图',
+            'bounds': f'[{right - 77},{bottom - 40}][{right - 17},{bottom - 2}]'})
+        rows = parse_reviews(ET.tostring(frame, encoding='unicode'), 'restaurant', locate_media=True)
+        # 3.1 这一行必须被记为未适配，而不是「这条点评没有图片」。
+        self.assertEqual(len(row), 4)
+        self.assertTrue(rows)
+        self.assertTrue(any(entry.get('card_fields', {}).get('media_layout_unrecognized') == 1 for entry in rows))
+        self.assertTrue(all('media_tile_bounds' not in entry for entry in rows))

@@ -7,7 +7,8 @@ logger = logging.getLogger(__name__)
 SIGHT_COUNT_FIELDS = ('photo_count_display', 'helpful_count_display', 'thread_comment_count_display')
 SCOPED_COUNT_FIELDS = {'sight': SIGHT_COUNT_FIELDS, 'restaurant': ('photo_count_display',)}
 CARD_FIELDS = ('room_type', 'travel_type', 'visit_duration', 'verified_purchase_visible', 'hotel_reply',
-               'helpful_count_display', 'media_tiles_visible', 'photo_count_display', 'thread_comment_count_display')
+               'helpful_count_display', 'media_tiles_visible', 'photo_count_display', 'thread_comment_count_display',
+               'media_layout_unrecognized')
 SHOPPING_RATING_FIELDS = {'商品': 'shopping_product_score', '环境': 'shopping_environment_score',
                           '服务': 'shopping_service_score'}
 SHOPPING_CARD_FIELDS = (*SHOPPING_RATING_FIELDS.values(), 'shopping_reaction_count_display')

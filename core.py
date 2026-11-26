@@ -92,20 +92,25 @@ def visible_restaurant_review_tiles(card, body, parents):
     scroll = parents.get(column)
     if (column is None or column.get('package') != APP or scroll is None or scroll.get('package') != APP
             or scroll.get('class') != 'android.widget.ScrollView' or scroll.get('scrollable') != 'true'):
-        return None, None
+        return None, None, False
 
     left, top, right, bottom = bounds(scroll)
     _, card_top, _, card_bottom = bounds(card)
     text_left, _, text_right, text_bottom = bounds(body)
     text_width = text_right - text_left
     rows = []
+    unrecognized = False
     for group in card:
-        if (group.get('package') != APP or group.get('class') != 'android.view.ViewGroup'
-                or len(group) not in (2, 3, 5)):
+        if group.get('package') != APP or group.get('class') != 'android.view.ViewGroup':
             continue
         x, y, r, b = bounds(group)
         if (not (left <= x < r <= right and max(top, card_top, text_bottom) <= y < b <= min(bottom, card_bottom))
                 or abs(x - text_left) > 2 or abs(r - text_right) > 2):
+            continue
+        if len(group) not in (2, 3, 5):
+            # 2.4 位置像图片行但子节点数不在已验证范围（如两列 + 图片数徽标共 4 个）：
+            #     记为未适配，不能表现成「这条点评没有图片」。
+            unrecognized = True
             continue
         columns = 2 if len(group) == 2 else 3
         minimum, maximum = (.44, .52) if columns == 2 else (.28, .35)
@@ -138,7 +143,9 @@ def visible_restaurant_review_tiles(card, body, parents):
             # The badge itself obscures part of the final preview; crop only the unobstructed two.
             tiles.pop()
         rows.append((tiles, displayed))
-    return rows[0] if len(rows) == 1 else (None, None)
+    if len(rows) == 1:
+        return rows[0][0], rows[0][1], False
+    return None, None, unrecognized
 
 
 def shopping_review_rows(root):
@@ -261,9 +268,11 @@ def parse_reviews(xml, kind, *, locate_expansion=False, locate_media=False):
                     fields.setdefault(field, value)
             tiles = visible_hotel_review_tiles(card, body_nodes[0]) if kind == 'hotel' else None
             if kind == 'restaurant':
-                tiles, photo_count = visible_restaurant_review_tiles(card, body_nodes[0], parents)
+                tiles, photo_count, unrecognized = visible_restaurant_review_tiles(card, body_nodes[0], parents)
                 if photo_count is not None:
                     fields['photo_count_display'] = photo_count
+                if unrecognized:
+                    fields['media_layout_unrecognized'] = 1
             if tiles:
                 fields['media_tiles_visible'] = len(tiles)
             rows.append({'author': author, 'date': date_node.get('text'),
