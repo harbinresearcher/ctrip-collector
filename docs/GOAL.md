@@ -133,6 +133,24 @@ python app.py --drive --output <目录> --workers 2 --rounds 3 --limit 200 --gap
 - 单测 5 项（默认串行不变 / 2 线程都跑到 / 配额在并发下不超发 / 一个线程失败触发整体停止 /
   取消信号能终止其余线程），不触网。
 
+### C1g 页面结构指纹与布局版本（下一步）
+
+目标：App 或网页改版后，报告能直接说出「**哪一类页面的结构变了**」，而不是只留下 0 条。
+
+验收：
+
+- 新增只读的指纹函数（例如 `layout_fingerprint.py`）：对一份 UI XML 只取**结构**
+  （层级、class、resource-id 尾段、是否有文字），不算正文，得到稳定短哈希；
+  同一页面重复计算必须一致，只改文字不改结构时指纹不变；
+- 基线文件 `tests/layout_baselines.json` 由真实 fixture 生成并纳入版本管理；
+  新增一项测试：从 fixture 重算的指纹必须等于基线（页面改版会强制更新基线）；
+- 采集报告新增 `layout: {family, fingerprint, expected, version, changed}`；
+  `changed=true` 时报告 `layout_changed: true` 并写明期望/实际指纹，
+  但**不因此中断采集**（数据仍可能解析成功）；
+- 至少覆盖两类采集：手机点评（`runner.collect`）与网页点评（`network.collect_network`）；
+- 单测 4 项（结构相同指纹相同 / 只改文字指纹不变 / 改结构 → `changed=true` /
+  基线由 fixture 重算一致），不触网不连设备。
+
 ### C1 覆盖台账与缺口对账
 
 - 新增只读命令 `python app.py --audit --output <输出目录>`，输出 JSON，包含：
