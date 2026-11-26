@@ -48,6 +48,45 @@ class RunnerTests(unittest.TestCase):
             self.assertEqual(report['new_count'], 1)
             adb.run.assert_not_called()
 
+    def test_rerun_keeps_counts_and_samples_consistent(self):
+        # /* ===== 步骤2：端到端一致；数据源：真实酒店样本两屏；操作：1) 同一对象采两轮 2) 三方计数对齐 ===== */
+        logger.info('开始采集计数一致检查')
+        from contextlib import closing
+        import sqlite3
+        fixtures = Path(__file__).parent / 'fixtures'
+        first = (fixtures / 'hotel-comments.xml').read_text('utf-8')
+        second = (fixtures / 'hotel-comments2.xml').read_text('utf-8')
+
+        def run(folder):
+            adb = Mock()
+            adb.snapshot.side_effect = [first, second, second, second, second, second]
+            stop = Mock(is_set=lambda: False, wait=Mock(return_value=False))
+            return collect(adb, 'hotel', '测试酒店', folder, max_swipes=1, stop=stop, object_id='123')
+
+        def records(path):
+            with open(path, encoding='utf-8-sig', newline='') as stream:
+                return list(csv.DictReader(stream))
+
+        with tempfile.TemporaryDirectory() as folder:
+            one = run(folder)
+            with closing(sqlite3.connect(Path(folder) / 'reviews.sqlite3')) as db:
+                rows = db.execute('SELECT COUNT(*) FROM reviews_scoped').fetchone()[0]
+                keys = {row[0] for row in db.execute('SELECT key FROM reviews_scoped')}
+            sample, cumulative = records(one['sample_csv']), records(one['csv'])
+            # 2.1 报告计数、数据库行、本任务样本、累计导出四者必须一致。
+            self.assertEqual((one['count'], rows, len(sample), len(cumulative)), (2, 2, 2, 2))
+            self.assertEqual({row['key'] for row in sample} | {row['key'] for row in cumulative}, keys)
+            self.assertEqual(len({row['key'] for row in cumulative}), 2)
+            # 2.2 同一对象再采一轮：没有新评论，但本次任务样本仍是这两条，累计不重复。
+            two = run(folder)
+            with closing(sqlite3.connect(Path(folder) / 'reviews.sqlite3')) as db:
+                rows = db.execute('SELECT COUNT(*) FROM reviews_scoped').fetchone()[0]
+                runs = db.execute('SELECT COUNT(*) FROM mobile_review_runs').fetchone()[0]
+            self.assertEqual((two['new_count'], two['count'], rows, runs), (0, 2, 2, 2))
+            self.assertEqual(len(records(two['sample_csv'])), 2)
+            self.assertEqual(len(records(two['csv'])), 2)
+        logger.info('采集计数一致检查完成')
+
     def test_foreign_window_cannot_supply_missing_page_label(self):
         # /* ===== 步骤1：核验页面标签来源；数据源：混合窗口；操作：1) 移除携程标签 2) 拒绝外部代替 ===== */
         logger.info('开始混合窗口标签检查')
