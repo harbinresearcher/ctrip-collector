@@ -16,8 +16,11 @@ MAX_TILES = 300
 
 
 class ReviewThumbnails:
-    def __init__(self, folder, run_id):
-        self.path = Path(folder) / f'hotel-review-thumbnails-{run_id}.zip'
+    def __init__(self, folder, run_id, *, kind='hotel'):
+        if kind not in ('hotel', 'restaurant'):
+            raise ValueError('点评缩略图仅支持酒店和餐厅')
+        self.path = Path(folder) / f'{kind}-review-thumbnails-{run_id}.zip'
+        self.kind = kind
         self.run_id = run_id
         self.staged = self.path.with_suffix('.part')
         self.items = []
@@ -75,14 +78,14 @@ class ReviewThumbnails:
             self.skipped_screens += 1
             logger.warning('点评缩略图本屏未全部保存', exc_info=True)
 
-    def finish(self):
+    def finish(self, *, identity_verification='operator_declared_unverified'):
         ready = False
         if self.archive is not None:
             try:
                 with self.archive as archive:
-                    manifest = {'run_id': self.run_id, 'source': 'hotel_review_display_crops',
-                                'sample_csv': f'hotel-sample-{self.run_id}.csv',
-                                'identity_verification': 'operator_declared_unverified',
+                    manifest = {'run_id': self.run_id, 'source': f'{self.kind}_review_display_crops',
+                                'sample_csv': f'{self.kind}-sample-{self.run_id}.csv',
+                                'identity_verification': identity_verification,
                                 'complete': False, 'original_files': False, 'thumbnails': self.items}
                     archive.writestr('manifest.json', json.dumps(manifest, ensure_ascii=False, indent=2))
                 self.staged.replace(self.path)

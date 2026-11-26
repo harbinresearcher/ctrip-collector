@@ -294,14 +294,14 @@ def create_server(output, adb_path=None, port=8765, *, adb_serial=None):
             elif urlsplit(self.path).path == '/api/review-thumbnails':
                 run = parse_qs(urlsplit(self.path).query).get('run', [''])[0]
                 try:
-                    stream = open_review_thumbnails(output, manager.snapshot(), run)
+                    stream, filename = open_review_thumbnails(output, manager.snapshot(), run)
                 except (ValueError, OSError) as exc:
-                    self.reply(404, {'error': str(exc) if isinstance(exc, ValueError) else '缩略图文件不可用'})
+                    self.reply(404, {'error': str(exc) if isinstance(exc, ValueError) else '点评图片文件不可用'})
                     return
                 with stream:
                     self.send_response(200)
                     self.send_header('Content-Type', 'application/zip')
-                    self.send_header('Content-Disposition', 'attachment; filename="hotel-review-thumbnails.zip"')
+                    self.send_header('Content-Disposition', f'attachment; filename="{filename}"')
                     self.send_header('Content-Length', str(os.fstat(stream.fileno()).st_size))
                     self.send_header('Cache-Control', 'no-store')
                     self.send_header('X-Content-Type-Options', 'nosniff')

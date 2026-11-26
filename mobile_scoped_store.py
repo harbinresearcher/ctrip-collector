@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from itertools import islice
 from pathlib import Path
 
-from mobile_review_fields import CARD_FIELDS, SHOPPING_CARD_FIELDS, SIGHT_COUNT_FIELDS, resolve_card_fields
+from mobile_review_fields import CARD_FIELDS, SCOPED_COUNT_FIELDS, SHOPPING_CARD_FIELDS, resolve_card_fields
 
 logger = logging.getLogger(__name__)
 MOBILE_REVIEW_RUN_ID = re.compile(r'[0-9]{8}T[0-9]{6}-[a-f0-9]{6}')
@@ -51,7 +51,8 @@ class MobileScopedStore:
                 self.db.execute('''CREATE TABLE IF NOT EXISTS reviews_scoped_media (
                     review_key TEXT PRIMARY KEY, visible_tiles INTEGER NOT NULL, source TEXT NOT NULL,
                     FOREIGN KEY(review_key) REFERENCES reviews_scoped(key))''')
-                if self.kind == 'sight':
+                if self.kind in SCOPED_COUNT_FIELDS:
+                    # Keep the historical table name and schema for existing databases.
                     self.db.execute('''CREATE TABLE IF NOT EXISTS reviews_scoped_sight_counts (
                         review_key TEXT NOT NULL, field TEXT NOT NULL, value INTEGER NOT NULL, source TEXT NOT NULL,
                         PRIMARY KEY(review_key, field),
@@ -117,8 +118,8 @@ class MobileScopedStore:
                 if observed_keys is not None:
                     observed_keys.setdefault(key, source)
                 self._save_media_tiles(key, row, source)
-                if self.kind == 'sight':
-                    self._save_sight_counts(key, row, source)
+                if self.kind in SCOPED_COUNT_FIELDS:
+                    self._save_display_counts(key, row, source)
                 # 1.2 老记录第一次再次出现时，先补记原始状态和原采集时间。
                 last = self.db.execute('''SELECT rating,has_expand,raw_texts FROM reviews_scoped_observations
                     WHERE review_key=? ORDER BY observation_id DESC LIMIT 1''', (key,)).fetchone()
@@ -144,16 +145,16 @@ class MobileScopedStore:
 
     def _save_media_tiles(self, key, row, source):
         count = row.get('card_fields', {}).get('media_tiles_visible')
-        if self.kind == 'hotel' and type(count) is int and count > 0:
+        if self.kind in ('hotel', 'restaurant') and type(count) is int and count > 0:
             self.db.execute('''INSERT INTO reviews_scoped_media VALUES (?,?,?)
                 ON CONFLICT(review_key) DO UPDATE SET visible_tiles=excluded.visible_tiles, source=excluded.source
                 WHERE excluded.visible_tiles > reviews_scoped_media.visible_tiles''', (key, count, source))
 
-    def _save_sight_counts(self, key, row, source):
+    def _save_display_counts(self, key, row, source):
         fields = row.get('card_fields', {})
         self.db.executemany('''INSERT INTO reviews_scoped_sight_counts VALUES (?,?,?,?)
             ON CONFLICT(review_key,field) DO UPDATE SET value=excluded.value, source=excluded.source''',
-            [(key, field, value, source) for field in SIGHT_COUNT_FIELDS
+            [(key, field, value, source) for field in SCOPED_COUNT_FIELDS[self.kind]
              if type(value := fields.get(field)) is int and 0 <= value < 1_000_000_000])
 
     def review_key(self, row):
@@ -227,7 +228,9 @@ def write_review_csv(db, kind, scope, output, observed_keys):
     else:
         rows = sample_rows(db, query, params, observed_keys)
         extra_cols = ['run_order', 'run_first_seen_source']
-    sight_counts_available = kind == 'sight' and db.execute(
+    media_available = kind in ('hotel', 'restaurant') and db.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='reviews_scoped_media'").fetchone()
+    sight_counts_available = kind in SCOPED_COUNT_FIELDS and db.execute(
         "SELECT 1 FROM sqlite_master WHERE type='table' AND name='reviews_scoped_sight_counts'").fetchone()
     card_columns = (*CARD_FIELDS, *SHOPPING_CARD_FIELDS) if kind == 'shopping' else CARD_FIELDS
     writer = csv.writer(output)
@@ -236,7 +239,7 @@ def write_review_csv(db, kind, scope, output, observed_keys):
         record = dict(zip(columns, row))
         fields = resolve_card_fields(db, kind, record['key'], record['content'],
                                      record['raw_texts'], record['rating'], observed=True,
-                                     media_available=True, sight_counts_available=sight_counts_available)
+                                     media_available=media_available, sight_counts_available=sight_counts_available)
         expanded = db.execute('SELECT expanded_content FROM reviews_scoped_expansions WHERE review_key=?',
                                    (record['key'],)).fetchone()
         values = [*row, *(fields.get(field) for field in card_columns), expanded[0] if expanded else '']

@@ -64,6 +64,25 @@ class AppJobsTests(unittest.TestCase):
             factory.assert_not_called()
         logger.info('评论对象 ID 检查完成')
 
+    def test_only_hotel_and_restaurant_review_jobs_can_request_photo_crops(self):
+        stop, emit = Event(), MagicMock()
+        request = {'mode': 'app_reviews', 'name': '对象', 'resource_id': '123', 'limit': 7,
+                   'max_swipes': 20, 'save_review_thumbnails': True}
+        with TemporaryDirectory() as folder, patch('workbench_app_jobs.Adb') as factory, \
+             patch('workbench_app_jobs.collect') as collect:
+            device = factory.return_value.__enter__.return_value
+            for kind in ('hotel', 'restaurant'):
+                with self.subTest(kind=kind):
+                    job = prepare_app_job(dict(request, kind=kind), folder, 'adb.exe')
+                    self.assertIs(job(stop, emit), collect.return_value)
+                    collect.assert_called_with(device, kind, '对象', Path(folder).resolve(), 7, 20, stop,
+                                               emit, object_id='123', save_review_thumbnails=True, refresh=True)
+            for overrides in ({'kind': 'sight'}, {'kind': 'shopping'}, {'mode': 'app_ai'}, {'mode': 'app_gallery'},
+                              {'kind': 'restaurant', 'save_review_thumbnails': 'true'}):
+                with self.subTest(overrides=overrides), self.assertRaises(ValueError):
+                    prepare_app_job(dict(request, **overrides), folder, 'adb.exe')
+            self.assertEqual(factory.call_count, 2)
+
     def test_error_and_interrupted_state_are_not_marked_success(self):
         # /* ===== 步骤1：核验异常；数据源：采集器失败；操作：1) 保存错误 2) 取消正确传递 ===== */
         logger.info('开始异常状态测试')

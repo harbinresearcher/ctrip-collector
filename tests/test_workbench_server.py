@@ -51,6 +51,56 @@ class ServerTests(unittest.TestCase):
                 server.server_close()
                 thread.join(3)
 
+    def test_current_review_image_archive_matches_review_kind_and_run(self):
+        from zipfile import ZipFile
+
+        with TemporaryDirectory() as folder:
+            root = Path(folder)
+            server = create_server(root, port=0)
+            thread = Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            conn = http.client.HTTPConnection('127.0.0.1', server.server_port, timeout=3)
+            try:
+                run = '20261125T010203-abcdef'
+                names = {kind: f'{kind}-review-thumbnails-{run}.zip' for kind in ('hotel', 'restaurant')}
+                for kind, name in names.items():
+                    with ZipFile(root / name, 'w') as archive:
+                        archive.writestr('manifest.json', json.dumps({'kind': kind}))
+                for kind, name in names.items():
+                    with self.subTest(kind=kind):
+                        result = {'kind': kind, 'run_id': run, 'reason': 'cancelled',
+                                  'review_thumbnails': {'archive': name}}
+                        server.manager.start(lambda stop, emit: result)
+                        server.manager.worker.join(3)
+                        conn.request('GET', f'/api/review-thumbnails?run={run}')
+                        response = conn.getresponse()
+                        content = response.read()
+                        self.assertEqual(response.status, 200)
+                        self.assertEqual(response.getheader('Content-Type'), 'application/zip')
+                        self.assertEqual(response.getheader('Content-Disposition'),
+                                         f'attachment; filename="{kind}-review-thumbnails.zip"')
+                        self.assertEqual(content, (root / name).read_bytes())
+                for report, requested_run in (
+                    (result, '../' + run),
+                    (result, '20261125T010203-abcdee'),
+                    ({**result, 'kind': 'shopping'}, run),
+                    ({**result, 'review_thumbnails': {'archive': names['hotel']}}, run),
+                    ({**result, 'review_thumbnails': {'archive': '../' + names['restaurant']}}, run),
+                    ({**result, 'review_thumbnails': [names['restaurant']]}, run),
+                ):
+                    with self.subTest(report=report, run=requested_run):
+                        server.manager.start(lambda stop, emit: report)
+                        server.manager.worker.join(3)
+                        conn.request('GET', f'/api/review-thumbnails?run={requested_run}')
+                        response = conn.getresponse()
+                        response.read()
+                        self.assertEqual(response.status, 404)
+            finally:
+                conn.close()
+                server.shutdown()
+                server.server_close()
+                thread.join(3)
+
     def test_current_sight_photo_gallery_zip_download(self):
         from io import BytesIO
         from zipfile import ZipFile

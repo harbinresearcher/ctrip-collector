@@ -5,6 +5,7 @@ import re
 
 logger = logging.getLogger(__name__)
 SIGHT_COUNT_FIELDS = ('photo_count_display', 'helpful_count_display', 'thread_comment_count_display')
+SCOPED_COUNT_FIELDS = {'sight': SIGHT_COUNT_FIELDS, 'restaurant': ('photo_count_display',)}
 CARD_FIELDS = ('room_type', 'travel_type', 'visit_duration', 'verified_purchase_visible', 'hotel_reply',
                'helpful_count_display', 'media_tiles_visible', 'photo_count_display', 'thread_comment_count_display')
 SHOPPING_RATING_FIELDS = {'商品': 'shopping_product_score', '环境': 'shopping_environment_score',
@@ -135,10 +136,11 @@ def resolve_card_fields(db, kind, key, content, raw_texts, rating, observed, *, 
             if expected.issubset(available):
                 break
         fields.update(available)
-    if media_available and kind == 'hotel' and key:
+    if media_available and kind in ('hotel', 'restaurant') and key:
         row = db.execute('SELECT visible_tiles FROM reviews_scoped_media WHERE review_key=?', (key,)).fetchone()
         if row:
             fields['media_tiles_visible'] = row[0]
-    if sight_counts_available and kind == 'sight' and key:
-        fields.update(db.execute('SELECT field, value FROM reviews_scoped_sight_counts WHERE review_key=?', (key,)))
+    if sight_counts_available and key and (count_fields := SCOPED_COUNT_FIELDS.get(kind)):
+        counts = db.execute('SELECT field, value FROM reviews_scoped_sight_counts WHERE review_key=?', (key,))
+        fields.update((field, value) for field, value in counts if field in count_fields)
     return fields

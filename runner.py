@@ -282,13 +282,13 @@ def collect(adb, kind, place, folder, limit=500, max_swipes=1500, stop=None, pro
         raise ValueError('重新读取需要按对象编号保存的手机点评任务')
     if save_visible_ai and (kind != 'hotel' or object_id is None):
         raise ValueError('首屏 AI 总结需要按对象编号保存的酒店点评任务')
-    if save_review_thumbnails and (kind != 'hotel' or object_id is None):
-        raise ValueError('点评缩略图需要按对象编号保存的酒店点评任务')
+    if save_review_thumbnails and (kind not in ('hotel', 'restaurant') or object_id is None):
+        raise ValueError('点评缩略图需要按对象编号保存的酒店或餐厅点评任务')
     stop = stop or threading.Event()
     progress = progress or (lambda message: logger.info('%s', message))
     folder = Path(folder)
     run_id = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S') + '-' + uuid.uuid4().hex[:6]
-    thumbnails = ReviewThumbnails(folder, run_id) if save_review_thumbnails else None
+    thumbnails = ReviewThumbnails(folder, run_id, kind=kind) if save_review_thumbnails else None
     sample_orders = {}
     raw = folder / 'raw' / run_id
     raw.mkdir(parents=True)
@@ -516,9 +516,6 @@ def collect(adb, kind, place, folder, limit=500, max_swipes=1500, stop=None, pro
                 report.update(refresh_requested=True, target_scope='current_run', read_unique=len(observed_keys))
             if first_screen_ai is not None:
                 report['first_screen_ai'] = first_screen_ai
-            if thumbnails:
-                report['review_thumbnails'] = thumbnails.finish()
-                report['limitations'].append('缩略图为点评卡片中的屏幕裁图，不是原图或视频')
             if contexts:
                 report['sampling_context'] = {'selected_filter': selected_filter, 'sort_order': sort_order,
                                               'observations': contexts, 'rejected_context': rejected_context,
@@ -534,6 +531,9 @@ def collect(adb, kind, place, folder, limit=500, max_swipes=1500, stop=None, pro
                 report['identity_checked_screens'] = title_verified_screens
                 report['existing_count'] = initial
                 report['limitations'][5] = '仅按本次屏幕标题核对名称；未核验对象 ID、同名对象或旧库数据'
+            if thumbnails:
+                report['review_thumbnails'] = thumbnails.finish(identity_verification=report['identity_verification'])
+                report['limitations'].append('缩略图为点评卡片中的屏幕裁图，不是原图或视频')
             (folder / f'report-{run_id}.json').write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
             if scoped:
                 store.finish_run(run_id, reason)

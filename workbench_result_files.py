@@ -5,6 +5,8 @@ import re
 import stat
 from pathlib import Path
 
+from mobile_scoped_store import MOBILE_REVIEW_RUN_ID
+
 logger = logging.getLogger(__name__)
 HOTEL_REPORT = re.compile(r'app-hotel-[a-f0-9]{32}\.json')
 
@@ -44,13 +46,17 @@ def open_review_thumbnails(output, snapshot, run):
     result = snapshot.get('result')
     if (snapshot.get('status') not in {'finished', 'cancelled', 'error'}
             or not isinstance(result, dict) or result.get('run_id') != run
-            or not re.fullmatch(r'[0-9]{8}T[0-9]{6}-[a-f0-9]{6}', run)):
-        raise ValueError('当前任务没有对应的点评缩略图')
-    name = f'hotel-review-thumbnails-{run}.zip'
-    if (result.get('review_thumbnails') or {}).get('archive') != name:
-        raise ValueError('当前任务没有保存点评缩略图')
+            or not isinstance(run, str) or not MOBILE_REVIEW_RUN_ID.fullmatch(run)):
+        raise ValueError('当前任务没有对应的点评图片')
+    kind = result.get('kind')
+    if kind not in ('hotel', 'restaurant'):
+        raise ValueError('当前任务不支持点评图片下载')
+    name = f'{kind}-review-thumbnails-{run}.zip'
+    metadata = result.get('review_thumbnails')
+    if not isinstance(metadata, dict) or metadata.get('archive') != name:
+        raise ValueError('当前任务没有保存点评图片')
     root = Path(output).resolve()
-    return open_output_file(root, root / name)
+    return open_output_file(root, root / name), f'{kind}-review-thumbnails.zip'
 
 
 def open_sight_gallery(output, snapshot, report_id):

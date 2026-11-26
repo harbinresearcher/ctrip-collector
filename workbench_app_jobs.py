@@ -51,8 +51,8 @@ def prepare_app_job(request, output, adb_path, *, adb_serial=None):
     if type(save_visible_ai) is not bool or (save_visible_ai and (mode != 'app_reviews' or kind != 'hotel')):
         raise ValueError('首屏 AI 总结仅用于酒店点评任务')
     if type(save_review_thumbnails) is not bool or (save_review_thumbnails and
-                                                    (mode != 'app_reviews' or kind != 'hotel')):
-        raise ValueError('点评缩略图仅用于酒店点评任务')
+                                                    (mode != 'app_reviews' or kind not in {'hotel', 'restaurant'})):
+        raise ValueError('点评图片仅用于酒店或餐厅点评任务')
     if type(swipes) is not int or not 1 <= swipes <= 800000:
         raise ValueError('滑动次数须为1至800000')
     name, folder = name.strip(), Path(output).resolve()

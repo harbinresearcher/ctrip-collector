@@ -66,6 +66,81 @@ def visible_hotel_review_tiles(card, body):
     return candidates[0] if len(candidates) == 1 else None
 
 
+def restaurant_photo_badge(nodes, tile):
+    background, label = nodes
+    if (background.get('package') != APP or background.get('class') != 'android.view.ViewGroup'
+            or label.get('package') != APP or label.get('class') != 'android.widget.TextView'
+            or len(background) or len(label) or background.get('text', '').strip()
+            or any(node.get(attribute, '').strip() for node in nodes
+                   for attribute in ('content-desc', 'resource-id'))):
+        return None
+    match = re.fullmatch(r'([1-9][0-9]{0,8})图', label.get('text', ''))
+    if not match:
+        return None
+    x, y, r, b = bounds(background)
+    tx, ty, tr, tb = tile
+    lx, ly, lr, lb = bounds(label)
+    # The confirmed counter covers the lower-right corner of the final image.
+    if (tx <= x <= lx < lr <= r == tr and ty <= y <= ly < lb <= b == tb
+            and r - x <= .4 * (tr - tx) and b - y <= .25 * (tb - ty) and int(match[1]) > 3):
+        return int(match[1])
+    return None
+
+
+def visible_restaurant_review_tiles(card, body, parents):
+    column = parents.get(card)
+    scroll = parents.get(column)
+    if (column is None or column.get('package') != APP or scroll is None or scroll.get('package') != APP
+            or scroll.get('class') != 'android.widget.ScrollView' or scroll.get('scrollable') != 'true'):
+        return None, None
+
+    left, top, right, bottom = bounds(scroll)
+    _, card_top, _, card_bottom = bounds(card)
+    text_left, _, text_right, text_bottom = bounds(body)
+    text_width = text_right - text_left
+    rows = []
+    for group in card:
+        if (group.get('package') != APP or group.get('class') != 'android.view.ViewGroup'
+                or len(group) not in (2, 3, 5)):
+            continue
+        x, y, r, b = bounds(group)
+        if (not (left <= x < r <= right and max(top, card_top, text_bottom) <= y < b <= min(bottom, card_bottom))
+                or abs(x - text_left) > 2 or abs(r - text_right) > 2):
+            continue
+        columns = 2 if len(group) == 2 else 3
+        minimum, maximum = (.44, .52) if columns == 2 else (.28, .35)
+        tiles = []
+        for cell in group[:columns]:
+            box = bounds(cell)
+            photo = cell
+            if cell.get('class') == 'android.view.ViewGroup' and len(cell) == 1:
+                photo = cell[0]
+            tl, tt, tr, tb = box
+            width = tr - tl
+            if (cell.get('package') != APP or photo.get('package') != APP
+                    or photo.get('class') != 'android.widget.ImageView'
+                    or photo.get('resource-id') != 'image' or photo.get('content-desc') != 'image'
+                    or bounds(photo) != box or x > tl or tr > r or [tt, tb] != [y, b]
+                    or not minimum * text_width <= width <= maximum * text_width or abs(width - (tb - tt)) > 2):
+                break
+            tiles.append(tuple(box))
+        if len(tiles) != columns:
+            continue
+        tiles.sort()
+        if (tiles[0][0] != x or tiles[-1][2] != r or any(
+                not 0 < next_tile[0] - tile[2] <= .08 * text_width for tile, next_tile in zip(tiles, tiles[1:]))):
+            continue
+        displayed = None
+        if len(group) == 5:
+            displayed = restaurant_photo_badge(group[columns:], tiles[-1])
+            if displayed is None:
+                continue
+            # The badge itself obscures part of the final preview; crop only the unobstructed two.
+            tiles.pop()
+        rows.append((tiles, displayed))
+    return rows[0] if len(rows) == 1 else (None, None)
+
+
 def shopping_review_rows(root):
     rows = []
     for scroll in root.iter('node'):
@@ -185,6 +260,10 @@ def parse_reviews(xml, kind, *, locate_expansion=False, locate_media=False):
                     # A numbered control in the visible card takes precedence over the accessibility description.
                     fields.setdefault(field, value)
             tiles = visible_hotel_review_tiles(card, body_nodes[0]) if kind == 'hotel' else None
+            if kind == 'restaurant':
+                tiles, photo_count = visible_restaurant_review_tiles(card, body_nodes[0], parents)
+                if photo_count is not None:
+                    fields['photo_count_display'] = photo_count
             if tiles:
                 fields['media_tiles_visible'] = len(tiles)
             rows.append({'author': author, 'date': date_node.get('text'),
