@@ -83,6 +83,31 @@ class HotelDiscoveryTests(unittest.TestCase):
             collect.assert_called_once_with('https://hotels.ctrip.com/hotel/shanghai2', 'unused', 2, 20)
         logger.info('酒店目录入口测试完成')
 
+    def test_checkpoint_write_failure_keeps_collected_hotels(self):
+        # /* ===== 步骤4：核对报告写入；数据源：模拟替换失败；操作：1) 保留已核对清单 2) 不留临时文件 ===== */
+        logger.info('开始酒店目录写入失败测试')
+        page = DirectoryPage(response([card(1), card(2)]))
+        original = Path.replace
+        calls = {'json': 0}
+        def replace(path, destination):
+            if destination.suffix == '.json':
+                calls['json'] += 1
+                if calls['json'] >= 3:
+                    raise OSError('模拟磁盘写入失败')
+            return original(path, destination)
+        with tempfile.TemporaryDirectory() as folder, patch.object(Path, 'replace', replace):
+            result = discover_hotels_page(page, 'https://hotels.ctrip.com/hotel/shanghai2', folder, 2, 10)
+            # 4.1 每条翻页都会写一次报告；写不进去时清单仍要返回，失败写进 export_error。
+            self.assertEqual([x['resource_id'] for x in result['objects']], [1, 2])
+            self.assertTrue(result.get('export_error'))
+            # 4.2 磁盘上保留最后一次完整写入（第二页），内容可以被重新读取。
+            saved = [item for item in Path(folder).iterdir() if item.suffix == '.json']
+            self.assertEqual(len(saved), 1)
+            self.assertEqual(len(json.loads(saved[0].read_text(encoding='utf-8'))['objects']), 2)
+            self.assertEqual(list(Path(folder).glob('*.tmp')), [])
+        self.assertEqual(page.listeners, [])
+        logger.info('酒店目录写入失败测试完成')
+
     def test_browser_pages_checkpoint_and_deduplicate(self):
         # /* ===== 步骤3：核对浏览器分页；数据源：模拟事件；操作：1) 连续页码去重 2) 清理监听并保存清单 ===== */
         logger.info('开始酒店分页测试')

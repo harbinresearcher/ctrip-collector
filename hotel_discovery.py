@@ -5,6 +5,7 @@ import json
 import logging
 import re
 import time
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import Event
@@ -115,6 +116,20 @@ def hotel_initial(html, city):
     return None
 
 
+def save_report(stem, report):
+    # /* ===== 步骤1：原子保存目录报告；数据源：当前清单；操作：1) 唯一临时文件 2) 写完再替换 ===== */
+    # 1.1 每页都会重写这份报告；写到一半被打断不能留下半个 JSON。
+    for suffix, content in (('.txt', ''.join(item['url'] + '\n' for item in report['objects'])),
+                            ('.json', json.dumps(report, ensure_ascii=False, indent=2))):
+        target = stem.with_suffix(suffix)
+        temporary = target.with_name(target.name + '.' + uuid.uuid4().hex + '.tmp')
+        try:
+            temporary.write_text(content, encoding='utf-8')
+            temporary.replace(target)
+        finally:
+            temporary.unlink(missing_ok=True)
+
+
 def discover_hotels_page(page, url, output, max_pages=5, max_objects=50, stop=None,
                          login_timeout=300, page_timeout=30):
     # /* ===== 步骤3：建立酒店目录任务；数据源：城市入口；操作：1) 限制预算 2) 监听正常翻页 ===== */
@@ -140,8 +155,7 @@ def discover_hotels_page(page, url, output, max_pages=5, max_objects=50, stop=No
 
     def save():
         # 3.1 每个已验证页面都保存JSON和可直接用于评论采集的链接清单。
-        stem.with_suffix('.txt').write_text(''.join(o['url'] + '\n' for o in report['objects']), encoding='utf-8')
-        stem.with_suffix('.json').write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
+        save_report(stem, report)
 
     def receive(response):
         parsed = urlparse(response.url)
@@ -232,7 +246,12 @@ def discover_hotels_page(page, url, output, max_pages=5, max_objects=50, stop=No
         report.update(reason='error', error=str(exc))
     finally:
         page.remove_listener('response', receive)
-        save()
+        # 3.3 末次写入失败时保留已核对清单并把失败写进报告，不把结果丢给调用方。
+        try:
+            save()
+        except OSError as exc:
+            report['export_error'] = str(exc)
+            logger.warning('酒店目录报告写入失败，已核对清单仍返回：%s', exc)
         logger.info('酒店目录读取结束：%s', report['reason'])
     return report
 
