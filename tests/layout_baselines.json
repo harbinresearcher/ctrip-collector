@@ -1,7 +1,7 @@
 {
-  "mobile_reviews": {
-    "fixture": "ctrip-comments.xml",
-    "fingerprint": "d80ab62cf9f41f29",
+  "mobile_reviews_sight": {
+    "fixture": "sight-review-live-yungang.xml",
+    "fingerprint": "7866921e38cff5d7",
     "version": 1
   },
   "mobile_reviews_hotel": {

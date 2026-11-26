@@ -23,13 +23,15 @@ import xml.etree.ElementTree as ET
 VERSION = 1
 
 # 手机点评首屏按采集类型分别取基线：景点与酒店的界面结构不同，不能共用一个基线。
-MOBILE_FAMILIES = {'sight': 'mobile_reviews', 'hotel': 'mobile_reviews_hotel'}
+# 有真实首屏样本的类型：《景点》《酒店》；餐厅、购物还没有样本，只记指纹、不比对。
+MOBILE_FAMILIES = {'hotel': 'mobile_reviews_hotel', 'sight': 'mobile_reviews_sight',
+                   'restaurant': 'mobile_reviews_restaurant', 'shopping': 'mobile_reviews_shopping'}
 # 网页点评页的页面状态按类型分开；目前只有景点页有真实样本。
 WEB_FAMILIES = {'sight': 'web_reviews'}
 
 FAMILIES = {
-    'mobile_reviews': {'kind': 'xml', 'fixture': 'ctrip-comments.xml',
-                       'fingerprint': 'd80ab62cf9f41f29', 'version': 1},
+    'mobile_reviews_sight': {'kind': 'xml', 'fixture': 'sight-review-live-yungang.xml',
+                             'fingerprint': '7866921e38cff5d7', 'version': 1},
     'mobile_reviews_hotel': {'kind': 'xml', 'fixture': 'hotel-comments.xml',
                              'fingerprint': '764ea7df112ae9b7', 'version': 1},
     'web_reviews': {'kind': 'page', 'fixture': 'web-sight-comment-info.json',

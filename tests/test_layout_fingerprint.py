@@ -41,9 +41,9 @@ class LayoutFingerprintTests(unittest.TestCase):
                          structure_fingerprint(ET.tostring(root, encoding='unicode')))
 
     def test_structure_edit_changes_fingerprint_and_flags_changed(self):
-        # /* ===== 步骤3：改版提示；数据源：真实页面加一处结构改动；操作：1) 删/加节点 2) 改 class ===== */
-        xml = (FIXTURES / 'ctrip-comments.xml').read_text('utf-8')
-        baseline = FAMILIES['mobile_reviews']['fingerprint']
+        # /* ===== 步骤3：改版提示；数据源：真机景点首屏；操作：1) 删/加节点 2) 改 class 3) 比对基线 ===== */
+        xml = (FIXTURES / 'sight-review-live-yungang.xml').read_text('utf-8')
+        baseline = FAMILIES['mobile_reviews_sight']['fingerprint']
         self.assertEqual(structure_fingerprint(xml), baseline)
 
         removed_root = ET.fromstring(xml)
@@ -57,25 +57,26 @@ class LayoutFingerprintTests(unittest.TestCase):
         self.assertNotEqual(structure_fingerprint(ET.tostring(added_root, encoding='unicode')), baseline)
 
         class_root = ET.fromstring(xml)
-        next(node for node in class_root.iter('node') if node.get('class')).set('class', 'android.view.View')
+        next(node for node in class_root.iter('node')
+             if node.get('class') == 'android.widget.TextView').set('class', 'android.view.View')
         changed_class = structure_fingerprint(ET.tostring(class_root, encoding='unicode'))
         self.assertNotEqual(changed_class, baseline)
 
         # 3.1 结构变了：报告给出 changed 与 layout_changed，并写一条限制说明。
         report = {'limitations': []}
-        self.assertTrue(attach_layout(report, 'mobile_reviews', removed)['changed'])
+        self.assertTrue(attach_layout(report, 'mobile_reviews_sight', removed)['changed'])
         self.assertIs(report['layout_changed'], True)
         self.assertIn('结构指纹', report['limitations'][-1])
         # 3.2 结构没变：不写 layout_changed。
         report = {'limitations': []}
-        self.assertFalse(attach_layout(report, 'mobile_reviews', baseline)['changed'])
+        self.assertFalse(attach_layout(report, 'mobile_reviews_sight', baseline)['changed'])
         self.assertNotIn('layout_changed', report)
-        self.assertFalse(layout_for('mobile_reviews', baseline)['changed'])
+        self.assertFalse(layout_for('mobile_reviews_sight', baseline)['changed'])
 
     def test_baselines_match_real_fixtures(self):
         # /* ===== 步骤4：基线有效；数据源：真实 fixture；操作：1) 重算 2) 对齐 JSON 与模块 ===== */
         baselines = json.loads(BASELINES.read_text('utf-8'))
-        self.assertIn('mobile_reviews', baselines)
+        self.assertIn('mobile_reviews_sight', baselines)
         self.assertIn('web_reviews', baselines)
         self.assertEqual(set(baselines), set(FAMILIES))
         for family, meta in FAMILIES.items():
@@ -88,8 +89,52 @@ class LayoutFingerprintTests(unittest.TestCase):
             self.assertEqual(actual, meta['fingerprint'], f'{family} 的 FAMILIES 基线过期')
             self.assertEqual(baselines[family]['version'], meta['version'])
 
+    def test_mobile_families_are_selected_by_kind(self):
+        # /* ===== 步骤5：按类型分族；数据源：真机景点首屏；操作：1) 无基线类型不比对 2) 各类型族名互不共用 ===== */
+        self.assertEqual(mobile_family('sight'), 'mobile_reviews_sight')
+        self.assertEqual(mobile_family('hotel'), 'mobile_reviews_hotel')
+        self.assertEqual(mobile_family('restaurant'), 'mobile_reviews_restaurant')
+        self.assertEqual(mobile_family('shopping'), 'mobile_reviews_shopping')
+        # 5.1 餐厅/购物没有真实基线：只记指纹，expected=None、changed=False，不能误报改版。
+        for kind in ('restaurant', 'shopping'):
+            layout = layout_for(mobile_family(kind), FAMILIES['mobile_reviews_sight']['fingerprint'])
+            self.assertIsNone(layout['expected'])
+            self.assertFalse(layout['changed'])
+            report = {'limitations': []}
+            self.assertFalse(attach_layout(report, mobile_family(kind), '0123456789abcdef')['changed'])
+            self.assertNotIn('layout_changed', report)
+
+    def test_sight_live_fixture_does_not_false_alarm(self):
+        # /* ===== 步骤6：景点首屏不再假警报；数据源：真机云冈石窟首屏；操作：1) collect 2) 改一个 TextView 的 class ===== */
+        xml = (FIXTURES / 'sight-review-live-yungang.xml').read_text('utf-8')
+        with tempfile.TemporaryDirectory() as folder:
+            adb = Mock()
+            adb.snapshot.return_value = xml
+            stop = Mock(is_set=lambda: False, wait=Mock(return_value=False))
+            report = collect(adb, 'sight', '云冈石窟', folder, max_swipes=0, stop=stop, object_id='123')
+            self.assertEqual(report['layout']['family'], 'mobile_reviews_sight')
+            self.assertEqual(report['layout']['fingerprint'], FAMILIES['mobile_reviews_sight']['fingerprint'])
+            self.assertEqual(report['layout']['expected'], FAMILIES['mobile_reviews_sight']['fingerprint'])
+            self.assertFalse(report['layout']['changed'])
+            self.assertNotIn('layout_changed', report)
+            self.assertEqual(report['count'], 1)
+
+        # 6.1 只改一个 TextView 的 class：结构指纹变化，报告提示改版，点评照常入库。
+        root = ET.fromstring(xml)
+        next(node for node in root.iter('node')
+             if node.get('class') == 'android.widget.TextView').set('class', 'android.view.View')
+        with tempfile.TemporaryDirectory() as folder:
+            adb = Mock()
+            adb.snapshot.return_value = ET.tostring(root, encoding='unicode')
+            stop = Mock(is_set=lambda: False, wait=Mock(return_value=False))
+            report = collect(adb, 'sight', '云冈石窟', folder, max_swipes=0, stop=stop, object_id='123')
+            self.assertTrue(report['layout']['changed'])
+            self.assertTrue(report['layout_changed'])
+            self.assertTrue(any('结构指纹' in line for line in report['limitations']))
+            self.assertEqual(report['count'], 1)
+
     def test_reports_carry_layout_without_breaking_collection(self):
-        # /* ===== 步骤5：报告字段；数据源：真实酒店首屏与真实网页点评区；操作：1) 未改 2) 改一处结构 ===== */
+        # /* ===== 步骤7：报告字段；数据源：真实酒店首屏与真实网页点评区；操作：1) 未改 2) 改一处结构 ===== */
         hotel = (FIXTURES / 'hotel-comments.xml').read_text('utf-8')
         with tempfile.TemporaryDirectory() as folder:
             adb = Mock()
@@ -102,7 +147,7 @@ class LayoutFingerprintTests(unittest.TestCase):
             self.assertNotIn('layout_changed', report)
             self.assertGreater(report['count'], 0)
 
-        # 5.1 改一个节点的 class：报告标 layout_changed，但点评仍然入库。
+        # 7.1 改一个节点的 class：报告标 layout_changed，但点评仍然入库。
         root = ET.fromstring(hotel)
         next(node for node in root.iter('node')
              if node.get('class') == 'android.widget.ImageView').set('class', 'android.view.View')
@@ -116,7 +161,7 @@ class LayoutFingerprintTests(unittest.TestCase):
             self.assertTrue(any('结构指纹' in line for line in report['limitations']))
             self.assertGreater(report['count'], 0)
 
-        # 5.2 网页点评区的键结构变了：报告标 layout_changed，点评照常保存。
+        # 7.2 网页点评区的键结构变了：报告标 layout_changed，点评照常保存。
         page = json.loads((FIXTURES / 'web-sight-comment-info.json').read_text('utf-8'))
         target = {'kind': 'sight', 'url': 'https://you.ctrip.com/sight/tianjin154/112796.html',
                   'resource_id': 112796, 'resource_type': 66, 'poi_id': 10559411,
