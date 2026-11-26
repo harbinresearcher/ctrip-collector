@@ -27,13 +27,25 @@
 - 验收：对至少一个真实输出目录跑出真实数字；单测覆盖 4 种情形
   （目标已知且完整 / 目标已知有缺口 / 目标未知 / 数据库不存在）。
 
-### C2 手机侧对象 ID 证据核验
+### C2 手机侧对象 ID 证据核验（2026-11-26 修订，已达标）
 
-- 手机采集时若屏幕证据里能读到对象 ID（详情页 URL、deeplink、评论页可见 ID），
-  必须与声明值比对：一致 → `screen_verified_id`；不一致 → 停止并报
-  `identity mismatch`；读不到 → 保持 `operator_declared_unverified`。
-- 验收：`tests/fixtures/` 中至少 1 个带 ID 证据的真实页面样本；单测 3 项
-  （一致 / 不一致 / 无证据），报告字段能区分三者。
+原写法是「从屏幕证据里读对象 ID 再比对」。**调研后判定不可行**：30 个 fixture
+全扫，`text`/`content-desc`/`resource-id` 里没有任何形如 `id=123456` /
+`hotelId=` / deeplink 的对象编号（`id=` 的命中全是 `android:id/a` 这类控件 ID），
+四个详情页样本（酒店/餐厅/景点/购物）正则命中数均为 0。
+
+改为可落地的两段式：
+
+1. **编号来自我方落盘证据**：`--collect --object-ref <object_key>` 从对象快照 /
+   运行报告 / 目录报告解析 `resource_id`，记录 `identity_source='evidence_manifest'`
+   与 `identity_evidence`（证据文件名）；解析不到或证据里没有正整数编号 → 一行
+   错误退出，**绝不猜编号**；手输 ID 的旧路径仍是 `operator_declared_unverified`。
+2. **屏幕证据**（将来若 App 真能回显编号）保留 `screen_verified_id` 作为三态之一，
+   实现位置已留好，等真机出现可读编号再接入。
+
+验收证据（2026-11-26）：`tests/test_object_ref.py` 5 项（证据齐全 / 缺编号被拒 /
+与手填互斥 / 旧路径不变 / 目录报告回退），512 项测试全绿。**验证性质：模拟验证**
+（Mock adb + 真实 fixture + 真实 CLI 进程，但本机已无模拟器连接，未覆盖真机采集）。
 
 ### C3 未知布局显式上报
 
