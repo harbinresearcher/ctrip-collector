@@ -151,6 +151,39 @@ python app.py --drive --output <目录> --workers 2 --rounds 3 --limit 200 --gap
 - 单测 4 项（结构相同指纹相同 / 只改文字指纹不变 / 改结构 → `changed=true` /
   基线由 fixture 重算一致），不触网不连设备。
 
+### C1h 风控信号识别与整体熔断（下一步）
+
+目标：被平台限流/拦截时**立刻整轮停下并说清楚**，而不是当成普通错误继续跑下一个对象。
+
+验收：
+
+- 识别信号：HTTP 403 / 429 / 432 / 511，或响应体出现验证码/人机校验特征；
+- 命中后：该对象结果标 `blocked=True` 且带原始状态码，**整轮立即停止**
+  （`reason='blocked'`），不再对后续对象发请求；`--collect-gaps` 与 `--drive` 同规则；
+- 命令行输出一句人能照做的提示（例如「平台限流（HTTP 432），请停止今天的采集，
+  记录现象后明天再试；不要换 IP 或换账号重试」），退出码 1，不打印堆栈；
+- 报告与 `--audit` 能看出「这次是被拦了」而不是「没数据」；
+- 单测 4 项（432 识别 / 其他 HTTP 错误不算 blocked / blocked 后不再请求下一个对象 /
+  命令行提示与退出码），不触网。
+
+### C1g 验收记录：已达标（2026-11-26）
+
+- `layout_fingerprint.py`：UI XML 走「节点序列」指纹，网页走「页面状态 JSON」指纹，
+  两套明确不可互换（网页不保留原始 HTML，用臆造 HTML 建基线违反「不臆造样本」）；
+- 基线 `tests/layout_baselines.json` 由真实 fixture 生成，测试断言重算一致；
+- 报告新增 `layout {family, fingerprint, expected, version, changed}`，
+  `changed=true` 只标记不中断（`layout_changed` + limitation 说明）。
+
+真实采集验证（`--url .../136039.html --limit 8` 的真实报告）：
+
+```json
+{"family": "web_reviews", "fingerprint": "697dd017b08b88e3",
+ "expected": "697dd017b08b88e3", "version": 1, "changed": false}
+```
+
+模拟验证：同一 fixture 改一个 TextView 的 class → `changed=true`、`count` 仍为 1
+（改版不会把采集判成失败）。562 项测试全绿。
+
 ### C1 覆盖台账与缺口对账
 
 - 新增只读命令 `python app.py --audit --output <输出目录>`，输出 JSON，包含：
