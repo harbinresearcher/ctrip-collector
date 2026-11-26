@@ -10,12 +10,22 @@ FIRST, LAST = [ET.tostring(frame, encoding='unicode') for frame in
                ET.parse(FIXTURES / 'app-restaurant-menu-pages.xml').getroot()]
 DISHES = ['黑松露披萨', '脆烤章鱼', '木炭烤加拿大龙虾', '带骨M6+和牛肉眼牛排',
           '木炭烤鲜活石斑鱼', '自制乳清芝士配时令果酱', '温海鲜色拉配牛油果', '牛肝菌裹三文鱼']
+# 真机 emulator-5556 导出的纯文字菜品行页面（PHENIX，页面显示 29 道）。
+LIVE_FILE = FIXTURES / 'app-restaurant-menu-live-text-rows.xml'
+LIVE_DISHES = ['M5和牛腰肉', '草莓冰霜', '法芙娜巧克力蛋糕', '青瓜沙冰配青苹果', 'M7和牛',
+               '福建多宝鱼', '莫纳生蚝', '生和牛塔塔150g', '甜品车']
 
 
 class RestaurantMenuTests(unittest.TestCase):
     def test_first_and_last_frames_preserve_visible_dish_order(self):
         self.assertEqual(parse_restaurant_menu(FIRST), (8, DISHES[:7], (0, 244, 1080, 2226)))
         self.assertEqual(parse_restaurant_menu(LAST), (8, DISHES[2:], None))
+
+    def test_live_text_row_page_reads_only_fully_visible_dishes(self):
+        # 真机页面：标题 WebView 多一个 0 尺寸节点，卡片是「名称/加号/步进器」三列，
+        # 首尾卡片被表头或按钮裁切。只应读到完整可见的 9 道，其余交给翻页。
+        self.assertEqual(parse_restaurant_menu(LIVE_FILE.read_text(encoding='utf-8')),
+                         (29, LIVE_DISHES, (0, 244, 1080, 2226)))
 
     def test_hidden_card_name_does_not_promote_description(self):
         tree = ET.fromstring(FIRST)
