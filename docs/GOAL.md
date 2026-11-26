@@ -59,3 +59,33 @@
 
 - 不绕过验证码、不破解签名、不保存登录凭据。
 - 不把「本次任务采到」说成「平台全量」；`complete` 仍只在有对账证据时为真。
+
+## 验收记录
+
+### C1 覆盖台账：已达标（2026-11-26）
+
+真实采集（抚松景点目录，1 页 / 3 个对象 / 每对象 3 条）后跑只读对账：
+
+```powershell
+python app.py --city-list https://you.ctrip.com/sight/fusong2479/s0-p1.html `
+  --discovery-pages 1 --max-objects 3 --collect-discovered --limit 3 --output <目录>
+python app.py --audit --output <目录>
+```
+
+实测输出（真实数字，非模拟）：
+
+| 层级 | 目标 | 已采 | 缺口 |
+| --- | --- | --- | --- |
+| 目录 sight-2479 | 3000（`listing_total`） | 3 个对象 | 2997 |
+| sight-136039 | 1099（`display_total`） | 3 | 1096 |
+| sight-1407863 | 357 | 3 | 354 |
+| sight-5706212 | 62 | 3 | 59 |
+
+`summary`：`target 1518 / collected 9 / missing 1509 / unknown_target 0`，`complete=false`。
+这是项目第一次能用数字回答「还差多少」。
+
+### C3 未知布局上报：已达标（2026-11-26）
+
+两列图片行补上图片数徽标（4 个子节点）时，该点评现在记
+`card_fields.media_layout_unrecognized = 1`，不再表现成「没有图片」；
+测试 `tests/test_restaurant_review_tiles.py::test_two_columns_with_a_badge_is_reported_as_unadapted`。
