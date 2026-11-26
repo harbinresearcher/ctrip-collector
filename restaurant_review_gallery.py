@@ -109,10 +109,12 @@ def collect_pages(device, stop, name, review, entry_box, max_pages, archive, rep
                 reason = 'viewer_changed'
                 verify_page()
                 left, top, right, bottom = photo
-                width = right - left
-                mid = (top + bottom) // 2
-                device.run('shell', 'input', 'swipe', str(left + width * 4 // 5), str(mid),
-                           str(left + width // 5), str(mid), '390')
+                inset = (right - left) * 18 // 100
+                y = top + (bottom - top) * 49 // 100
+                # A brisk flick advances the pager even after the Download button has taken focus.
+                active(stop)
+                device.run('shell', 'input', 'swipe', str(right - inset), str(y),
+                           str(left + inset), str(y), '150')
         return ('gallery_end_reached' if end == total else 'page_budget_reached'), ''
     except InterruptedError:
         return 'cancelled', ''

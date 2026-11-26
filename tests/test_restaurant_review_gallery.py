@@ -43,7 +43,9 @@ class RestaurantGalleryCaptureTests(unittest.TestCase):
             self.assertTrue(report['gallery_complete'])
             self.assertEqual(report['page_count'], 2)
             self.assertEqual(download.call_count, 2)
-            self.assertEqual([call.args[2] for call in device.run.call_args_list], ['tap', 'tap', 'swipe'])
+            steps = device.run.call_args_list
+            self.assertEqual([step.args[2] for step in steps], ['tap', 'tap', 'swipe'])
+            self.assertEqual(steps[-1].args, ('shell', 'input', 'swipe', '886', '1145', '194', '1145', '150'))
             with Path(report['sample_csv']).open(encoding='utf-8-sig', newline='') as stream:
                 sample, = list(csv.DictReader(stream))
             with ZipFile(Path(folder) / report['archive']) as archive:
@@ -70,7 +72,6 @@ class RestaurantGalleryCaptureTests(unittest.TestCase):
         with TemporaryDirectory() as folder:
             with self.assertRaisesRegex(ValueError, '位置'):
                 self.run_gallery(folder, [], rows=([ROW], [moved]))
-
 
     def test_waits_out_transient_window_focus_after_switching_to_the_viewer(self):
         device, reader, stop = Mock(), Mock(return_value=FRAMES[0]), Mock()
