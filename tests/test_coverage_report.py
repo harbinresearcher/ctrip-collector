@@ -79,6 +79,33 @@ class CoverageReportTests(unittest.TestCase):
             self.assertNotIn('PRIVATE_REVIEW', Path(report['report_file']).read_text(encoding='utf-8'))
             self.assertFalse(report['complete'])
 
+    def test_restaurant_dish_scan_keeps_stop_reason_without_dish_names(self):
+        # /* ===== 步骤1：核对推荐菜扫描结论；数据源：详情报告；操作：1) 保留原因与屏数 2) 不写菜名 ===== */
+        logger.info('开始推荐菜扫描覆盖测试')
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            common = {'kind': 'restaurant', 'source': 'ctrip_android_ui', 'status': 'partial',
+                      'mode': 'app_restaurant_detail', 'source_method': 'android_restaurant_detail_snapshot',
+                      'name': '测试餐厅', 'recommended_dishes': ['PRIVATE_DISH'], 'dish_count_display': 29}
+            # 1.1 正常结束的扫描；另两份分别是没有选读、以及结构不可读。
+            done = dict(common, recommendation_scan={'reason': 'expected_count_reached', 'method': 'menu',
+                                                     'screens': 3, 'complete': True})
+            absent = dict(common, name='没有选读')
+            broken = dict(common, name='坏记录', recommendation_scan={'reason': 'something_else'})
+            for letter, record in (('a', done), ('b', absent), ('c', broken)):
+                (root / f"app-restaurant-detail-{letter * 32}.json").write_text(
+                    json.dumps(record), encoding='utf-8')
+            details = {item['name']: item for item in write_coverage_report(root, include_android=True)['android']['restaurant_details']}
+            self.assertEqual(details['测试餐厅']['recommendation_scan'],
+                             {'status': 'expected_count_reached', 'method': 'menu', 'screens': 3, 'complete': True})
+            self.assertIsNone(details['没有选读']['recommendation_scan'])
+            self.assertEqual(details['坏记录']['recommendation_scan'], {'status': 'unreadable'})
+            # 1.2 覆盖报告只留计数与固定词表，菜名不能出现在报告文件里。
+            serialized = Path(write_coverage_report(root, include_android=True)['report_file']).read_text(encoding='utf-8')
+            self.assertNotIn('PRIVATE_DISH', serialized)
+            self.assertIn('expected_count_reached', serialized)
+        logger.info('推荐菜扫描覆盖测试完成')
+
     def test_restaurant_list_and_detail_are_counted_without_a_review_database(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

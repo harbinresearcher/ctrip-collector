@@ -15,6 +15,11 @@ GALLERY_STATUSES = frozenset({'saved', 'display_saved', 'no_match', 'ambiguous',
 RUN_STATUSES = frozenset({'running', 'cancelled', 'error', 'partial', 'expanded_visible',
                           'page_limit', 'end_reached', 'page_not_advanced',
                           'page_changed_unexpectedly', 'repeated_screen'})
+# 推荐菜扫描的停止原因取值；只记录固定词表，不复制菜名。
+DISH_SCAN_REASONS = frozenset({'expected_count_reached', 'missing_carousel', 'no_new_dishes',
+                               'screen_limit', 'context_changed', 'unverified_transition',
+                               'count_changed', 'device_error', 'cancelled'})
+DISH_SCAN_METHODS = frozenset({'menu', 'carousel'})
 
 
 def local_file(path):
@@ -27,6 +32,20 @@ def list_field(record, field):
     if not isinstance(value, list):
         raise ValueError('无效的手机结果列表')
     return value
+
+
+def dish_scan_summary(value):
+    # /* ===== 步骤1：保留推荐菜扫描结论；数据源：详情报告；操作：1) 只认固定词表 2) 不复制菜名 ===== */
+    # 1.1 缺字段表示这次任务没有选读清单；无效结构按不可读记录，不能当成已完成。
+    if value is None:
+        return None
+    if not isinstance(value, dict) or value.get('reason') not in DISH_SCAN_REASONS:
+        return {'status': 'unreadable'}
+    screens = value.get('screens')
+    return {'status': value['reason'],
+            'method': value.get('method') if value.get('method') in DISH_SCAN_METHODS else None,
+            'screens': screens if type(screens) is int and 0 <= screens <= 10000 else None,
+            'complete': value.get('reason') == 'expected_count_reached' and value.get('complete') is True}
 
 
 def summarize_artifact(path, source, record, gallery_groups=None):
@@ -125,7 +144,8 @@ def summarize_artifact(path, source, record, gallery_groups=None):
         return {'name': name, 'identity_verification': 'operator_name_exact_match',
                 'fields_present': [field for field in fields if record.get(field)],
                 'recommended_dish_count': len(list_field(record, 'recommended_dishes')),
-                'dish_count_display': dish_count if type(dish_count) is int and dish_count >= 0 else None}
+                'dish_count_display': dish_count if type(dish_count) is int and dish_count >= 0 else None,
+                'recommendation_scan': dish_scan_summary(record.get('recommendation_scan'))}
     if source == 'shopping_details' and (record.get('source_method'), record.get('source'), record.get('kind')) == (
             'android_shopping_detail_snapshot', 'ctrip_android_ui', 'shopping'):
         fields = ('english_name', 'tagline_display', 'score_display', 'review_count_display',
