@@ -171,6 +171,32 @@ class CoverageAuditTests(unittest.TestCase):
             self.assertEqual(report['directories'][0]['discovered_objects'], 2)
         logger.info('目录与手机对账测试完成')
 
+    def test_object_url_comes_from_landed_evidence(self):
+        # /* ===== 步骤8：核对对象链接；数据源：对象快照、运行报告、目录卡片；操作：1) 只收 https 2) 取不到为 null ===== */
+        logger.info('开始对象链接对账测试')
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / 'sight-10-object.json').write_text(json.dumps(
+                {'kind': 'sight', 'resource_id': 10, 'name': '快照链接', 'display_total': 1,
+                 'url': 'https://you.ctrip.com/sight/a1/10.html'}), encoding='utf-8')
+            (root / 'sight-11-report-20261126T000000000000Z.json').write_text(json.dumps(
+                {'object_key': 'sight-11', 'name': '报告链接', 'display_total': 1, 'reason': 'target_reached',
+                 'source_url': 'https://you.ctrip.com/sight/a1/11.html'}), encoding='utf-8')
+            discovery_report(root, 'discovery-sight-2-20261126T000000000000Z.json', listing_total=50,
+                             objects=[{'kind': 'sight', 'resource_id': 12, 'name': '目录链接', 'comment_count': 5,
+                                       'url': 'https://you.ctrip.com/sight/a1/12.html'},
+                                      {'kind': 'sight', 'resource_id': 13, 'name': '无链接', 'comment_count': 5},
+                                      {'kind': 'sight', 'resource_id': 14, 'name': '非https', 'comment_count': 5,
+                                       'url': 'http://you.ctrip.com/sight/a1/14.html'}])
+            objects = {obj['object_key']: obj for obj in write_coverage_audit(root)['objects']}
+            self.assertEqual(objects['sight-10']['url'], 'https://you.ctrip.com/sight/a1/10.html')
+            self.assertEqual(objects['sight-11']['url'], 'https://you.ctrip.com/sight/a1/11.html')
+            self.assertEqual(objects['sight-12']['url'], 'https://you.ctrip.com/sight/a1/12.html')
+            # 8.1 没有链接证据时保持 null，不拼地址也不猜链接。
+            self.assertIsNone(objects['sight-13']['url'])
+            self.assertIsNone(objects['sight-14']['url'])
+        logger.info('对象链接对账测试完成')
+
     def test_cli_audit_reads_only_local_evidence(self):
         # /* ===== 步骤7：核对命令入口；数据源：本地目录；操作：1) 输出对账 JSON 2) 不启动网络采集 ===== */
         logger.info('开始覆盖对账命令测试')

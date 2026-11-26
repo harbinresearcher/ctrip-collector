@@ -60,8 +60,13 @@ def latest_report(reports):
     return max(reports, key=lambda item: (item['mtime'], item['file']))
 
 
+def evidence_url(value):
+    # 对象链接只收 https 地址：报告或快照里出现其他协议时不猜，保持 None。
+    return value.strip() if isinstance(value, str) and value.strip().startswith('https://') else None
+
+
 def write_coverage_audit(folder):
-    # /* ===== 步骤3：读取对象级与目录级证据；数据源：输出目录；操作：1) 只读打开 2) 记录目标数来源 ===== */
+    # /* ===== 步骤3：读取对象级与目录级证据；数据源：输出目录；操作：1) 只读打开 2) 记录目标数来源 3) 记录对象链接 ===== */
     logger.info('开始对账已落盘采集证据')
     folder = Path(folder).resolve()
     if not folder.is_dir():
@@ -73,8 +78,13 @@ def write_coverage_audit(folder):
     poi_keys = {}
 
     def record(key, kind):
-        return evidence.setdefault(key, {'key': key, 'kind': kind, 'name': None, 'target': None,
+        return evidence.setdefault(key, {'key': key, 'kind': kind, 'name': None, 'url': None, 'target': None,
                                          'target_rank': -1, 'target_source': None, 'reports': [], 'files': []})
+
+    def offer_url(item, value):
+        # 3.0 链接只用于后续定位对象；对象快照优先，已有时不覆盖。
+        if item['url'] is None:
+            item['url'] = evidence_url(value)
 
     def offer_target(item, rank, value, source):
         # 3.1 同级证据按文件排序后写回：同一对象有多次采集时以较晚的报告为准。
@@ -105,6 +115,7 @@ def write_coverage_audit(folder):
         item['files'].append(path.name)
         if not item['name'] and isinstance(data.get('name'), str) and data['name'].strip():
             item['name'] = data['name'].strip()
+        offer_url(item, data.get('url'))
         offer_target(item, TARGET_OBJECT, count_value(data.get('display_total')), path.name + ':display_total')
         # 3.3 餐饮快照同时留有两个身份，可把目录里的 POI ID 映射到点评业务 ID。
         if kind == 'restaurant' and type(data.get('poi_id')) is int and data['poi_id'] > 0:
@@ -127,6 +138,7 @@ def write_coverage_audit(folder):
         add_report(item, path, data)
         if not item['name'] and isinstance(data.get('name'), str) and data['name'].strip():
             item['name'] = data['name'].strip()
+        offer_url(item, data.get('source_url'))
         offer_target(item, TARGET_NETWORK, count_value(data.get('display_total')), path.name + ':display_total')
 
     # 3.5 手机运行报告的 target 是本次采集上限，不是平台总数；只认页面回显的 display_total。
@@ -208,6 +220,8 @@ def write_coverage_audit(folder):
             item = record(key, item_kind)
             if not item['name'] and isinstance(row.get('name'), str) and row['name'].strip():
                 item['name'] = row['name'].strip()
+            # 3.8 目录卡片链接是无对象快照时唯一的定位证据；未采集对象也能据此续采。
+            offer_url(item, row.get('url'))
             offer_target(item, TARGET_DIRECTORY, count_value(row.get('comment_count')),
                          f"{path.name}:objects[{key}].comment_count")
     logger.info('对象级证据读取完成：%s个对象，%s个目录', len(evidence), len(directories))
@@ -287,7 +301,7 @@ def write_coverage_audit(folder):
             gap = 'missing'
         else:
             gap = 'unadapted'
-        objects.append({'object_key': key, 'kind': item['kind'], 'name': item['name'],
+        objects.append({'object_key': key, 'kind': item['kind'], 'name': item['name'], 'url': item['url'],
                         'target': target, 'target_source': item['target_source'], 'target_unknown': target is None,
                         'collected': total,
                         'collected_by_source': {store: counts.get(store, 0)
