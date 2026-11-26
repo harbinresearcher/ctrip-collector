@@ -23,6 +23,7 @@ from multi_discovery import discover_many, resume_details
 from region_seeds import discover_regions
 from coverage_report import write_coverage_report
 from coverage_audit import write_coverage_audit
+from gap_collect import collect_gaps
 from hotel_public_batch import collect_public_hotels
 
 logger = logging.getLogger(__name__)
@@ -288,6 +289,8 @@ def main():
     parser.add_argument('--gui-smoke', action='store_true')
     parser.add_argument('--coverage', action='store_true', help='统计输出目录内已有网络评论及字段覆盖')
     parser.add_argument('--audit', action='store_true', help='对账输出目录内已有证据：平台目标数、已采数与缺口原因')
+    parser.add_argument('--collect-gaps', action='store_true', help='按对账缺口续采：只处理目标已知、缺口最大且有链接的对象')
+    parser.add_argument('--gap-limit', type=int, default=10, help='--collect-gaps 最多处理几个对象，默认 10')
     parser.add_argument('--hotel-public', action='store_true', help='采酒店公开详情及评论样本，不登录浏览器')
     parser.add_argument('--collect', action='store_true')
     parser.add_argument('--url', action='append', default=[], help='公开点评对象详情链接，可重复指定')
@@ -313,7 +316,7 @@ def main():
     parser.add_argument('--ui-backend', choices=['adb', 'uiautomator2'], default='uiautomator2')
     args = parser.parse_args()
     if args.workbench:
-        if any((args.check, args.gui_smoke, args.coverage, args.audit, args.hotel_public, args.collect, args.url,
+        if any((args.check, args.gui_smoke, args.coverage, args.audit, args.collect_gaps, args.hotel_public, args.collect, args.url,
                 args.url_file, args.import_capture, args.download_media, args.capture_ai, args.city_list,
                 args.region_seeds, args.resume_regions, args.shopping_district is not None, args.collect_discovered)):
             parser.error('--workbench 不能与其他运行模式同时使用')
@@ -351,9 +354,20 @@ def main():
     if args.audit:
         if any((args.url, args.url_file, args.city_list, args.region_seeds, args.resume_regions, args.hotel_public,
                 args.shopping_district is not None, args.collect, args.capture_ai, args.import_capture,
-                args.download_media, args.coverage)):
+                args.download_media, args.coverage, args.collect_gaps)):
             parser.error('--audit 不能与采集任务或覆盖统计同时使用')
         print(json.dumps(write_coverage_audit(args.output), ensure_ascii=False, indent=2))
+        return
+    # 3.0.3 缺口续采先读对账再采；与对账、统计和其他采集入口互斥，避免参数混用。
+    if args.collect_gaps:
+        if any((args.url, args.url_file, args.city_list, args.region_seeds, args.resume_regions, args.hotel_public,
+                args.shopping_district is not None, args.collect, args.capture_ai, args.import_capture,
+                args.download_media, args.coverage, args.audit)):
+            parser.error('--collect-gaps 不能与采集任务、覆盖统计或对账同时使用')
+        if args.limit < 1 or args.gap_limit < 1:
+            parser.error('limit 和 gap-limit 必须大于零')
+        print(json.dumps(collect_gaps(args.output, args.limit, args.gap_limit, collector=collect_url),
+                         ensure_ascii=False, indent=2))
         return
     if args.coverage:
         if args.url or args.url_file or args.city_list or args.region_seeds or args.resume_regions or args.hotel_public or args.shopping_district is not None or args.collect or args.capture_ai or args.import_capture or args.download_media:
