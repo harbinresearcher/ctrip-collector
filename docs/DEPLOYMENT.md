@@ -79,8 +79,10 @@ App 改版会让布局解析失效。现行对策分三层：
   1. 每次运行后跑一次 `--audit`，记录 `summary.missing` 与 `reachable_missing`；
   2. 每日比对：`missing` 应单调不增，`reachable_missing` 应为 0 或持续下降；
   3. 出现 `failed` / `unadapted` 数上升 → 视为页面或接口变化信号，先查样本。
-- 待补：把每次 audit 的 `summary` 追加到 `data/audit-history.jsonl`，用于画
-  覆盖曲线和发现「越采越少」的异常。
+- 每次 `--audit` 会把本次 `summary` 追加一行到输出目录的 `audit-history.jsonl`
+  （`captured_at`、`missing`、`reachable_missing`、`failed/unadapted/source_exhausted` 计数），
+  只追加不覆盖，写失败只记警告、不影响对账结果；输出 JSON 的 `history` 字段回读最近
+  20 行并给出 `trend`（与上一次的 `missing` 差值），缺口变大时 `warning` 会写明多出多少条。
 
 ## 7. 明确不做
 

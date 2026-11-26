@@ -8,7 +8,7 @@ from contextlib import closing
 from pathlib import Path
 from unittest.mock import patch
 
-from coverage_audit import write_coverage_audit
+from coverage_audit import read_audit_history, write_coverage_audit
 
 logger = logging.getLogger(__name__)
 
@@ -243,3 +243,111 @@ class CoverageAuditTests(unittest.TestCase):
             again = write_coverage_audit(root)['objects'][0]
             self.assertEqual((again['gap_reason'], again['reachable_missing']), ('missing', 100))
         logger.info('通道采尽分类测试完成')
+
+    def test_each_audit_appends_one_history_row(self):
+        # /* ===== 步骤9：核对历史追加；数据源：同一目录连跑两次对账；操作：1) 每次一行 2) 字段来自 summary ===== */
+        logger.info('开始历史追加测试')
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / 'sight-1-object.json').write_text(json.dumps(
+                {'kind': 'sight', 'resource_id': 1, 'name': '测试景点', 'display_total': 4}), encoding='utf-8')
+            with closing(sqlite3.connect(root / 'network.sqlite3')) as db:
+                db.execute('CREATE TABLE network_reviews (object_key TEXT, comment_id TEXT, data TEXT, fetched_at TEXT)')
+                db.executemany('INSERT INTO network_reviews VALUES(?,?,?,?)',
+                               [('sight-1', str(index), '{}', 't') for index in (1, 2)])
+                db.commit()
+            first = write_coverage_audit(root)
+            second = write_coverage_audit(root)
+            # 9.1 两次对账追加两行，不是覆盖：第一次那行仍在文件里。
+            lines = (root / 'audit-history.jsonl').read_text(encoding='utf-8').splitlines()
+            self.assertEqual(len(lines), 2)
+            rows = [json.loads(line) for line in lines]
+            self.assertEqual([row['missing'] for row in rows], [2, 2])
+            self.assertEqual(len(first['history']['rows']), 1)
+            self.assertEqual(second['history']['rows'], rows)
+            latest = rows[-1]
+            self.assertEqual((latest['reachable_missing'], latest['target'], latest['collected']), (2, 4, 2))
+            self.assertEqual((latest['object_count'], latest['unknown_target']), (1, 0))
+            self.assertEqual((latest['failed_count'], latest['unadapted_count'],
+                              latest['source_exhausted_count']), (0, 0, 0))
+            self.assertRegex(latest['captured_at'], r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$')
+        logger.info('历史追加测试完成')
+
+    def test_history_skips_broken_lines(self):
+        # /* ===== 步骤9.2：核对坏行容错；数据源：手工写坏的历史文件；操作：1) 跳过非 JSON 与非对象 2) 余下仍可读 ===== */
+        logger.info('开始历史坏行容错测试')
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / 'audit-history.jsonl').write_text(
+                '{"captured_at": "2026-01-01T00:00:00Z", "missing": 9}\n'
+                '这不是 JSON 的坏行\n'
+                '[1, 2, 3]\n'
+                '{"captured_at": "2026-01-02T00:00:00Z", "missing": 4}\n', encoding='utf-8')
+            history = read_audit_history(root)
+            self.assertEqual([row['missing'] for row in history['rows']], [9, 4])
+            self.assertEqual(history['bad_rows'], 2)
+            self.assertEqual(history['trend'], -5)
+            self.assertIsNone(history['warning'])
+            # 9.2.1 坏行不影响对账本身：仍正常算缺口，并把本次这行追加在坏行之后。
+            (root / 'sight-2-object.json').write_text(json.dumps(
+                {'kind': 'sight', 'resource_id': 2, 'name': '测试景点', 'display_total': 3}), encoding='utf-8')
+            report = write_coverage_audit(root)
+            self.assertEqual(report['summary']['missing'], 3)
+            self.assertEqual([row['missing'] for row in report['history']['rows']], [9, 4, 3])
+            self.assertEqual(report['history']['bad_rows'], 2)
+        logger.info('历史坏行容错测试完成')
+
+    def test_history_warns_when_missing_grows(self):
+        # /* ===== 步骤9.3：核对变大告警；数据源：两次历史缺口；操作：1) trend 是差值 2) 变大给明确说明 ===== */
+        logger.info('开始历史缺口变大告警测试')
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / 'audit-history.jsonl').write_text(
+                '{"captured_at": "2026-01-01T00:00:00Z", "missing": 10}\n'
+                '{"captured_at": "2026-01-02T00:00:00Z", "missing": 15}\n', encoding='utf-8')
+            history = read_audit_history(root)
+            self.assertEqual(history['trend'], 5)
+            self.assertIn('缺口比上次多了 5 条', history['warning'])
+            # 9.3.1 history 字段随对账输出：本次 20 对上上次 15，trend 为 5。
+            (root / 'sight-3-object.json').write_text(json.dumps(
+                {'kind': 'sight', 'resource_id': 3, 'name': '测试景点', 'display_total': 20}), encoding='utf-8')
+            report = write_coverage_audit(root)
+            self.assertEqual(report['history']['file'], str(root / 'audit-history.jsonl'))
+            self.assertEqual(report['history']['trend'], 5)
+            self.assertIn('缺口比上次多了 5 条', report['history']['warning'])
+            self.assertEqual(report['summary']['missing'], 20)
+            # 9.3.2 缺口为零时不制造告警。
+            (root / 'sight-3-object.json').unlink()
+            self.assertIsNone(write_coverage_audit(root)['history']['warning'])
+        logger.info('历史缺口变大告警测试完成')
+
+    def test_audit_succeeds_when_history_write_fails(self):
+        # /* ===== 步骤9.4：核对写历史失败；数据源：打桩让追加打开抛 OSError；操作：1) 只记警告 2) 对账照常返回 ===== */
+        logger.info('开始历史写入失败容错测试')
+        import app
+        real_open = Path.open
+
+        def failing_open(self, mode='r', *args, **kwargs):
+            if 'a' in mode:
+                raise PermissionError('输出目录只读，无法追加历史')
+            return real_open(self, mode, *args, **kwargs)
+
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / 'sight-4-object.json').write_text(json.dumps(
+                {'kind': 'sight', 'resource_id': 4, 'name': '命令行景点', 'display_total': 1}), encoding='utf-8')
+            with patch.object(Path, 'open', failing_open), \
+                    patch('sys.argv', ['app.py', '--audit', '--output', folder]), \
+                    patch('sys.stdout', new_callable=io.StringIO) as stdout, \
+                    self.assertLogs('coverage_audit', level='WARNING') as logs:
+                app.main()
+            result = json.loads(stdout.getvalue())
+            # 9.4.1 --audit 仍然成功返回对账结果，历史只降级为空并带警告。
+            self.assertEqual(result['summary']['target'], 1)
+            self.assertEqual(result['objects'][0]['object_key'], 'sight-4')
+            self.assertTrue(Path(result['report_file']).is_file())
+            self.assertEqual(result['history']['rows'], [])
+            self.assertIsNone(result['history']['trend'])
+            self.assertFalse((root / 'audit-history.jsonl').exists())
+            self.assertTrue(any('审计历史写入失败' in line for line in logs.output))
+        logger.info('历史写入失败容错测试完成')

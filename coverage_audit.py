@@ -2,7 +2,8 @@
 
 不访问网络、不启动浏览器、不连接手机。与 coverage_report 分工：
 coverage_report 统计本地字段，本模块只读地汇总目标数、已采数与缺口原因，
-两边输出字段互不修改。
+两边输出字段互不修改。每次对账把 summary 追加一行到 audit-history.jsonl，
+用来看覆盖曲线和发现「越采越少」；历史读写失败只记警告，不影响对账结果。
 """
 import json
 import logging
@@ -10,6 +11,7 @@ import re
 import sqlite3
 import uuid
 from contextlib import closing
+from datetime import datetime, timezone
 from pathlib import Path
 
 from android_coverage import local_file
@@ -31,6 +33,9 @@ LIMITATIONS = ['只读取已落盘的目录报告、对象快照、运行报告�
                '餐饮目录使用 POI ID，网页点评使用业务 ID；只有对象快照里同时留有两个 ID 时才对账。',
                '手机卡片里的 photo_count_display 是单条点评的图片展示数，不是对象点评总数，因此不作为对象目标。',
                '目录预算、筛选与排序决定已发现对象数，不等于平台全量；整体 complete 仍为 false。']
+# 审计历史：一行一次对账，只追加不覆盖；回读默认最近 20 行用于看缺口曲线。
+HISTORY_FILE = 'audit-history.jsonl'
+HISTORY_DEFAULT_LIMIT = 20
 
 
 def count_value(value):
@@ -340,7 +345,10 @@ def write_coverage_audit(folder):
               'summary': summary, 'network_database': network_state, 'mobile_database': mobile_state,
               'invalid_evidence_files': invalid_files, 'invalid_rows': invalid_rows,
               'limitations': LIMITATIONS, 'report_file': str(report_path), 'output': str(folder)}
-    # 5.1 原子写出：审计报告本身不是采集证据，写入失败不能覆盖上一次的完整报告。
+    # 5.1 历史是旁路：追加当前这一行再回读曲线；写入失败只记警告，对账结果照常输出。
+    append_audit_history(folder, report)
+    report['history'] = read_audit_history(folder)
+    # 5.2 原子写出：审计报告本身不是采集证据，写入失败不能覆盖上一次的完整报告。
     temporary = report_path.with_suffix('.tmp')
     try:
         temporary.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
@@ -349,3 +357,72 @@ def write_coverage_audit(folder):
         temporary.unlink(missing_ok=True)
     logger.info('覆盖对账完成：%s个对象，%s个未知目标', len(objects), summary['unknown_target'])
     return report
+
+
+def utc_now():
+    # 历史时间统一用 UTC ISO（秒级、以 Z 结尾），跨机器比对时不用猜时区。
+    return datetime.now(timezone.utc).isoformat(timespec='seconds').replace('+00:00', 'Z')
+
+
+def audit_history_row(report, captured_at):
+    # /* ===== 步骤6：把一次对账压成一行历史；数据源：对账报告；操作：1) 取 summary 计数 2) 按 gap_reason 统计缺口原因 ===== */
+    # 6.1 只落对账已有的数字；summary 缺字段时留 null，不用已采数或其他值填补。
+    summary = report.get('summary') if isinstance(report.get('summary'), dict) else {}
+    objects = report.get('objects') if isinstance(report.get('objects'), list) else []
+    counts = {'failed': 0, 'unadapted': 0, 'source_exhausted': 0}
+    for obj in objects:
+        if isinstance(obj, dict) and obj.get('gap_reason') in counts:
+            counts[obj['gap_reason']] += 1
+    return {'captured_at': captured_at,
+            'missing': summary.get('missing'), 'reachable_missing': summary.get('reachable_missing'),
+            'target': summary.get('target'), 'collected': summary.get('collected'),
+            'object_count': summary.get('object_count'), 'unknown_target': summary.get('unknown_target'),
+            'failed_count': counts['failed'], 'unadapted_count': counts['unadapted'],
+            'source_exhausted_count': counts['source_exhausted']}
+
+
+def append_audit_history(folder, report):
+    # /* ===== 步骤6.2：追加一行历史；数据源：本次对账；操作：1) 只追加不覆盖 2) 写失败只警告并返回 None ===== */
+    row = audit_history_row(report, utc_now())
+    try:
+        with (Path(folder) / HISTORY_FILE).open('a', encoding='utf-8', newline='\n') as handle:
+            handle.write(json.dumps(row, ensure_ascii=False) + '\n')
+    except (OSError, TypeError, ValueError) as exc:
+        logger.warning('审计历史写入失败，本次对账结果仍照常输出：%s', exc)
+        return None
+    return row
+
+
+def read_audit_history(folder, limit=HISTORY_DEFAULT_LIMIT):
+    # /* ===== 步骤6.3：只读汇总历史；数据源：audit-history.jsonl；操作：1) 跳过坏行并计数 2) 算 missing 差值 3) 变大时告警 ===== */
+    path = Path(folder) / HISTORY_FILE
+    lines = []
+    if path.is_file():
+        try:
+            lines = path.read_text(encoding='utf-8').splitlines()
+        except OSError as exc:
+            logger.warning('审计历史读取失败，按无历史处理：%s', exc)
+    rows, bad_rows = [], 0
+    for line in lines:
+        try:
+            row = json.loads(line)
+        except ValueError:
+            bad_rows += 1
+            continue
+        # 6.4 历史是外部文件，可能被手工改坏：非对象行跳过并计数，不中断汇总。
+        if not isinstance(row, dict):
+            bad_rows += 1
+            continue
+        rows.append(row)
+    if limit > 0:
+        rows = rows[-limit:]
+    # 6.5 差值只认可比较的整数缺口；缺失或非整数的 missing 不给趋势，避免编造告警。
+    trend = None
+    if len(rows) >= 2:
+        previous, latest = rows[-2].get('missing'), rows[-1].get('missing')
+        if type(previous) is int and type(latest) is int:
+            trend = latest - previous
+    warning = None
+    if trend is not None and trend > 0:
+        warning = f'缺口比上次多了 {trend} 条（missing {rows[-2]["missing"]} → {rows[-1]["missing"]}），先查 failed / unadapted 是否上升'
+    return {'file': str(path), 'rows': rows, 'trend': trend, 'warning': warning, 'bad_rows': bad_rows}
