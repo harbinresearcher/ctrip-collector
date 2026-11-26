@@ -27,7 +27,7 @@
 
 ## 3. 扛得住 App 更新
 
-App 改版会让布局解析失效。现行对策分三层：
+App 改版会让布局解析失效。现行对策分四层：
 
 1. **拒绝未知布局**：解析器只认已验证结构；形状像但没验证过的结构必须显式
    计数（如点评图片的 `media_layout_unrecognized`），不能表现成「没有数据」。
@@ -35,13 +35,26 @@ App 改版会让布局解析失效。现行对策分三层：
    新增布局先补样本再改代码。
 3. **失效可见**：`--audit` 的 `gap_reason` 会区分 `failed` / `unadapted` /
    `source_exhausted`；App 改版后这些数字会先变，而不是静默少采。
+4. **结构指纹**：`layout_fingerprint.py` 对每类页面算稳定短哈希；手机点评任务
+   （`runner.collect`）与网页点评任务（`network.collect_network`）的报告都带
+   `layout: {family, fingerprint, expected, version, changed}`；与基线不一致时
+   写 `layout_changed: true` 并在 `limitations` 说明，**不中断采集**（数据仍可能
+   解析成功）。基线在 `tests/layout_baselines.json`，由 `tests/fixtures/` 里的真实
+   样本重算；改版时样本、基线与 `FAMILIES[*].version` 一起升版本。
 
-待补（App 更新后仍可能要人介入的部分）：
+两类页面用的是两套**不可互换**的指纹：
 
-- 结构指纹：为每类页面记录节点路径/文字模式指纹，改版后在报告里直接指出
-  「哪一类页面的结构变了」，而不是只报 0 条。
-- 布局版本号：把已验证的布局集合写成显式版本（例如 `restaurant_review_layout=3`），
-  样本与代码一起升版本，便于回溯「哪次更新破坏了哪类页面」。
+- **手机点评页**（UI XML）：按先序遍历的节点序列，每个节点记
+  `(深度, class, resource-id 冒号后的尾段, 是否有非空 text)`；正文和 bounds
+  不参与计算，增删节点或改 class 会变，只改文字不变。
+- **网页点评页**：网页是 HTML，但采集器不保留原始 HTML，只保留从 HTML 的
+  `__NEXT_DATA__` 解析出的页面状态（JSON）。因此按页面状态里点评区
+  （`comment_info`）的键名、层级、列表有无和标量类型取指纹，同样不算正文；
+  列表按去重后的结构计算，点评条数变化不影响；没有独立点评区的页面
+  （如酒店浏览器通道）退回整个页面状态。
+
+待补：真实网页 HTML 的标签/class 指纹未做——仓库里没有真实 HTML 样本，
+不拿臆造页面当基线；将来若有通道会保存原始 HTML，再补这一套。
 
 ## 4. 风控处理（合规范围内）
 

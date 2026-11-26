@@ -14,6 +14,8 @@ from threading import Event
 from urllib.parse import urlparse, parse_qs, unquote_plus, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 
+from layout_fingerprint import attach_layout, page_structure_fingerprint, web_family
+
 logger = logging.getLogger(__name__)
 ENDPOINT = 'https://m.ctrip.com/restapi/soa2/13444/json/getCommentCollapseList'
 HEAD = {'cver': '1.0', 'lang': '01', 'sid': '8888', 'syscode': '09',
@@ -537,6 +539,15 @@ def collect_network(target, output, limit=500, stop=None, emit=None, fetch=None,
         report['ai_summary_observed_status'] = target.get('ai_summary', {}).get('status', 'not_captured')
         report['ai_summary_status'] = report['ai_summary_observed_status'] if report['object_saved'] else 'not_saved'
         report['elapsed_seconds'] = round(time.monotonic() - started, 3)
+        # 7.4 网页点评区结构指纹只做改版提示；算不出来也不影响已采数据。
+        try:
+            page = target.get('comment_info')
+            # 没有独立点评区的网页（如酒店浏览器通道）退回整个页面状态。
+            fingerprint = page_structure_fingerprint(page if isinstance(page, dict) else target)
+        except Exception:
+            fingerprint = None
+            logger.warning('网页点评区结构指纹计算失败，采集结果照常保存', exc_info=True)
+        attach_layout(report, web_family(target.get('kind')), fingerprint)
         (output / f'{key}-report-{stamp}.json').write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
         logger.info('网络采集结束：%s', report['reason'])
     return report

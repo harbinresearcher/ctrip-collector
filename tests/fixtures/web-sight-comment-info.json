@@ -1,0 +1,96 @@
+{
+  "poiId": 97667,
+  "resourceId": 136039,
+  "resourceType": 11,
+  "districtId": 2479,
+  "name": "长白山西景区",
+  "imageUrl": "https://dimg04.c-ctrip.com/images/0105i1200087eix6p47B6_D_170_110.jpg?proc=autoorient",
+  "address": "白山市抚松县松江河镇松天线",
+  "feature": "赏锦江大峡谷奇景和草甸山花遍野，观视野开阔的天池全貌。",
+  "districtName": "抚松",
+  "commentCount": 1099,
+  "commentScore": 4.4,
+  "jumpUrl": "/rn_destination_ugc/main.js?CRNModuleName=rn_destination_ugc&CRNType=1&initialPage=comment_poiListPage&poiId=97667",
+  "jumpH5Url": "https://m.ctrip.com/webapp/you/commentWeb/commentList?businessId=136039&businessType=11",
+  "jumpWxUrl": "/cwx/component/cwebview/cwebview?data={\"url\":\"https%3A%2F%2Fm.ctrip.com%2Fwebapp%2Fyou%2FcommentWeb%2FcommentList%3FbusinessId%3D136039%26businessType%3D11\",\"needLogin\":false,\"isNavigate\":false}",
+  "scores": [
+    {
+      "logicValue": 1,
+      "logicName": null,
+      "score": 4.6,
+      "name": "景色"
+    },
+    {
+      "logicValue": 2,
+      "logicName": null,
+      "score": 4.4,
+      "name": "趣味"
+    },
+    {
+      "logicValue": 3,
+      "logicName": null,
+      "score": 4.3,
+      "name": "性价比"
+    }
+  ],
+  "commentHotTags": [
+    {
+      "commentCount": 588,
+      "tagContent": "好评",
+      "tagId": -11,
+      "title": "好评"
+    },
+    {
+      "commentCount": 545,
+      "tagContent": "消费后评价",
+      "tagId": -22,
+      "title": "消费后评价"
+    },
+    {
+      "commentCount": 59,
+      "tagContent": "差评",
+      "tagId": -12,
+      "title": "差评评价"
+    }
+  ],
+  "subCommentHotTags": [
+    {
+      "commentCount": 5,
+      "tagContent": "景色优美",
+      "aiTagId": "ai2_12__1",
+      "emo": 1
+    },
+    {
+      "commentCount": 4,
+      "tagContent": "观看天池最佳地区",
+      "aiTagId": "ai3_97667_1__1",
+      "emo": 1
+    },
+    {
+      "commentCount": 2,
+      "tagContent": "值得再来",
+      "aiTagId": "ai2_2__1",
+      "emo": 1
+    },
+    {
+      "commentCount": 2,
+      "tagContent": "值得推荐",
+      "aiTagId": "ai2_1__1",
+      "emo": 1
+    },
+    {
+      "commentCount": 2,
+      "tagContent": "公共交通不便",
+      "aiTagId": "ai1_7__-1",
+      "emo": -1
+    },
+    {
+      "commentCount": 1,
+      "tagContent": "水质好",
+      "aiTagId": "ai2_13__1",
+      "emo": 1
+    }
+  ],
+  "isRestrictPoi": false,
+  "collpaseCnt": 5
+}

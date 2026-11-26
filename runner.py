@@ -15,6 +15,7 @@ from mobile_review_context import read_review_context, summarize_review_count
 from mobile_review_fields import SHOPPING_DIMENSION, SHOPPING_RATING_FIELDS
 from ai_capture import parse_ai, persist_app_ai_summary
 from hotel_review_thumbnails import ReviewThumbnails
+from layout_fingerprint import attach_layout, mobile_family, structure_fingerprint
 
 logger = logging.getLogger(__name__)
 
@@ -356,6 +357,7 @@ def collect(adb, kind, place, folder, limit=500, max_swipes=1500, stop=None, pro
     selected_filter = sort_order = rejected_context = None
     selection_confirmed = True
     visible_counts = set()
+    first_screen_xml = None
     try:
         if scoped:
             store.start_run(run_id, place)
@@ -398,6 +400,9 @@ def collect(adb, kind, place, folder, limit=500, max_swipes=1500, stop=None, pro
                 if review_scope_reader is not None:
                     source.write_text(xml, encoding='utf-8')
                     review_xml = ET.tostring(scroll, encoding='unicode')
+            # 3.1.2 第一屏留作结构指纹样本；只用于报告，不影响解析。
+            if screens == 1:
+                first_screen_xml = review_xml
             if review_scope_reader is None and ('全部' not in texts or not any(
                     t in ('好评', '差评', '有图·视频') for t in texts)):
                 raise RuntimeError('未识别为评论页面，请先在手机打开目标对象的全部评论。')
@@ -596,6 +601,14 @@ def collect(adb, kind, place, folder, limit=500, max_swipes=1500, stop=None, pro
                 report['identity_checked_screens'] = title_verified_screens
                 report['existing_count'] = initial
                 report['limitations'][5] = '仅按本次屏幕标题核对名称；未核验对象 ID、同名对象或旧库数据'
+            # 4.4.1 结构指纹只做改版提示；算不出来也不影响本次已采数据。
+            if first_screen_xml is not None:
+                try:
+                    fingerprint = structure_fingerprint(first_screen_xml)
+                except Exception:
+                    fingerprint = None
+                    logger.warning('第一屏页面结构指纹计算失败，采集结果照常保存', exc_info=True)
+                attach_layout(report, mobile_family(kind), fingerprint)
             if thumbnails:
                 report['review_thumbnails'] = thumbnails.finish(identity_verification=report['identity_verification'])
                 report['limitations'].append('缩略图为点评卡片中的屏幕裁图，不是原图或视频')

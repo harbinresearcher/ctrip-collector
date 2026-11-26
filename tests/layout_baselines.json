@@ -1,0 +1,17 @@
+{
+  "mobile_reviews": {
+    "fixture": "ctrip-comments.xml",
+    "fingerprint": "d80ab62cf9f41f29",
+    "version": 1
+  },
+  "mobile_reviews_hotel": {
+    "fixture": "hotel-comments.xml",
+    "fingerprint": "764ea7df112ae9b7",
+    "version": 1
+  },
+  "web_reviews": {
+    "fixture": "web-sight-comment-info.json",
+    "fingerprint": "697dd017b08b88e3",
+    "version": 1
+  }
+}
