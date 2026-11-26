@@ -2,6 +2,7 @@
 import json
 import logging
 import re
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import Event
@@ -10,6 +11,21 @@ from urllib.request import urlopen
 from network import MAX_HTML_BYTES, NextData, canonical_url, sanitize
 
 logger = logging.getLogger(__name__)
+
+
+def save_report(stem, report):
+    # /* ===== 步骤1：原子保存目录报告；数据源：当前清单；操作：1) 唯一临时文件 2) 全部写完再替换 ===== */
+    # 1.1 目录报告会被续跑和覆盖统计读回；写到一半被打断不能留下半个 JSON。
+    for suffix, content in (('.txt', ''.join(item['url'] + '\n' for item in report['objects'])),
+                            ('.json', json.dumps(report, ensure_ascii=False, indent=2))):
+        target = stem.with_suffix(suffix)
+        temporary = target.with_name(target.name + '.' + uuid.uuid4().hex + '.tmp')
+        try:
+            temporary.write_text(content, encoding='utf-8')
+            temporary.replace(target)
+        finally:
+            temporary.unlink(missing_ok=True)
+    logger.info('目录报告保存完成：%s', stem.name)
 
 
 def discover_restaurants(url, output, max_pages=5, max_objects=50, stop=None, fetch=None, delay=1.5):
@@ -84,7 +100,7 @@ def discover_restaurants(url, output, max_pages=5, max_objects=50, stop=None, fe
                     break
             repeated = repeated + 1 if len(seen) == before else 0
             # 2.2 总量仅作参考，不据此声称全量。
-            stem.with_suffix('.json').write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
+            save_report(stem, report)
             if report['reason'] == 'object_budget_reached':
                 break
             if not items:
@@ -99,8 +115,12 @@ def discover_restaurants(url, output, max_pages=5, max_objects=50, stop=None, fe
     except Exception as exc:
         report['reason'], report['error'] = 'error', str(exc)
     finally:
-        stem.with_suffix('.txt').write_text(''.join(x['url'] + '\n' for x in report['objects']), encoding='utf-8')
-        stem.with_suffix('.json').write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
+        # 餐饮目录同样：报告写不进去时保留已发现清单。
+        try:
+            save_report(stem, report)
+        except OSError as exc:
+            report['export_error'] = str(exc)
+            logger.warning('餐饮目录报告写入失败，已发现清单仍返回：%s', exc)
         logger.info('餐饮目录读取结束：%s', report['reason'])
     return report
 
@@ -194,7 +214,7 @@ def discover_sights(url, output, max_pages=5, max_objects=50, stop=None, fetch=N
                     break
             repeated = repeated + 1 if before == len(seen) else 0
             logger.info('目录第 %s 页，发现 %s 个本地对象', index, len(seen))
-            stem.with_suffix('.json').write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
+            save_report(stem, report)
             if report['reason'] == 'object_budget_reached':
                 break
             if not items or listing.get('hasMore') is False:
@@ -210,7 +230,11 @@ def discover_sights(url, output, max_pages=5, max_objects=50, stop=None, fetch=N
         report['reason'], report['error'] = 'error', str(exc)
     finally:
         # 2.3 目录抓取结束与全站覆盖是两个概念，始终记录 complete=false。
-        stem.with_suffix('.txt').write_text(''.join(obj['url'] + '\n' for obj in report['objects']), encoding='utf-8')
-        stem.with_suffix('.json').write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
+        # 2.4 最后一次报告写不进去时保留已发现清单并把失败写进报告，不把结果丢给调用方。
+        try:
+            save_report(stem, report)
+        except OSError as exc:
+            report['export_error'] = str(exc)
+            logger.warning('目录报告写入失败，已发现清单仍返回：%s', exc)
         logger.info('城市目录读取结束：%s', report['reason'])
     return report

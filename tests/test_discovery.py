@@ -3,6 +3,7 @@ import logging
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from discovery import discover_sights, discover_restaurants
 
@@ -76,6 +77,34 @@ class DiscoveryTests(unittest.TestCase):
             self.assertEqual(report['reason'], 'object_budget_reached')
             self.assertEqual(len(Path(report['links_file']).read_text('utf-8').splitlines()), 2)
         logger.info('目录边界检查完成')
+
+    def test_report_write_failure_keeps_previous_checkpoint_and_no_temp(self):
+        # /* ===== 步骤3：验证报告写入；数据源：模拟替换失败；操作：1) 保留上一版 2) 不留临时文件 ===== */
+        logger.info('开始目录报告写入检查')
+        pages = {1: fixture(1, [card(1)]), 2: fixture(2, [card(2)])}
+        with tempfile.TemporaryDirectory() as folder:
+            # 3.1 第一页正常写入；第二页替换失败时，磁盘上必须仍是完整的第一版报告。
+            original = Path.replace
+            calls = {'json': 0}
+            def replace(path, destination):
+                if destination.suffix == '.json':
+                    calls['json'] += 1
+                    if calls['json'] >= 2:
+                        raise OSError('模拟磁盘写入失败')
+                return original(path, destination)
+            with patch.object(Path, 'replace', replace):
+                report = discover_sights('https://you.ctrip.com/sight/fusong2479/s0-p1.html', Path(folder),
+                                         max_pages=5, fetch=lambda p: pages[p], delay=0)
+            self.assertEqual(report['reason'], 'error')
+            # 3.2 已发现的清单仍随报告返回；磁盘上保留最后一次完整写入。
+            self.assertEqual([x['resource_id'] for x in report['objects']], [1, 2])
+            self.assertTrue(report.get('export_error'))
+            saved = [item for item in Path(folder).iterdir() if item.suffix == '.json']
+            self.assertEqual(len(saved), 1)
+            checkpoint = json.loads(saved[0].read_text(encoding='utf-8'))
+            self.assertEqual([x['resource_id'] for x in checkpoint['objects']], [1])
+            self.assertEqual(list(Path(folder).glob('*.tmp')), [])
+        logger.info('目录报告写入检查完成')
 
     def test_wrong_page_and_repeated_pages_stop(self):
         # /* ===== 步骤2：验证重复响应；数据源：失效分页；操作：1) 拒绝页码错配 2) 重复页面中止 ===== */
