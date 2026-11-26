@@ -28,6 +28,28 @@ class ShoppingDiscoveryTests(unittest.TestCase):
             self.assertEqual(len(Path(result['links_file']).read_text('utf-8').splitlines()), 1)
         logger.info('购物目录边界检查完成')
 
+    def test_echoed_other_district_stops_instead_of_relabelling(self):
+        # /* ===== 步骤3：核对地区回显；数据源：服务端返回别的城市；操作：1) 立即停止 2) 保留地区名 ===== */
+        logger.info('开始购物地区回显检查')
+        with TemporaryDirectory() as folder:
+            # 3.1 请求 154（天津），接口却回显 2（上海）时不能把这些对象写成 154 的目录。
+            result = discover_shopping(154, folder, fetch=lambda _: {
+                'ResponseStatus': {'Ack': 'Success', 'Errors': []}, 'districtId': 2, 'districtName': '上海',
+                'total': 10, 'shoppingPoiList': [{'businessId': 9, 'poiId': 109, 'districtId': 2}]}, delay=0)
+            self.assertEqual(result['reason'], 'error')
+            self.assertIn('地区', result['error'])
+            self.assertEqual(result['objects'], [])
+            self.assertEqual(result['pages'], 0)
+            # 3.2 一致时记录服务端回显的地区名，供覆盖台账核对。
+            result = discover_shopping(2, folder, fetch=lambda _: {
+                'ResponseStatus': {'Ack': 'Success', 'Errors': []}, 'districtId': 2, 'districtName': '上海',
+                'districtType': 'CITY', 'total': 10,
+                'shoppingPoiList': [{'businessId': 9, 'poiId': 109, 'districtId': 2, 'chineseName': '店'}]}, delay=0)
+            self.assertEqual(result['district_name'], '上海')
+            self.assertEqual(result['district_type'], 'CITY')
+            self.assertEqual([x['resource_id'] for x in result['objects']], [9])
+        logger.info('购物地区回显检查完成')
+
     def test_failure_is_not_empty_end(self):
         # /* ===== 步骤2：核对接口错误；数据源：失败空响应；操作：1) 状态验证 2) 禁止误报末页 ===== */
         logger.info('开始购物接口错误检查')
