@@ -295,6 +295,12 @@ def main():
     parser.add_argument('--gap-limit', type=int, default=10, help='--collect-gaps / --drive 每轮最多处理几个对象，默认 10')
     parser.add_argument('--drive', action='store_true', help='无人值守驱动循环：只在首轮发现目录，之后按缺口续采直到轮数用完或没有进展')
     parser.add_argument('--rounds', type=int, default=1, help='--drive 最多运行几轮，默认 1；不会无限循环')
+    parser.add_argument('--daily-quota', type=int, default=0,
+                        help='--drive 同一天累计新增多少条就停，0 表示不限制；状态存输出目录的 drive-state.json')
+    parser.add_argument('--breaker-failures', type=int, default=0,
+                        help='--drive 一轮里连续多少个对象采集失败就熔断停止，0 表示不启用')
+    parser.add_argument('--min-per-minute', type=float, default=0,
+                        help='--drive 本轮采集速率低于该值（条/分钟）就标 degraded 并把下一轮每轮对象数减半，0 表示不启用')
     parser.add_argument('--hotel-public', action='store_true', help='采酒店公开详情及评论样本，不登录浏览器')
     parser.add_argument('--collect', action='store_true')
     parser.add_argument('--object-ref', default='', help='手机采集的对象引用，如 sight-136039；身份取自 --output 里的落盘证据')
@@ -398,6 +404,8 @@ def main():
             parser.error('--drive 不能与对象采集、统计、对账、导入或其他续采入口同时使用')
         if args.rounds < 1 or args.discovery_pages < 1 or args.max_objects < 1 or args.limit < 1 or args.gap_limit < 1:
             parser.error('rounds、discovery-pages、max-objects、limit 和 gap-limit 必须大于零')
+        if args.daily_quota < 0 or args.breaker_failures < 0 or args.min_per_minute < 0:
+            parser.error('daily-quota、breaker-failures 和 min-per-minute 不能为负数')
         if args.city_list and args.region_seeds:
             parser.error('--city-list 与 --region-seeds 一次只能用一个')
 
@@ -413,7 +421,9 @@ def main():
             return result
         discover_entry = discover if args.city_list or args.region_seeds else None
         print(json.dumps(drive_rounds(args.output, args.rounds, args.discovery_pages, args.max_objects,
-                                      args.limit, args.gap_limit, discover=discover_entry, collector=collect_url),
+                                      args.limit, args.gap_limit, discover=discover_entry, collector=collect_url,
+                                      daily_quota=args.daily_quota, breaker_failures=args.breaker_failures,
+                                      min_per_minute=args.min_per_minute),
                          ensure_ascii=False, indent=2))
         return
     if args.coverage:

@@ -5,6 +5,7 @@ import re
 import sqlite3
 import unittest
 from contextlib import closing
+from datetime import date, timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
@@ -239,6 +240,127 @@ class DriveThroughputTests(unittest.TestCase):
         self.assertIn('--drive 默认 200', text)
         self.assertIn('230', text)
         logger.info('帮助文本测试完成')
+
+
+class DriveLongRunProtectionTests(unittest.TestCase):
+    """长跑保护：每日配额 / 熔断 / 降速。全部用假采集入口与假时钟，不触网。"""
+
+    def test_daily_quota_stops_when_reached_and_survives_restart(self):
+        # /* ===== 步骤1：核对每日配额；数据源：假采集 + 输出目录状态；操作：1) 达到 N 就停 2) 同一天重启后仍生效 ===== */
+        logger.info('开始每日配额测试')
+        with TemporaryDirectory() as folder:
+            object_snapshot(folder, 1, 100)
+            seen = []
+            report = drive_rounds(folder, 5, 1, 1, 3, 5, collector=collector_writing(3, seen),
+                                  daily_quota=5, clock=step_clock(0, 30, 30, 60), emit=lambda _msg: None)
+            # 1.1 第 1 轮采 3 条（3 < 5）继续；第 2 轮累计 6 条达到 5，停。
+            self.assertEqual((report['reason'], report['rounds_used']), ('daily_quota_reached', 2))
+            self.assertEqual(report['rounds'][0]['reason'], 'continued')
+            self.assertEqual(report['rounds'][-1]['reason'], 'daily_quota_reached')
+            self.assertEqual(report['quota'], {'daily': 5, 'used_today': 6, 'remaining': 0})
+            self.assertEqual(len(seen), 2)
+            state_path = Path(folder) / 'drive-state.json'
+            self.assertEqual(json.loads(state_path.read_text(encoding='utf-8')),
+                             {'date': date.today().isoformat(), 'collected_today': 6})
+            # 1.2 模拟同一天的重启：状态说已经采满，就不该再开新一轮。
+            restarted = []
+            again = drive_rounds(folder, 5, 1, 1, 3, 5, collector=collector_writing(3, restarted),
+                                 daily_quota=5, emit=lambda _msg: None)
+            self.assertEqual((again['reason'], again['rounds_used']), ('daily_quota_reached', 0))
+            self.assertEqual((restarted, again['rounds']), ([], []))
+            self.assertFalse(again['complete'])
+        logger.info('每日配额测试完成')
+
+    def test_daily_quota_resets_on_a_new_day(self):
+        # /* ===== 步骤2：核对隔天归零；数据源：伪造的旧日期状态；操作：1) 旧日期不生效 2) 状态改写为今天 ===== */
+        logger.info('开始隔天归零测试')
+        with TemporaryDirectory() as folder:
+            object_snapshot(folder, 2, 100)
+            yesterday = (date.today() - timedelta(days=1)).isoformat()
+            (Path(folder) / 'drive-state.json').write_text(
+                json.dumps({'date': yesterday, 'collected_today': 999}), encoding='utf-8')
+            report = drive_rounds(folder, 1, 1, 1, 2, 1, collector=collector_writing(2, []),
+                                  daily_quota=5, clock=step_clock(0, 30), emit=lambda _msg: None)
+            # 2.1 昨天采到 999 条不影响今天：今天从 0 起算，这一轮照跑。
+            self.assertEqual((report['reason'], report['rounds_used']), ('round_budget_reached', 1))
+            self.assertEqual(report['quota'], {'daily': 5, 'used_today': 2, 'remaining': 3})
+            self.assertEqual(json.loads((Path(folder) / 'drive-state.json').read_text(encoding='utf-8')),
+                             {'date': date.today().isoformat(), 'collected_today': 2})
+        logger.info('隔天归零测试完成')
+
+    def test_breaker_stops_after_consecutive_failures(self):
+        # /* ===== 步骤3：核对熔断；数据源：假采集连续返回 error；操作：1) 到阈值立即停 2) 记下触发对象与错误原文 ===== */
+        logger.info('开始熔断测试')
+        with TemporaryDirectory() as folder:
+            for identity in (1, 2, 3):
+                object_snapshot(folder, identity, 10)
+            seen = []
+
+            def failing(url, output, limit, stop, emit):
+                seen.append(url)
+                return {'reason': 'error', 'error': '接口拒绝：' + url,
+                        'export_error': '', 'complete': False}
+
+            report = drive_rounds(folder, 5, 1, 1, 2, 5, collector=failing,
+                                  breaker_failures=2, emit=lambda _msg: None)
+            self.assertEqual((report['reason'], report['rounds_used']), ('circuit_open', 1))
+            self.assertEqual(report['rounds'][0]['reason'], 'circuit_open')
+            self.assertEqual(report['breaker']['threshold'], 2)
+            self.assertTrue(report['breaker']['tripped'])
+            # 3.1 触发对象是第 2 个失败：缺口相同时按对象键排序，sight-1 → sight-2。
+            self.assertEqual(report['breaker']['object_key'], 'sight-2')
+            self.assertIn('接口拒绝', report['breaker']['error'])
+            self.assertIn('/2.html', report['breaker']['error'])
+            # 3.2 阈值到了就收手：第 3 个对象根本没有发请求。
+            self.assertEqual(len(seen), 2)
+            self.assertEqual([row['object_key'] for row in report['rounds'][0]['processed']],
+                             ['sight-1', 'sight-2'])
+            self.assertFalse(report['complete'])
+        logger.info('熔断测试完成')
+
+    def test_low_rate_degrades_and_halves_next_round_gap_limit(self):
+        # /* ===== 步骤4：核对降速；数据源：假时钟把速率压到阈值以下；操作：1) 标 degraded 2) 下一轮每轮对象数减半 ===== */
+        logger.info('开始降速测试')
+        with TemporaryDirectory() as folder:
+            for identity in (1, 2, 3, 4):
+                object_snapshot(folder, identity, 100)
+            report = drive_rounds(folder, 2, 1, 1, 1, 4, collector=collector_writing(1, []),
+                                  min_per_minute=60, clock=step_clock(0, 30, 30, 90),
+                                  emit=lambda _msg: None)
+            # 4.1 第 1 轮 4 条 / 30 秒 = 8 条/分钟 < 60：本轮降级，下一轮每轮对象数 4 → 2。
+            self.assertEqual(report['rounds'][0]['degraded'], True)
+            self.assertEqual(report['rounds'][0]['reviews_per_minute'], 8.0)
+            self.assertEqual(report['rounds'][1]['gap_limit'], 2)
+            self.assertEqual(len(report['rounds'][1]['selected']), 2)
+            self.assertEqual(report['pacing']['degraded'], True)
+            self.assertEqual(report['pacing']['min_per_minute'], 60)
+            # 4.2 第 2 轮仍未到阈值，再减半到 1（至少 1，不清零、不放弃）。
+            self.assertEqual(report['pacing']['gap_limit_next'], 1)
+            self.assertFalse(report['complete'])
+        logger.info('降速测试完成')
+
+    def test_protection_fields_are_reported_and_complete_stays_false(self):
+        # /* ===== 步骤5：核对报告字段；数据源：三种保护同时配置的任务；操作：1) 三块字段齐全 2) complete 仍为 false ===== */
+        logger.info('开始保护字段测试')
+        with TemporaryDirectory() as folder:
+            object_snapshot(folder, 1, 100)
+            report = drive_rounds(folder, 3, 1, 1, 3, 2, collector=collector_writing(3, []),
+                                  daily_quota=2, breaker_failures=2, min_per_minute=60,
+                                  clock=step_clock(0, 30), emit=lambda _msg: None)
+            self.assertEqual(set(report['quota']), {'daily', 'used_today', 'remaining'})
+            self.assertEqual(set(report['breaker']), {'threshold', 'tripped', 'object_key', 'error'})
+            self.assertEqual(set(report['pacing']), {'min_per_minute', 'degraded', 'gap_limit_next'})
+            self.assertEqual(report['quota'], {'daily': 2, 'used_today': 3, 'remaining': 0})
+            self.assertEqual(report['breaker'], {'threshold': 2, 'tripped': False,
+                                                 'object_key': None, 'error': ''})
+            # 5.1 被配额停下的运行不是成功：complete 仍为 false，reason 是保护值之一。
+            self.assertEqual(report['reason'], 'daily_quota_reached')
+            self.assertEqual(report['rounds'][0]['reason'], 'daily_quota_reached')
+            self.assertFalse(report['complete'])
+            # 5.2 这一轮缺口确实变小了，但停因仍然是配额保护而不是进度。
+            self.assertLess(report['rounds'][0]['after']['missing'],
+                            report['rounds'][0]['before']['missing'])
+        logger.info('保护字段测试完成')
 
 
 if __name__ == '__main__':
