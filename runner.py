@@ -534,7 +534,17 @@ def collect(adb, kind, place, folder, limit=500, max_swipes=1500, stop=None, pro
             if thumbnails:
                 report['review_thumbnails'] = thumbnails.finish(identity_verification=report['identity_verification'])
                 report['limitations'].append('缩略图为点评卡片中的屏幕裁图，不是原图或视频')
-            (folder / f'report-{run_id}.json').write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
+            # 4.5 报告原子写入；写不进去时保留已采数据并记录失败，不把结果丢掉。
+            report_path = folder / f'report-{run_id}.json'
+            temporary_report = report_path.with_name(report_path.name + '.' + uuid.uuid4().hex + '.tmp')
+            try:
+                temporary_report.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
+                temporary_report.replace(report_path)
+            except OSError as exc:
+                report['report_error'] = str(exc)
+                logger.warning('运行报告写入失败，采集结果仍在数据库：%s', exc)
+            finally:
+                temporary_report.unlink(missing_ok=True)
             if scoped:
                 store.finish_run(run_id, reason)
             logger.info('运行报告保存完成：%s', reason)

@@ -253,6 +253,23 @@ class RunnerTests(unittest.TestCase):
             self.assertEqual(len(list(Path(folder).glob('report-*.json'))), 1)
         logger.info('CSV 文件占用检查完成')
 
+    def test_report_write_failure_keeps_reason_and_saved_rows(self):
+        logger.info('开始检查报告写入失败')
+        # 1.0 报告写不进去时，停止原因与已保存条数仍要返回给调用方。
+        stop = threading.Event()
+        stop.set()
+        original = Path.replace
+        def replace(path, destination):
+            if str(destination).endswith('.json') and 'report-' in destination.name:
+                raise OSError('模拟报告写入失败')
+            return original(path, destination)
+        with tempfile.TemporaryDirectory() as folder, patch.object(Path, 'replace', replace):
+            report = collect(Adb('adb', 'test'), 'hotel', 'test', Path(folder), stop=stop)
+            self.assertEqual(report['reason'], 'stopped_by_user')
+            self.assertIn('模拟报告写入失败', report['report_error'])
+            self.assertEqual(list(Path(folder).glob('*.tmp')), [])
+        logger.info('报告写入失败检查完成')
+
     def test_hotel_detail_rejected_before_swiping(self):
         logger.info('开始检查详情页误识别')
         # 1.0 酒店详情页也有“点评”，但不是评论列表。

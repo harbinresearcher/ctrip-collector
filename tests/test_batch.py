@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from threading import Event
 from tempfile import TemporaryDirectory
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from batch import collect_batch
 
@@ -32,6 +32,24 @@ class BatchTests(unittest.TestCase):
             self.assertEqual(collect_batch([URL], folder, 1, collector, stop)['reason'], 'cancelled')
             collector.assert_not_called()
         logger.info('中断任务恢复检查完成')
+
+    def test_report_write_failure_still_returns_processed_results(self):
+        # /* ===== 步骤4：核对报告写入；数据源：模拟替换失败；操作：1) 保留已处理结果 2) 报告可返回 ===== */
+        logger.info('开始批任务报告写入检查')
+        with TemporaryDirectory() as folder:
+            collector = Mock(side_effect=lambda *args: self.result(folder))
+            original = Path.replace
+            def replace(path, destination):
+                if destination.name == 'batch-report.json':
+                    raise OSError('模拟报告写入失败')
+                return original(path, destination)
+            with patch.object(Path, 'replace', replace):
+                report = collect_batch([URL], folder, 1, collector)
+            self.assertEqual(report['processed'], 1)
+            self.assertEqual(report['skipped'], 0)
+            self.assertTrue(report.get('export_error'))
+            self.assertEqual(list(Path(folder).glob('*.tmp')), [])
+        logger.info('批任务报告写入检查完成')
 
     def result(self, folder):
         # /* ===== 步骤1：准备采集证据；数据源：模拟结果；操作：1) 数据库记录 2) 导出文件 ===== */

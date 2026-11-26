@@ -56,6 +56,19 @@ class HotelCityLinks(HTMLParser):
             return
 
 
+def save_report(stem, report, entries):
+    # /* ===== 步骤1：原子保存种子报告；数据源：候选清单；操作：1) 唯一临时文件 2) 写完再替换 ===== */
+    for suffix, content in (('.txt', ''.join(entry + '\n' for entry in entries)),
+                            ('.json', json.dumps(report, ensure_ascii=False, indent=2))):
+        target = stem.with_suffix(suffix)
+        temporary = target.with_name(target.name + '.' + uuid.uuid4().hex + '.tmp')
+        try:
+            temporary.write_text(content, encoding='utf-8')
+            temporary.replace(target)
+        finally:
+            temporary.unlink(missing_ok=True)
+
+
 def discover_regions(output, kind, max_regions=50, *, html=None):
     # /* ===== 步骤1：读取公开首页；数据源：携程目的地链接；操作：1) 限制响应大小 2) 验证地区格式 ===== */
     logger.info('开始读取目的地入口')
@@ -92,7 +105,11 @@ def discover_regions(output, kind, max_regions=50, *, html=None):
             'entries_verified':False,'complete':False,
             'reason':'region_budget_reached' if len(entries)<len(parser.regions) else 'homepage_exhausted',
             'links_file':str(stem.with_suffix('.txt')),'report_file':str(stem.with_suffix('.json'))}
-    Path(report['links_file']).write_text(''.join(entry+'\n' for entry in entries),encoding='utf-8')
-    Path(report['report_file']).write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
+    # 2.2 报告原子写入；写不进去时候选清单仍随返回值返回。
+    try:
+        save_report(stem, report, entries)
+    except OSError as exc:
+        report['export_error'] = str(exc)
+        logger.warning('目的地候选写入失败，清单仍返回：%s', exc)
     logger.info('目的地候选保存完成：%s个',len(entries))
     return report

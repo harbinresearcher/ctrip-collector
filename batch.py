@@ -4,6 +4,7 @@ import hashlib
 import json
 import logging
 import sqlite3
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import Event
@@ -109,7 +110,17 @@ def collect_batch(urls, output, limit, collector, stop=None, emit=None, *, refre
                 report['reason'] = 'cancelled'
                 break
     # 3.3 本次清单执行结束不证明平台数据完整。
-    (output / 'batch-report.json').write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
+    # 3.4 报告原子写入；写不进去时已处理结果仍随返回值交给调用方。
+    report_path = output / 'batch-report.json'
+    temporary = report_path.with_name(report_path.name + '.' + uuid.uuid4().hex + '.tmp')
+    try:
+        temporary.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
+        temporary.replace(report_path)
+    except OSError as exc:
+        report['export_error'] = str(exc)
+        logger.warning('批任务报告写入失败，结果仍返回：%s', exc)
+    finally:
+        temporary.unlink(missing_ok=True)
     logger.info('批量任务结束：%s', report['reason'])
     return report
 

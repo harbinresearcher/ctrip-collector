@@ -56,6 +56,21 @@ class RegionSeedsTests(unittest.TestCase):
             self.assertEqual(json.loads(Path(result['report_file']).read_text(encoding='utf-8'))['total_visible'],2)
         logger.info('地区入口提取测试完成')
 
+    def test_seed_report_write_failure_keeps_candidates(self):
+        # /* ===== 步骤3：核对写入失败；数据源：模拟替换失败；操作：1) 返回候选 2) 不留临时文件 ===== */
+        logger.info('开始地区种子写入检查')
+        html = '<a href="/place/a1.html">A</a><a href="/place/b2.html">B</a>'
+        original = Path.replace
+        def replace(path, destination):
+            raise OSError('模拟磁盘写入失败')
+        with tempfile.TemporaryDirectory() as folder, patch.object(Path, 'replace', replace):
+            result = discover_regions(folder, 'sight', 5, html=html)
+            self.assertEqual(result['entries'], ['https://you.ctrip.com/sight/a1/s0-p1.html',
+                                                 'https://you.ctrip.com/sight/b2/s0-p1.html'])
+            self.assertTrue(result.get('export_error'))
+            self.assertEqual(list(Path(folder).glob('*.tmp')), [])
+        logger.info('地区种子写入检查完成')
+
     def test_budget_and_empty_page_are_explicit(self):
         # /* ===== 步骤2：核对预算和异常；数据源：目的地链接；操作：1) 限定数量 2) 无链接不报成功 ===== */
         logger.info('开始地区预算测试')
