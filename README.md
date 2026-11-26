@@ -38,6 +38,28 @@ adb devices
 
 实测范围包括东方明珠的展开总结与图集续采、上海美食与购物列表、餐厅和购物点评样本，以及 Mercato 和 PHENIX 的推荐菜清单、Mercato 两条点评的 2 页和 15 页图集。App 任务显示的总数、页面核对结果和实际读到的记录分别写入报告。平台全量、所有 App 字段和媒体原文件仍待验证，详见 [路线图](ROADMAP.md)。
 
+## 覆盖台账与缺口续采
+
+三条只读/自动命令回答「还差多少」并自己补采。验收标准见 [docs/GOAL.md](docs/GOAL.md)。
+
+```powershell
+# 1. 对账：平台总数 vs 已发现对象 vs 每个对象已采数
+.\.venv\Scripts\python.exe app.py --audit --output data
+
+# 2. 缺口续采：按缺口从大到小，每个对象本次再补 10 条（最多处理 5 个对象）
+.\.venv\Scripts\python.exe app.py --collect-gaps --output data --limit 10 --gap-limit 5
+
+# 3. 无人值守循环：首轮发现 → 逐轮续采 → 每轮重新对账，直到轮数或缺口不再下降
+.\.venv\Scripts\python.exe app.py --drive --output data `
+  --city-list https://you.ctrip.com/sight/fusong2479/s0-p1.html `
+  --rounds 5 --discovery-pages 2 --max-objects 20 --limit 20 --gap-limit 5
+```
+
+`--limit` 表示「每个对象本次最多再补多少条」，实际目标 = `min(已有 + N, 平台总数)`。
+目标数只取报告里平台回显的总数，取不到就标 `target_unknown`，**不会用已采数冒充目标数**。
+`--drive` 只在首轮执行目录发现；酒店（需人工登录）与手机对象只报缺口、不自动采。
+`complete` 始终为 `false`：清单内目标达成不等于平台全量。
+
 ## 开发和测试
 
 ```powershell
