@@ -1,4 +1,5 @@
 import io
+import os
 import json
 import logging
 import sqlite3
@@ -312,7 +313,9 @@ class CoverageAuditTests(unittest.TestCase):
             (root / 'sight-3-object.json').write_text(json.dumps(
                 {'kind': 'sight', 'resource_id': 3, 'name': '测试景点', 'display_total': 20}), encoding='utf-8')
             report = write_coverage_audit(root)
-            self.assertEqual(report['history']['file'], str(root / 'audit-history.jsonl'))
+            # 9.3.1 路径按同一文件比较：CI 上临时目录可能带 8.3 短名（RUNNER~1），
+            #        直接比字符串会假红。
+            self.assertTrue(os.path.samefile(report['history']['file'], root / 'audit-history.jsonl'))
             self.assertEqual(report['history']['trend'], 5)
             self.assertIn('缺口比上次多了 5 条', report['history']['warning'])
             self.assertEqual(report['summary']['missing'], 20)
