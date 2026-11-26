@@ -316,10 +316,15 @@ def main():
     parser.add_argument('--kind', choices=['hotel', 'sight'], default='hotel')
     parser.add_argument('--place', default='')
     parser.add_argument('--output', type=Path, default=HOME / 'data')
-    parser.add_argument('--limit', type=int, default=500)
+    parser.add_argument('--limit', type=int, default=None,
+                        help='每个对象本次最多再补这么多条；--drive 默认 200（每个对象每轮最多再补这么多条，实测约 230 条/分钟），其他模式默认 500')
     parser.add_argument('--max-swipes', type=int, default=1500)
     parser.add_argument('--ui-backend', choices=['adb', 'uiautomator2'], default='uiautomator2')
     args = parser.parse_args()
+    # 3.0 --limit 的默认值跟模式走：--drive 每个对象每轮补 200 条（实测约 230 条/分钟），
+    #     其他模式（含 --collect-gaps）保持原来的 500，不改既有命令的口径。
+    if args.limit is None:
+        args.limit = 200 if args.drive else 500
     if args.workbench:
         if any((args.check, args.gui_smoke, args.coverage, args.audit, args.collect_gaps, args.drive,
                 args.hotel_public, args.collect,

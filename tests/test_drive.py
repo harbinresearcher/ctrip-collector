@@ -1,3 +1,4 @@
+import io
 import json
 import logging
 import re
@@ -6,6 +7,7 @@ import unittest
 from contextlib import closing
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from drive import drive_rounds
 
@@ -55,6 +57,12 @@ def fake_discovery(calls):
         (Path(output) / name).write_text(json.dumps(report), encoding='utf-8')
         return dict(report, links_file=str(Path(output) / name))
     return discover
+
+
+def step_clock(*times):
+    # 假时钟：按给定时间点依次返回，让每轮耗时在单测里可复现，不引入真实等待。
+    values = iter(times)
+    return lambda: next(values)
 
 
 class DriveTests(unittest.TestCase):
@@ -149,6 +157,88 @@ class DriveTests(unittest.TestCase):
             self.assertEqual(report['rounds'][0]['after']['collected'], 2)
             self.assertEqual(report['rounds'][0]['after']['missing'], 18)
         logger.info('单对象失败测试完成')
+
+
+class DriveThroughputTests(unittest.TestCase):
+    def test_round_rate_and_throughput_come_from_measured_elapsed(self):
+        # /* ===== 步骤1：核对吞吐；数据源：注入假时钟（两轮分别 30 秒 / 60 秒）；操作：1) 每轮算速率 2) 整体按全部轮次算 ===== */
+        logger.info('开始吞吐率测试')
+        with TemporaryDirectory() as folder:
+            object_snapshot(folder, 5, 100)
+            report = drive_rounds(folder, 2, 1, 1, 3, 5, collector=collector_writing(3, []),
+                                  clock=step_clock(0, 30, 30, 90), emit=lambda _msg: None)
+            self.assertEqual([row['elapsed_seconds'] for row in report['rounds']], [30, 60])
+            # 1.1 每轮速率 = 本轮 delta / 本轮耗时 × 60；两轮各采 3 条。
+            self.assertEqual([row['reviews_per_minute'] for row in report['rounds']], [6.0, 3.0])
+            # 1.2 整体吞吐：本次共采 6 条 / 90 秒 × 60 = 4 条/分钟。
+            self.assertEqual(report['throughput'], {'reviews_per_minute': 4.0, 'collected_total': 6,
+                                                    'elapsed_seconds': 90})
+            # 1.3 ETA 用整体速率外推剩余缺口：94 条 / 4 条每分钟 = 1410 秒。
+            self.assertEqual(report['eta_seconds'], 1410.0)
+            self.assertTrue(any('ETA' in line for line in report['limitations']))
+        logger.info('吞吐率测试完成')
+
+    def test_zero_delta_gives_null_rate_and_null_eta(self):
+        # /* ===== 步骤2：核对零增量；数据源：采集报错、时钟正常走；操作：1) 速率写 null 2) ETA 也写 null ===== */
+        logger.info('开始零增量速率测试')
+        with TemporaryDirectory() as folder:
+            object_snapshot(folder, 6, 10)
+            report = drive_rounds(folder, 2, 1, 1, 2, 5,
+                                  collector=lambda url, output, limit, stop, emit: {
+                                      'reason': 'error', 'error': 'verification required',
+                                      'export_error': '', 'complete': False},
+                                  clock=step_clock(0, 5), emit=lambda _msg: None)
+            self.assertEqual(report['reason'], 'no_progress')
+            self.assertIsNone(report['rounds'][0]['reviews_per_minute'])
+            self.assertIsNone(report['throughput']['reviews_per_minute'])
+            self.assertEqual(report['throughput']['collected_total'], 0)
+            self.assertIsNone(report['eta_seconds'])
+        logger.info('零增量速率测试完成')
+
+    def test_eta_matches_missing_and_rate(self):
+        # /* ===== 步骤3：核对 ETA；数据源：missing 240、速率 120 条/分钟；操作：1) eta 必须等于 120 秒 ===== */
+        logger.info('开始 ETA 一致性测试')
+        with TemporaryDirectory() as folder:
+            object_snapshot(folder, 7, 360)
+            report = drive_rounds(folder, 1, 1, 1, 120, 5, collector=collector_writing(120, []),
+                                  clock=step_clock(0, 60), emit=lambda _msg: None)
+            self.assertEqual(report['throughput']['reviews_per_minute'], 120.0)
+            self.assertEqual(report['rounds'][0]['after']['missing'], 240)
+            self.assertEqual(report['eta_seconds'], 120.0)
+        logger.info('ETA 一致性测试完成')
+
+    def test_cli_drive_defaults_to_two_hundred_and_keeps_collect_gaps_default(self):
+        # /* ===== 步骤4：核对默认条数；数据源：真实 app.main 参数解析；操作：1) drive 默认 200 2) collect-gaps 仍 500 ===== */
+        logger.info('开始默认条数测试')
+        import app
+        with TemporaryDirectory() as folder:
+            object_snapshot(folder, 8, 1000)
+            with patch('sys.argv', ['app.py', '--drive', '--output', folder, '--rounds', '1',
+                                    '--max-objects', '1', '--gap-limit', '1']), \
+                    patch('app.collect_url', side_effect=collector_writing(3, [])), \
+                    patch('sys.stdout', new_callable=io.StringIO) as stdout:
+                app.main()
+                result = json.loads(stdout.getvalue())
+            self.assertEqual(result['limit'], 200)
+            with patch('sys.argv', ['app.py', '--collect-gaps', '--output', folder, '--gap-limit', '1']), \
+                    patch('app.collect_url', side_effect=collector_writing(3, [])), \
+                    patch('sys.stdout', new_callable=io.StringIO) as stdout:
+                app.main()
+                result = json.loads(stdout.getvalue())
+            self.assertEqual(result['limit'], 500)
+        logger.info('默认条数测试完成')
+
+    def test_help_states_drive_limit_default_and_measured_rate(self):
+        # /* ===== 步骤5：核对帮助文本；数据源：argparse --help；操作：1) 写出 drive 默认 200 2) 写出实测约 230 条/分钟 ===== */
+        logger.info('开始帮助文本测试')
+        import app
+        with patch('sys.argv', ['app.py', '--help']), \
+                patch('sys.stdout', new_callable=io.StringIO) as stdout, self.assertRaises(SystemExit):
+            app.main()
+        text = stdout.getvalue()
+        self.assertIn('--drive 默认 200', text)
+        self.assertIn('230', text)
+        logger.info('帮助文本测试完成')
 
 
 if __name__ == '__main__':
