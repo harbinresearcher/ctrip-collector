@@ -10,6 +10,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 from coverage_audit import read_audit_history, write_coverage_audit
+from gap_collect import collect_gaps
+from mobile_scoped_store import MobileScopedStore
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +23,130 @@ def discovery_report(root, name, **fields):
     (Path(root) / name).write_text(json.dumps(report), encoding='utf-8')
 
 
+def save_json(root, name, **data):
+    (root / name).write_text(json.dumps(data), encoding='utf-8')
+
+
+def save_app_report(root, run_id, kind, identity, place, *, review_filter='全部',
+                    state='compared_display_only', total=1, reason='target_reached'):
+    save_json(root, f'report-{run_id}.json', run_id=run_id, kind=kind, object_id=identity, place=place,
+              reason=reason, error='sample failure' if reason == 'error' else '',
+              identity_id_verified=False,
+              review_count_check={'scope': 'current_run_fingerprints_vs_app_filter_label',
+                                  'filter': review_filter, 'state': state,
+                                  'display_total': total, 'current_run_unique': total})
+
+
 class CoverageAuditTests(unittest.TestCase):
+    def test_web_gap_and_renewal_use_only_web_rows_and_reports(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            url = 'https://you.ctrip.com/sight/a1/40.html'
+            save_json(root, 'sight-40-object.json', kind='sight', resource_id=40, display_total=2, url=url)
+            save_json(root, 'sight-40-report-first.json', object_key='sight-40', reason='target_reached',
+                      source_method='public_comment_api')
+            save_app_report(root, '20261126T072300-abcdef', 'sight', '40', '测试景点', reason='error')
+            with closing(sqlite3.connect(root / 'network.sqlite3')) as db, db:
+                db.execute('CREATE TABLE network_reviews (object_key TEXT, comment_id TEXT, data TEXT, fetched_at TEXT)')
+                db.execute('INSERT INTO network_reviews VALUES(?,?,?,?)', ('sight-40', 'web-1', '"同一条点评"', 't'))
+            with closing(sqlite3.connect(root / 'reviews.sqlite3')) as db, db:
+                db.execute('CREATE TABLE reviews_scoped (key TEXT PRIMARY KEY, kind TEXT, object_id TEXT, content TEXT)')
+                db.execute('INSERT INTO reviews_scoped VALUES(?,?,?,?)', ('app-1', 'sight', '40', '同一条点评'))
+            obj = write_coverage_audit(root)['objects'][0]
+            self.assertEqual((obj['target'], obj['collected'], obj['missing'], obj['complete']), (2, 1, 1, False))
+            self.assertEqual(obj['collected_by_source'], {'network_reviews': 1, 'reviews_scoped': 1, 'reviews': 0})
+            self.assertEqual((obj['latest_reason'], obj['gap_reason']), ('target_reached', 'missing'))
+
+            with patch('gap_collect.collect_batch', return_value={'results': []}) as batch:
+                followup = collect_gaps(root, 1, collector=lambda *args: None)
+            self.assertEqual(followup['selected'], ['sight-40'])
+            urls, output, limit = batch.call_args.args[:3]
+            self.assertEqual((urls, limit), ([url], 2))
+            self.assertTrue(output.samefile(root))
+
+    def test_app_count_requires_a_confirmed_all_filter_and_exact_run_membership(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            place, identity = '测试餐厅', '41'
+            all_run = '20261126T072300-abcdef'
+            filtered_run = '20261126T082300-aabbcc'
+            row = {'author': '用户', 'date': '2025-01-01', 'date_kind': 'review_date', 'rating': '5.0',
+                   'has_expand': False, 'raw_texts': [], 'card_fields': {}}
+            with closing(MobileScopedStore(root, 'restaurant', identity)) as store:
+                for run, bodies in ((all_run, ('第一条', '之后被删除的一条')), (filtered_run, ('仅筛选任务看到',))):
+                    store.start_run(run, place)
+                    store.save(place, [dict(row, content=body) for body in bodies], 'sample.xml',
+                               observed_keys={}, run_id=run)
+                    store.finish_run(run, 'target_reached')
+                save_app_report(root, all_run, 'restaurant', identity, place, total=2)
+                self.assertTrue(write_coverage_audit(root)['objects'][0]['app_all_run']['display_total_matched'])
+                save_app_report(root, filtered_run, 'restaurant', identity, place, review_filter='图/视频', total=1)
+                with store.db:
+                    store.db.execute('DELETE FROM reviews_scoped WHERE content=?', ('之后被删除的一条',))
+                report = write_coverage_audit(root)
+                obj = report['objects'][0]
+                self.assertEqual((obj['target'], obj['missing'], obj['complete']), (None, None, False))
+                self.assertEqual(obj['collected_by_source']['reviews_scoped'], 2)
+                check = obj['app_all_run']
+                self.assertEqual((check['run_id'], check['display_total'], check['collected'], check['missing']),
+                                 (all_run, 2, 1, 1))
+                self.assertFalse(check['display_total_matched'])
+                self.assertFalse(check['identity_id_verified'])
+                self.assertEqual(report['summary']['unknown_target'], 1)
+                for bad in ({'review_filter': '图/视频'}, {'state': 'approximate_count'}, {'state': 'selection_unconfirmed'}):
+                    with self.subTest(bad=bad):
+                        save_app_report(root, all_run, 'restaurant', identity, place, total=2, **bad)
+                        obj = write_coverage_audit(root)['objects'][0]
+                        self.assertIsNone(obj['app_all_run'])
+                        self.assertTrue(obj['target_unknown'])
+                save_app_report(root, all_run, 'restaurant', identity, '另一家店', total=2)
+                self.assertIsNone(write_coverage_audit(root)['objects'][0]['app_all_run'])
+
+    def test_saved_app_import_rows_and_totals_do_not_inflate_web_scope(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            save_json(root, 'hotel-42-object.json', kind='hotel', resource_id=42,
+                      display_total=3, source_method='hotel_browser_response')
+            save_json(root, 'hotel-42-app-capture-object.json', kind='hotel', resource_id=42,
+                      display_total=1, source_method='app_proxy_capture')
+            save_json(root, 'hotel-42-report-import.json', object_key='hotel-42', display_total=1,
+                      source_method='app_proxy_capture', reason='error', error='offline evidence failed')
+            save_json(root, 'hotel-43-app-capture-object.json', kind='hotel', resource_id=43,
+                      display_total=1, source_method='app_proxy_capture')
+            with closing(sqlite3.connect(root / 'network.sqlite3')) as db, db:
+                db.execute('CREATE TABLE network_reviews (object_key TEXT, comment_id TEXT, data TEXT, fetched_at TEXT)')
+                db.executemany('INSERT INTO network_reviews VALUES(?,?,?,?)',
+                               [('hotel-42', key, '{}', 't') for key in ('both', 'import', 'historical', 'legacy')])
+                db.execute('INSERT INTO network_reviews VALUES(?,?,?,?)', ('hotel-43', 'unattributed', '{}', 't'))
+                db.execute('INSERT INTO network_reviews VALUES(?,?,?,?)', ('hotel-44', 'legacy', '{}', 't'))
+                db.executemany('INSERT INTO network_reviews VALUES(?,?,?,?)',
+                               [('hotel-45', key, '{}', 't') for key in ('import', 'unattributed')])
+                db.execute('CREATE TABLE network_review_observations (object_key TEXT, comment_id TEXT,'
+                           ' source_method TEXT, data_hash TEXT, data TEXT, fetched_at TEXT)')
+                db.executemany('INSERT INTO network_review_observations VALUES(?,?,?,?,?,?)',
+                               [('hotel-42', key, source, stamp, '{}', 't') for key, source, stamp in (
+                                   ('both', 'hotel_browser_response', '1'), ('both', 'hotel_browser_response', '2'),
+                                   ('both', 'app_proxy_capture', '3'), ('import', 'app_proxy_capture', '4'),
+                                   ('historical', 'historical_unknown', '5'))])
+                db.execute('INSERT INTO network_review_observations VALUES(?,?,?,?,?,?)',
+                           ('hotel-45', 'import', 'app_proxy_capture', '1', '{}', 't'))
+            objects = {obj['object_key']: obj for obj in write_coverage_audit(root)['objects']}
+            web, imported, legacy = (objects[f'hotel-{identity}'] for identity in (42, 43, 44))
+            self.assertEqual((web['target'], web['collected'], web['missing'], web['complete']), (3, 1, 2, False))
+            self.assertEqual(web['collected_by_source']['network_reviews'], 4)
+            self.assertEqual((web['latest_reason'], web['gap_reason']), (None, 'missing'))
+            self.assertEqual((imported['target'], imported['collected'], imported['missing']), (None, 0, None))
+            self.assertEqual(imported['collected_by_source']['network_reviews'], 1)
+            self.assertEqual(legacy['collected'], 1)
+            self.assertEqual(objects['hotel-45']['collected'], 0)
+
+            with closing(sqlite3.connect(root / 'network.sqlite3')) as db, db:
+                db.execute('DROP TABLE network_review_observations')
+            legacy_rows = {obj['object_key']: obj for obj in write_coverage_audit(root)['objects']}
+            self.assertEqual(legacy_rows['hotel-42']['collected_by_source']['network_reviews'], 4)
+            self.assertEqual(legacy_rows['hotel-42']['collected'], 0)
+            self.assertEqual(legacy_rows['hotel-44']['collected'], 1)
+
     def test_known_target_and_no_gap_is_complete(self):
         # /* ===== 步骤1：核对完整对象；数据源：对象快照与数据库；操作：1) 目标来自接口回显 2) 缺口为零 ===== */
         logger.info('开始完整目标对账测试')
@@ -146,7 +271,7 @@ class CoverageAuditTests(unittest.TestCase):
                 {'kind': 'shopping', 'place': '测试商场', 'object_id': '5', 'target': 500, 'count': 4,
                  'reason': 'target_reached', 'error': '',
                  'review_count_check': {'display_total': 8}}), encoding='utf-8')
-            # 6.0 旧式手机报告没有对象 ID，只能按类型与名称对账；目标数同样只认回显值。
+            # 6.0 旧式手机报告没有对象 ID，只能按类型与名称保留原始计数。
             (root / 'report-20261126T070500-fedcba.json').write_text(json.dumps(
                 {'kind': 'shopping', 'place': '测试商场', 'target': 500, 'count': 2,
                  'reason': 'target_reached', 'error': '',
@@ -164,12 +289,13 @@ class CoverageAuditTests(unittest.TestCase):
             self.assertEqual(objects['shopping-5']['target'], 8)
             self.assertEqual(objects['shopping-5']['collected_by_source'],
                              {'network_reviews': 0, 'reviews_scoped': 1, 'reviews': 0})
-            self.assertEqual(objects['shopping-5']['collected'], 1)
+            self.assertEqual(objects['shopping-5']['collected'], 0)
             self.assertEqual(objects['shopping-6']['target'], 3)
             self.assertEqual(objects['shopping-6']['gap_reason'], 'unadapted')
-            # 6.1 手机报告里的 target 是本次上限，不能当平台总数；只有页面回显的 8 条才是目标。
-            self.assertEqual(objects['mobile:shopping:测试商场']['target'], 8)
-            self.assertEqual(objects['mobile:shopping:测试商场']['collected'], 2)
+            self.assertIsNone(objects['mobile:shopping:测试商场']['target'])
+            self.assertEqual(objects['mobile:shopping:测试商场']['collected'], 0)
+            self.assertEqual(objects['mobile:shopping:测试商场']['collected_by_source']['reviews'], 2)
+            self.assertIsNone(objects['mobile:shopping:测试商场']['app_all_run'])
             self.assertEqual(report['directories'][0]['discovered_objects'], 2)
         logger.info('目录与手机对账测试完成')
 
@@ -304,8 +430,9 @@ class CoverageAuditTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             (root / 'audit-history.jsonl').write_text(
-                '{"captured_at": "2026-01-01T00:00:00Z", "missing": 10}\n'
-                '{"captured_at": "2026-01-02T00:00:00Z", "missing": 15}\n', encoding='utf-8')
+                '{"captured_at": "2026-01-01T00:00:00Z", "missing": 10, "review_totals_scope": "web_reviews"}\n'
+                '{"captured_at": "2026-01-02T00:00:00Z", "missing": 15, "review_totals_scope": "web_reviews"}\n',
+                encoding='utf-8')
             history = read_audit_history(root)
             self.assertEqual(history['trend'], 5)
             self.assertIn('缺口比上次多了 5 条', history['warning'])
@@ -323,6 +450,17 @@ class CoverageAuditTests(unittest.TestCase):
             (root / 'sight-3-object.json').unlink()
             self.assertIsNone(write_coverage_audit(root)['history']['warning'])
         logger.info('历史缺口变大告警测试完成')
+
+    def test_history_cannot_compare_old_combined_totals_to_web_totals(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / 'audit-history.jsonl').write_text('{"missing": 1}\n', encoding='utf-8')
+            save_json(root, 'sight-1-object.json', kind='sight', resource_id=1, display_total=2)
+            history = write_coverage_audit(root)['history']
+            self.assertEqual([row['missing'] for row in history['rows']], [1, 2])
+            self.assertIsNone(history['trend'])
+            self.assertIsNone(history['warning'])
+            self.assertEqual(write_coverage_audit(root)['history']['trend'], 0)
 
     def test_audit_succeeds_when_history_write_fails(self):
         # /* ===== 步骤9.4：核对写历史失败；数据源：打桩让追加打开抛 OSError；操作：1) 只记警告 2) 对账照常返回 ===== */

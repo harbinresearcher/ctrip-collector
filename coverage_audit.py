@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from android_coverage import local_file
+from mobile_scoped_store import MOBILE_REVIEW_RUN_ID
 
 logger = logging.getLogger(__name__)
 KINDS = ('hotel', 'sight', 'restaurant', 'shopping')
@@ -25,11 +26,15 @@ NETWORK_REPORT = re.compile(r'((?:hotel|sight|restaurant|shopping)-[1-9][0-9]{0,
 MOBILE_REPORT = re.compile(r'report-[0-9A-Za-z-]+\.json')
 # 证据读取上限沿用手机报告的 8 MB 边界；超过上限按不可读文件计，不整份载入内存。
 MAX_EVIDENCE_BYTES = 8 * 1024 * 1024
-# 目标数证据优先级：详情快照 > 网页运行报告 > 手机运行报告 > 目录卡片点评数。
-TARGET_OBJECT, TARGET_NETWORK, TARGET_MOBILE, TARGET_DIRECTORY = 3, 2, 1, 0
+# 网页目标数证据优先级：详情快照 > 网页运行报告 > 目录卡片点评数。
+TARGET_OBJECT, TARGET_NETWORK, TARGET_DIRECTORY = 2, 1, 0
+APP_IMPORTED_METHOD = 'app_proxy_capture'
+WEB_REVIEW_METHODS = ('public_comment_api', 'public_restaurant_poi_api', 'hotel_browser_response',
+                      'hotel_public_html_snapshot', 'shopping_zero_review_snapshot', 'public_shopping_review_overview')
 LIMITATIONS = ['只读取已落盘的目录报告、对象快照、运行报告和本地数据库；不访问网络、不启动浏览器、不连接手机。',
-               '目标数只取报告回显的 listing_total / total / display_total 或目录卡片点评数；取不到时标记 target_unknown，不用已采数代替。',
-               '网页评论库与手机评论库的条数相加时可能包含同一条点评，两个通道的重叠未核验。',
+               '目录目标来自 listing_total / total；对象目标、缺口和进度汇总按网页证据和网页点评计算。',
+               '网页、App 屏幕与离线导入的存储计数仅按各自证据解释。含 App 导入的对象只统计有网页来源的点评为网页已采。',
+               'App 本次明确选中全部时可单独对照显示总数与仍保存在本次范围内的点评；对象 ID 来自本地记录。',
                '餐饮目录使用 POI ID，网页点评使用业务 ID；只有对象快照里同时留有两个 ID 时才对账。',
                '手机卡片里的 photo_count_display 是单条点评的图片展示数，不是对象点评总数，因此不作为对象目标。',
                '目录预算、筛选与排序决定已发现对象数，不等于平台全量；整体 complete 仍为 false。']
@@ -79,6 +84,61 @@ def evidence_url(value):
     return value.strip() if isinstance(value, str) and value.strip().startswith('https://') else None
 
 
+def app_all_run_evidence(path, data):
+    run_id, check = data.get('run_id'), data.get('review_count_check')
+    if (not isinstance(run_id, str) or not MOBILE_REVIEW_RUN_ID.fullmatch(run_id)
+            or path.name != f'report-{run_id}.json' or not isinstance(check, dict)
+            or check.get('scope') != 'current_run_fingerprints_vs_app_filter_label'
+            or check.get('state') != 'compared_display_only' or check.get('filter') != '全部'
+            or not isinstance(data.get('reason'), str) or not data['reason']):
+        return None
+    total = count_value(check.get('display_total'))
+    if total is None:
+        return None
+    return {'run_id': run_id, 'kind': data['kind'], 'object_id': str(data['object_id']),
+            'place': data['place'].strip(), 'reason': data['reason'], 'display_total': total,
+            'file': path.name, 'mtime': path.stat().st_mtime}
+
+
+def matched_app_run(db, reports):
+    for report in sorted(reports, key=lambda row: (row['mtime'], row['file']), reverse=True):
+        kind, identity = report['kind'], report['object_id']
+        row = db.execute('''SELECT COUNT(review.key)
+                            FROM mobile_review_runs run
+                            LEFT JOIN mobile_review_run_items item ON item.run_id=run.run_id
+                            LEFT JOIN reviews_scoped review
+                              ON review.key=item.review_key AND review.kind=run.kind
+                             AND review.scope=run.scope AND review.object_id=run.object_id
+                            WHERE run.run_id=? AND run.kind=? AND run.object_id=? AND run.scope=?
+                              AND run.place=? AND run.final_reason=?
+                            GROUP BY run.run_id''',
+                         (report['run_id'], kind, identity, f'declared:ctrip:{kind}:{identity}',
+                          report['place'], report['reason'])).fetchone()
+        if row is not None:
+            collected, total = row[0], report['display_total']
+            return {'run_id': report['run_id'], 'evidence_file': report['file'], 'display_total': total,
+                    'collected': collected, 'missing': max(total - collected, 0),
+                    'display_total_matched': total == collected, 'identity_id_verified': False}
+    return None
+
+
+def review_source_counts(db):
+    # An ID observed through both methods counts once toward the web target.
+    web_methods = ','.join('?' for _ in WEB_REVIEW_METHODS)
+    return db.execute(f'''SELECT review.object_key,
+                                SUM(EXISTS(SELECT 1 FROM network_review_observations seen
+                                           WHERE seen.object_key=review.object_key AND seen.comment_id=review.comment_id
+                                             AND seen.source_method IN ({web_methods}))),
+                                MAX(EXISTS(SELECT 1 FROM network_review_observations seen
+                                           WHERE seen.object_key=review.object_key AND seen.comment_id=review.comment_id
+                                             AND seen.source_method=?)),
+                                SUM(NOT EXISTS(SELECT 1 FROM network_review_observations seen
+                                               WHERE seen.object_key=review.object_key AND seen.comment_id=review.comment_id
+                                                 AND seen.source_method<>'historical_unknown'))
+                         FROM network_reviews review GROUP BY review.object_key''',
+                      (*WEB_REVIEW_METHODS, APP_IMPORTED_METHOD))
+
+
 def write_coverage_audit(folder):
     # /* ===== 步骤3：读取对象级与目录级证据；数据源：输出目录；操作：1) 只读打开 2) 记录目标数来源 3) 记录对象链接 ===== */
     logger.info('开始对账已落盘采集证据')
@@ -93,7 +153,8 @@ def write_coverage_audit(folder):
 
     def record(key, kind):
         return evidence.setdefault(key, {'key': key, 'kind': kind, 'name': None, 'url': None, 'target': None,
-                                         'target_rank': -1, 'target_source': None, 'reports': [], 'files': []})
+                                         'target_rank': -1, 'target_source': None, 'reports': [], 'files': [],
+                                         'web_attempted': False, 'app_import_seen': False, 'app_runs': []})
 
     def offer_url(item, value):
         # 3.0 链接只用于后续定位对象；对象快照优先，已有时不覆盖。
@@ -107,7 +168,6 @@ def write_coverage_audit(folder):
         item.update(target=value, target_rank=rank, target_source=source)
 
     def add_report(item, path, data):
-        item['files'].append(path.name)
         item['reports'].append({'file': path.name, 'reason': data.get('reason'),
                                 'error': data.get('error') if isinstance(data.get('error'), str) else '',
                                 'mtime': path.stat().st_mtime})
@@ -129,8 +189,12 @@ def write_coverage_audit(folder):
         item['files'].append(path.name)
         if not item['name'] and isinstance(data.get('name'), str) and data['name'].strip():
             item['name'] = data['name'].strip()
-        offer_url(item, data.get('url'))
-        offer_target(item, TARGET_OBJECT, count_value(data.get('display_total')), path.name + ':display_total')
+        if path.name.endswith('-app-capture-object.json') or data.get('source_method') == APP_IMPORTED_METHOD:
+            item['app_import_seen'] = True
+        elif data.get('source_method') is None or data.get('source_method') in WEB_REVIEW_METHODS:
+            item['web_attempted'] = True
+            offer_url(item, data.get('url'))
+            offer_target(item, TARGET_OBJECT, count_value(data.get('display_total')), path.name + ':display_total')
         # 3.3 餐饮快照同时留有两个身份，可把目录里的 POI ID 映射到点评业务 ID。
         if kind == 'restaurant' and type(data.get('poi_id')) is int and data['poi_id'] > 0:
             poi_keys[data['poi_id']] = match[1]
@@ -149,13 +213,18 @@ def write_coverage_audit(folder):
             continue
         kind = match[1].split('-', 1)[0]
         item = record(match[1], kind)
-        add_report(item, path, data)
+        item['files'].append(path.name)
         if not item['name'] and isinstance(data.get('name'), str) and data['name'].strip():
             item['name'] = data['name'].strip()
-        offer_url(item, data.get('source_url'))
-        offer_target(item, TARGET_NETWORK, count_value(data.get('display_total')), path.name + ':display_total')
+        if data.get('source_method') == APP_IMPORTED_METHOD:
+            item['app_import_seen'] = True
+        elif data.get('source_method') is None or data.get('source_method') in WEB_REVIEW_METHODS:
+            item['web_attempted'] = True
+            add_report(item, path, data)
+            offer_url(item, data.get('source_url'))
+            offer_target(item, TARGET_NETWORK, count_value(data.get('display_total')), path.name + ':display_total')
 
-    # 3.5 手机运行报告的 target 是本次采集上限，不是平台总数；只认页面回显的 display_total。
+    # 3.5 App 只比较本次全部筛选和已落库的本次成员，独立于网页目标。
     for path in sorted(folder.glob('report-*.json')):
         if not MOBILE_REPORT.fullmatch(path.name):
             continue
@@ -175,12 +244,11 @@ def write_coverage_audit(folder):
             invalid_files += 1
             continue
         item = record(key, kind)
-        add_report(item, path, data)
+        item['files'].append(path.name)
         if not item['name']:
             item['name'] = place.strip()
-        check = data.get('review_count_check')
-        offer_target(item, TARGET_MOBILE, count_value(check.get('display_total')) if isinstance(check, dict) else None,
-                     path.name + ':review_count_check.display_total')
+        if not key.startswith('mobile:') and (app_run := app_all_run_evidence(path, data)):
+            item['app_runs'].append(app_run)
 
     # 3.6 目录报告给出平台总数与已发现对象；目录卡片的点评数可作对象级目标。
     for path in sorted(folder.glob('discovery-*.json')):
@@ -249,10 +317,12 @@ def write_coverage_audit(folder):
         counts[store] = counts.get(store, 0) + amount
 
     network_state = 'missing'
+    web_collected = {}
     network_db = folder / 'network.sqlite3'
     if local_file(network_db):
         try:
             with closing(sqlite3.connect(network_db.as_uri() + '?mode=ro', uri=True)) as db:
+                db.execute('BEGIN')
                 tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
                 if 'network_reviews' in tables:
                     for key, amount in db.execute('SELECT object_key,COUNT(*) FROM network_reviews GROUP BY object_key'):
@@ -260,16 +330,28 @@ def write_coverage_audit(folder):
                             add_count(key, 'network_reviews', amount)
                         else:
                             invalid_rows += amount
+                    if 'network_review_observations' in tables:
+                        for key, web, imported, legacy in review_source_counts(db):
+                            if key in collected:
+                                has_import = imported or evidence.get(key, {}).get('app_import_seen', False)
+                                web_collected[key] = web if has_import else web + legacy
+                    else:
+                        # Older databases without source observations can only use unattributed web rows
+                        # for objects with no evidence of an App import.
+                        web_collected = {key: counts['network_reviews'] for key, counts in collected.items()
+                                         if not evidence.get(key, {}).get('app_import_seen')}
                     network_state = 'read'
                 else:
                     network_state = 'no_table'
         except sqlite3.Error:
             network_state = 'unreadable'
     mobile_state = 'missing'
+    app_comparisons = {}
     mobile_db = folder / 'reviews.sqlite3'
     if local_file(mobile_db):
         try:
             with closing(sqlite3.connect(mobile_db.as_uri() + '?mode=ro', uri=True)) as db:
+                db.execute('BEGIN')
                 tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
                 read = False
                 if 'reviews_scoped' in tables:
@@ -288,6 +370,10 @@ def write_coverage_audit(folder):
                         else:
                             invalid_rows += amount
                     read = True
+                if {'reviews_scoped', 'mobile_review_runs', 'mobile_review_run_items'} <= tables:
+                    for key, item in evidence.items():
+                        if item['app_runs']:
+                            app_comparisons[key] = matched_app_run(db, item['app_runs'])
                 mobile_state = 'read' if read else 'no_table'
         except sqlite3.Error:
             mobile_state = 'unreadable'
@@ -301,12 +387,12 @@ def write_coverage_audit(folder):
     for key in sorted(evidence):
         item = evidence[key]
         counts = collected.get(key, {})
-        total = sum(counts.get(store, 0) for store in ('network_reviews', 'reviews_scoped', 'reviews'))
+        total = web_collected.get(key, 0)
         target = item['target']
         missing = max(target - total, 0) if target is not None else None
         report = latest_report(item['reports'])
         failed = bool(report and (report['reason'] == 'error' or report['error']))
-        attempted = bool(item['files']) or total > 0
+        attempted = item['web_attempted'] or total > 0
         # 5.1 连续两次都「翻到空页」且没采到目标数：这条通道已经采不出来，
         #     缺口要标成 source_exhausted，否则 --drive 会一直空转报 no_progress。
         exhausted = bool(missing and not failed and exhausted_runs(item['reports']))
@@ -325,6 +411,7 @@ def write_coverage_audit(folder):
                         'collected': total,
                         'collected_by_source': {store: counts.get(store, 0)
                                                 for store in ('network_reviews', 'reviews_scoped', 'reviews')},
+                        'app_all_run': app_comparisons.get(key),
                         'missing': missing, 'gap_reason': gap,
                         'reachable_missing': 0 if gap == 'source_exhausted' else missing,
                         'latest_reason': report['reason'] if report else None,
@@ -340,7 +427,7 @@ def write_coverage_audit(folder):
                'object_count': len(objects), 'directory_count': len(directories),
                'complete': False}
     report_path = folder / ('audit-' + uuid.uuid4().hex + '.json')
-    report = {'scope': 'landed_evidence_only', 'complete': False,
+    report = {'scope': 'landed_evidence_only', 'review_totals_scope': 'web_reviews', 'complete': False,
               'objects': objects, 'directories': sorted(directories, key=lambda row: row['report']),
               'summary': summary, 'network_database': network_state, 'mobile_database': mobile_state,
               'invalid_evidence_files': invalid_files, 'invalid_rows': invalid_rows,
@@ -374,6 +461,7 @@ def audit_history_row(report, captured_at):
         if isinstance(obj, dict) and obj.get('gap_reason') in counts:
             counts[obj['gap_reason']] += 1
     return {'captured_at': captured_at,
+            'review_totals_scope': report.get('review_totals_scope'),
             'missing': summary.get('missing'), 'reachable_missing': summary.get('reachable_missing'),
             'target': summary.get('target'), 'collected': summary.get('collected'),
             'object_count': summary.get('object_count'), 'unknown_target': summary.get('unknown_target'),
@@ -416,9 +504,9 @@ def read_audit_history(folder, limit=HISTORY_DEFAULT_LIMIT):
         rows.append(row)
     if limit > 0:
         rows = rows[-limit:]
-    # 6.5 差值只认可比较的整数缺口；缺失或非整数的 missing 不给趋势，避免编造告警。
+    # 6.5 只有同一统计范围内的整数缺口才适合比较。
     trend = None
-    if len(rows) >= 2:
+    if len(rows) >= 2 and rows[-2].get('review_totals_scope') == rows[-1].get('review_totals_scope'):
         previous, latest = rows[-2].get('missing'), rows[-1].get('missing')
         if type(previous) is int and type(latest) is int:
             trend = latest - previous
