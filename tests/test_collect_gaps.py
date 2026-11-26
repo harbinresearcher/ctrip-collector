@@ -197,3 +197,32 @@ class GapCollectTests(unittest.TestCase):
             self.assertEqual(result['processed'], [])
             self.assertEqual(result['before'], result['after'])
         logger.info('无缺口命令测试完成')
+
+    def test_limit_means_collect_that_many_more(self):
+        # /* ===== 步骤7：核对 limit 语义；数据源：已有 30 条的对象；操作：1) 目标=已有+追加 2) 缺口下降 ===== */
+        logger.info('开始 limit 追加语义测试')
+        seen = []
+        with TemporaryDirectory() as folder:
+            # 7.0 平台总数 1099，已有 30 条，本次要求再补 10 条 —— 目标必须是 40 而不是 10。
+            object_snapshot(folder, 9, 1099)
+            add_rows(folder, 'sight-9', 30)
+            report = collect_gaps(folder, 10, collector=collector_writing(10, seen))
+            self.assertEqual(seen, ['https://you.ctrip.com/sight/a1/9.html'])
+            processed = report['processed'][0]
+            self.assertEqual(processed['requested_add'], 10)
+            self.assertEqual(processed['target_used'], 40)
+            self.assertEqual((processed['before_missing'], processed['after_collected'],
+                              processed['after_missing']), (1069, 40, 1059))
+            self.assertEqual(report['after']['missing'], report['before']['missing'] - 10)
+
+    def test_target_never_exceeds_the_platform_total(self):
+        # /* ===== 步骤8：核对上限；数据源：缺口小于追加量；操作：1) 目标封顶 2) 不越采 ===== */
+        logger.info('开始目标封顶测试')
+        seen = []
+        with TemporaryDirectory() as folder:
+            # 8.0 平台总数 35、已有 30 条，缺口 5：追加 10 条时目标只能是 35。
+            object_snapshot(folder, 8, 35)
+            add_rows(folder, 'sight-8', 30)
+            report = collect_gaps(folder, 10, collector=collector_writing(10, seen))
+            self.assertEqual(report['processed'][0]['target_used'], 35)
+            self.assertEqual(report['processed'][0]['after_missing'], 0)

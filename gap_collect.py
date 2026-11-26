@@ -74,13 +74,21 @@ def collect_gaps(folder, limit, gap_limit=10, stop=None, emit=None, collector=No
                 'before': before['summary'], 'after': before['summary'],
                 'selected': [], 'processed': [], 'output': str(folder)}
     emit(f"缺口续采：{len(selected)} 个对象（候选 {len(candidates)} 个）")
+
+    def target_for(obj):
+        # 3.2.2 目标 = min(已有 + 本次追加, 平台总数)；两处口径统一走这个函数。
+        return min(int(obj['collected']) + limit, int(obj['target']))
+
     runs = []
     for obj in selected:
         if stop.is_set():
             break
-        emit(f"续采 {obj['object_key']}：缺口 {obj['missing']}，本次目标 {limit} 条")
+        # 3.2.1 --limit 是「本次最多再补多少条」，不是对象总目标：已有 30 条时再补 10 条
+        #       必须是 40 条的目标，否则目标早就达到，续采变成空跑、缺口永远不动。
+        effective = target_for(obj)
+        emit(f"续采 {obj['object_key']}：缺口 {obj['missing']}，已有 {obj['collected']} 条，本次目标 {effective} 条")
         # 3.3 单对象走既有批任务链路：停止原因、错误和导出错误都由它原样记录，这里不改写成成功。
-        batch = collect_batch([obj['url']], folder, limit, collector, stop, emit)
+        batch = collect_batch([obj['url']], folder, effective, collector, stop, emit)
         results = batch.get('results') or []
         if results:
             result = results[0]
@@ -97,6 +105,8 @@ def collect_gaps(folder, limit, gap_limit=10, stop=None, emit=None, collector=No
         row = by_key.get(obj['object_key'], {})
         processed.append({'object_key': obj['object_key'], 'name': obj.get('name'), 'url': obj['url'],
                           'before_missing': obj['missing'],
+                          'requested_add': limit,
+                          'target_used': target_for(obj),
                           'after_collected': row.get('collected'), 'after_missing': row.get('missing'),
                           'reason': result.get('reason') or 'unknown',
                           'error': result.get('error') or '',
