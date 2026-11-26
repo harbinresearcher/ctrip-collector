@@ -3,10 +3,12 @@
 不另写下载逻辑：每个对象复用 batch.collect_batch 和调用方给的对象采集入口，
 本模块只负责挑对象、传目标条数、以及采完后重新对账。
 酒店走专用浏览器且需要人工登录，不放进自动续采，缺口对象仍用 --url 采集。
+对象之间可以按 --workers 做线程级并发；同一对象内部仍串行翻页，间隔不变。
 """
 import logging
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from pathlib import Path
-from threading import Event
+from threading import Event, Lock
 
 from batch import collect_batch
 from coverage_audit import write_coverage_audit
@@ -14,6 +16,29 @@ from coverage_audit import write_coverage_audit
 logger = logging.getLogger(__name__)
 # 只驱动网页公开点评通道；手机对象与酒店浏览器对象都不在自动续采范围内。
 NETWORK_KINDS = ('sight', 'restaurant', 'shopping')
+# 并发上限与命令行一致：同一 IP 上再开更多路请求只会抬高风控概率。
+MAX_WORKERS = 3
+
+
+class QuotaBudget:
+    # /* ===== 步骤0：并发下的每日配额闸门；数据源：当日剩余额度；操作：1) 开对象前预占 2) 按实际新增退还 ===== */
+    # 预占在开对象之前完成：两个线程同时开工也不会把同一份额度用两遍。
+    def __init__(self, remaining):
+        self.remaining = max(int(remaining), 0)
+        self._lock = Lock()
+
+    def claim(self, wanted):
+        with self._lock:
+            take = min(max(int(wanted), 0), self.remaining)
+            self.remaining -= take
+            return take
+
+    def refund(self, amount):
+        # 0.1 实际新增少于预占时把差额还回额度：额度按真实新增算，不让保守预占白占额度。
+        if amount <= 0:
+            return
+        with self._lock:
+            self.remaining += int(amount)
 
 
 def is_collectable(obj):
@@ -52,11 +77,53 @@ def idle_reason(objects):
     return 'no_collectable_object'
 
 
-def collect_gaps(folder, limit, gap_limit=10, stop=None, emit=None, collector=None):
-    # /* ===== 步骤3：按缺口续采；数据源：只读对账与既有采集入口；操作：1) 排序限量 2) 逐对象采 3) 重新对账 ===== */
+def run_concurrently(selected, limit, workers, stop, emit, run_object, quota_remaining):
+    # /* ===== 步骤3.4：对象级并发调度；数据源：候选对象与当日剩余额度；操作：1) 只给空闲线程开新对象 2) stop/配额到点就不再提交 ===== */
+    # 3.4.0 并发只并行不同对象：同一对象始终只有一个线程在跑，翻页间隔与串行一致。
+    budget = QuotaBudget(quota_remaining) if quota_remaining is not None else None
+    finished = {}
+    pending = list(selected)
+    active = {}
+    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix='gap-collect') as pool:
+        while True:
+            while len(active) < workers and pending:
+                if stop.is_set():
+                    pending.clear()
+                    break
+                obj = pending.pop(0)
+                add = limit
+                if budget is not None:
+                    # 3.4.1 额度按对象预占：开对象前先扣，另一路线程不可能再拿到同一份额度。
+                    add = budget.claim(min(limit, int(obj['target']) - int(obj['collected'])))
+                    if add <= 0:
+                        pending.clear()
+                        emit('配额到点：不再开始新对象，已开对象跑完就停')
+                        break
+                active[pool.submit(run_object, obj, add)] = (obj, add)
+            if not active:
+                break
+            done, _ = wait(active, return_when=FIRST_COMPLETED)
+            for future in done:
+                obj, add = active.pop(future)
+                effective, result = future.result()
+                finished[obj['object_key']] = (obj, result, add, effective)
+                if budget is not None:
+                    # 3.4.2 只按实测新增退还差额；采集没报新增就按已预占算，宁少开对象也不超发。
+                    actual = result.get('new_count')
+                    if type(actual) is int and 0 <= actual < add:
+                        budget.refund(add - actual)
+    # 3.4.3 完成先后不确定：按对象键排序输出，报告不随线程调度变化。
+    return [finished[key] for key in sorted(finished)]
+
+
+def collect_gaps(folder, limit, gap_limit=10, stop=None, emit=None, collector=None,
+                 *, workers=1, quota_remaining=None):
+    # /* ===== 步骤3：按缺口续采；数据源：只读对账与既有采集入口；操作：1) 排序限量 2) 逐对象采（可并发）3) 重新对账 ===== */
     logger.info('开始缺口续采')
     if limit < 1 or gap_limit < 1:
         raise ValueError('目标条数和对象上限必须大于零')
+    if type(workers) is not int or not 1 <= workers <= MAX_WORKERS:
+        raise ValueError(f'并发数必须是 1 到 {MAX_WORKERS} 的整数')
     if collector is None:
         raise ValueError('缺口续采需要采集入口')
     stop = stop or Event()
@@ -71,49 +138,57 @@ def collect_gaps(folder, limit, gap_limit=10, stop=None, emit=None, collector=No
         # 3.2 没有可处理对象不是错误：写清原因，调用方按退出码 0 处理。
         reason = idle_reason(objects)
         logger.info('没有可处理的缺口对象：%s', reason)
-        return {'reason': reason, 'limit': limit, 'gap_limit': gap_limit,
+        return {'reason': reason, 'limit': limit, 'gap_limit': gap_limit, 'workers': workers,
                 'before': before['summary'], 'after': before['summary'],
                 'selected': [], 'processed': [], 'output': str(folder)}
     emit(f"缺口续采：{len(selected)} 个对象（候选 {len(candidates)} 个）")
 
-    def target_for(obj):
+    def target_for(obj, add):
         # 3.2.2 目标 = min(已有 + 本次追加, 平台总数)；两处口径统一走这个函数。
-        return min(int(obj['collected']) + limit, int(obj['target']))
+        return min(int(obj['collected']) + add, int(obj['target']))
 
-    runs = []
-    for obj in selected:
-        if stop.is_set():
-            break
-        # 3.2.1 --limit 是「本次最多再补多少条」，不是对象总目标：已有 30 条时再补 10 条
-        #       必须是 40 条的目标，否则目标早就达到，续采变成空跑、缺口永远不动。
-        effective = target_for(obj)
-        emit(f"续采 {obj['object_key']}：缺口 {obj['missing']}，已有 {obj['collected']} 条，本次目标 {effective} 条")
+    def run_object(obj, add):
         # 3.3 单对象走既有批任务链路：停止原因、错误和导出错误都由它原样记录，这里不改写成成功。
+        effective = target_for(obj, add)
+        # 3.3.1 --limit 是「本次最多再补多少条」，不是对象总目标：已有 30 条时再补 10 条
+        #       必须是 40 条的目标，否则目标早就达到，续采变成空跑、缺口永远不动。
+        emit(f"续采 {obj['object_key']}：缺口 {obj['missing']}，已有 {obj['collected']} 条，本次目标 {effective} 条")
         batch = collect_batch([obj['url']], folder, effective, collector, stop, emit)
         results = batch.get('results') or []
         if results:
-            result = results[0]
-        elif batch.get('reused_results'):
-            result = dict(batch['reused_results'][0], reason='reused_verified')
-        else:
-            result = {'reason': 'no_result', 'error': batch.get('error') or batch.get('reason') or ''}
-        runs.append((obj, result))
+            return effective, results[0]
+        if batch.get('reused_results'):
+            return effective, dict(batch['reused_results'][0], reason='reused_verified')
+        return effective, {'reason': 'no_result', 'error': batch.get('error') or batch.get('reason') or ''}
+
+    if workers == 1:
+        # 3.3.2 默认串行：保持原有处理顺序与日志，一个对象采完再开下一个。
+        serial = []
+        for obj in selected:
+            if stop.is_set():
+                break
+            effective, result = run_object(obj, limit)
+            serial.append((obj, result, limit, effective))
+        runs = serial
+    else:
+        # 3.3.3 串行路径不传配额：配额仍按轮结束累计判定，workers=1 的行为与以前完全一致。
+        runs = run_concurrently(selected, limit, workers, stop, emit, run_object, quota_remaining)
     # 3.4 采完重新对账：after 是数据库与证据的真实计数，不是对本次调用的推测。
     after = write_coverage_audit(folder)
     by_key = {row['object_key']: row for row in after['objects']}
     processed = []
-    for obj, result in runs:
+    for obj, result, add, effective in runs:
         row = by_key.get(obj['object_key'], {})
         processed.append({'object_key': obj['object_key'], 'name': obj.get('name'), 'url': obj['url'],
                           'before_missing': obj['missing'],
-                          'requested_add': limit,
-                          'target_used': target_for(obj),
+                          'requested_add': add,
+                          'target_used': effective,
                           'after_collected': row.get('collected'), 'after_missing': row.get('missing'),
                           'reason': result.get('reason') or 'unknown',
                           'error': result.get('error') or '',
                           'export_error': result.get('export_error') or ''})
     report = {'reason': 'cancelled' if stop.is_set() else 'gap_processed',
-              'limit': limit, 'gap_limit': gap_limit,
+              'limit': limit, 'gap_limit': gap_limit, 'workers': workers,
               'before': before['summary'], 'after': after['summary'],
               'selected': [obj['object_key'] for obj in selected], 'processed': processed,
               'output': str(folder)}

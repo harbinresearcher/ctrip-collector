@@ -355,7 +355,7 @@ def collect_network(target, output, limit=500, stop=None, emit=None, fetch=None,
                               '首批目标条数受平台排序影响，不能保证无抽样偏差。',
                               '图片视频保留返回元数据与链接；未下载媒体文件。',
                               '主评论可合并补全字段；不同原始观察及其来源另存在观察文件。']}
-    db = sqlite3.connect(output / 'network.sqlite3')
+    db = sqlite3.connect(output / 'network.sqlite3', timeout=30)
     # 7.0.2 系统临时目录不可写（受限环境、磁盘满、TEMP 指向已删除目录）时，SQLite 排序
     #       会因为建不了临时文件报 'unable to open database file'；本地证据库放内存即可。
     db.execute('PRAGMA temp_store = MEMORY')

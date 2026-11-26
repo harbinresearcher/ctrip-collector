@@ -23,7 +23,7 @@ from multi_discovery import discover_many, resume_details
 from region_seeds import discover_regions
 from coverage_report import write_coverage_report
 from coverage_audit import write_coverage_audit
-from gap_collect import collect_gaps
+from gap_collect import MAX_WORKERS, collect_gaps
 from drive import drive_rounds
 from object_identity import resolve_object_ref
 from hotel_public_batch import collect_public_hotels
@@ -301,6 +301,8 @@ def main():
                         help='--drive 一轮里连续多少个对象采集失败就熔断停止，0 表示不启用')
     parser.add_argument('--min-per-minute', type=float, default=0,
                         help='--drive 本轮采集速率低于该值（条/分钟）就标 degraded 并把下一轮每轮对象数减半，0 表示不启用')
+    parser.add_argument('--workers', type=int, default=1,
+                        help='--drive 对象级并发数，1–3，默认 1（串行，行为与以前一致）；同一对象内部仍串行翻页')
     parser.add_argument('--hotel-public', action='store_true', help='采酒店公开详情及评论样本，不登录浏览器')
     parser.add_argument('--collect', action='store_true')
     parser.add_argument('--object-ref', default='', help='手机采集的对象引用，如 sight-136039；身份取自 --output 里的落盘证据')
@@ -406,6 +408,9 @@ def main():
             parser.error('rounds、discovery-pages、max-objects、limit 和 gap-limit 必须大于零')
         if args.daily_quota < 0 or args.breaker_failures < 0 or args.min_per_minute < 0:
             parser.error('daily-quota、breaker-failures 和 min-per-minute 不能为负数')
+        # 3.0.4.2 并发只在不同对象之间：上限 3，越界直接拒绝，不悄悄夹到范围内。
+        if not 1 <= args.workers <= MAX_WORKERS:
+            parser.error(f'--workers 只能是 1 到 {MAX_WORKERS} 的整数')
         if args.city_list and args.region_seeds:
             parser.error('--city-list 与 --region-seeds 一次只能用一个')
 
@@ -423,7 +428,7 @@ def main():
         print(json.dumps(drive_rounds(args.output, args.rounds, args.discovery_pages, args.max_objects,
                                       args.limit, args.gap_limit, discover=discover_entry, collector=collect_url,
                                       daily_quota=args.daily_quota, breaker_failures=args.breaker_failures,
-                                      min_per_minute=args.min_per_minute),
+                                      min_per_minute=args.min_per_minute, workers=args.workers),
                          ensure_ascii=False, indent=2))
         return
     if args.coverage:

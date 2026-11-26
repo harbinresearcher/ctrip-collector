@@ -9,10 +9,10 @@ import json
 import logging
 from datetime import datetime
 from pathlib import Path
-from threading import Event
+from threading import Event, Lock
 from time import monotonic
 
-from gap_collect import collect_gaps
+from gap_collect import MAX_WORKERS, collect_gaps
 
 logger = logging.getLogger(__name__)
 # 停止原因：前四种由轮次进度决定，后两种由长跑保护触发（配额到点 / 连续失败熔断）；
@@ -26,7 +26,9 @@ LIMITATIONS = ['继续的唯一条件是 after.missing 严格小于 before.missi
                'complete 固定为 false：本命令只回答「清单内的目标还差多少」，不代表平台数据已采全。',
                'ETA 按本次实测速率外推：平台限速、风控与接口波动都会让它偏乐观。',
                '每日配额按轮结束时的累计新增判定，最后一轮可能超过剩余额度；只统计本命令各轮的实测新增。',
-               '熔断只看本轮内连续失败的对象，成功一次即清零；降速只调下一轮的每轮对象数（gap_limit），不改每对象条数（limit）。']
+               '熔断只看本轮内连续失败的对象，成功一次即清零；降速只调下一轮的每轮对象数（gap_limit），不改每对象条数（limit）。',
+               '并发只并行不同对象：同一对象内部仍按原有间隔串行翻页，任一对象同一时刻只有一个线程在请求。',
+               '并发时配额按对象预占、按实际新增退还，总新增不超过当日剩余额度；串行（workers=1）仍按轮结束累计判定，可能跨过额度。']
 # 配额状态落在输出目录：同一天重启接着算，本地日期变了自动归零。
 STATE_FILE = 'drive-state.json'
 
@@ -117,13 +119,16 @@ def breaker_guard(collector, threshold, stop):
     # /* ===== 步骤3.4：包一层采集入口做熔断；数据源：对象采集结果；操作：1) 连续失败计数 2) 到阈值记下对象与错误并置停止信号 ===== */
     trip = {'tripped': False, 'object_url': None, 'error': ''}
     consecutive = [0]
+    # 3.4.0 并发下多个对象同时返回：计数和触发判定必须在同一把锁里，否则两次失败可能都以为自己是第 1 次。
+    lock = Lock()
 
     def note(url, error):
         # 3.4.1 成功一次就清零计数：熔断看的是连续失败，不是累计失败。
-        consecutive[0] += 1
-        if consecutive[0] >= threshold and not trip['tripped']:
-            trip.update(tripped=True, object_url=url, error=error)
-            stop.set()
+        with lock:
+            consecutive[0] += 1
+            if consecutive[0] >= threshold and not trip['tripped']:
+                trip.update(tripped=True, object_url=url, error=error)
+                stop.set()
 
     def guarded(url, output, limit, round_stop, emit):
         try:
@@ -135,7 +140,8 @@ def breaker_guard(collector, threshold, stop):
         if failed_result(result):
             note(url, result.get('error') or '采集失败')
         else:
-            consecutive[0] = 0
+            with lock:
+                consecutive[0] = 0
         return result
 
     return guarded, trip
@@ -143,13 +149,15 @@ def breaker_guard(collector, threshold, stop):
 
 def drive_rounds(folder, rounds, discovery_pages, max_objects, limit, gap_limit,
                  *, discover=None, collector=None, stop=None, emit=None, clock=None,
-                 daily_quota=0, breaker_failures=0, min_per_minute=0):
+                 daily_quota=0, breaker_failures=0, min_per_minute=0, workers=1):
     # /* ===== 步骤4：按轮驱动；数据源：只读对账、既有续采入口与时钟；操作：1) 只在首轮发现 2) 每轮对账-续采-对账 3) 缺口不降就停 4) 记耗时与速率 5) 配额/熔断/降速保护 ===== */
     logger.info('开始无人值守驱动循环')
     if rounds < 1 or discovery_pages < 1 or max_objects < 1 or limit < 1 or gap_limit < 1:
         raise ValueError('轮数、目录页数、目录对象数、目标条数和每轮对象上限必须大于零')
     if daily_quota < 0 or breaker_failures < 0 or min_per_minute < 0:
         raise ValueError('每日配额、熔断阈值和最低速率不能为负数')
+    if type(workers) is not int or not 1 <= workers <= MAX_WORKERS:
+        raise ValueError(f'对象级并发数必须是 1 到 {MAX_WORKERS} 的整数')
     if collector is None:
         raise ValueError('驱动循环需要采集入口')
     stop, emit, clock = stop or Event(), emit or logger.info, clock or monotonic
@@ -160,7 +168,7 @@ def drive_rounds(folder, rounds, discovery_pages, max_objects, limit, gap_limit,
     report = {'reason': 'cancelled', 'rounds': [], 'rounds_used': 0, 'discovery': None,
               'output': str(folder), 'complete': False,
               'round_budget': rounds, 'discovery_pages': discovery_pages, 'max_objects': max_objects,
-              'limit': limit, 'gap_limit': gap_limit, 'limitations': LIMITATIONS,
+              'limit': limit, 'gap_limit': gap_limit, 'workers': workers, 'limitations': LIMITATIONS,
               'quota': quota_view(daily_quota, state['collected_today']),
               'breaker': {'threshold': breaker_failures, 'tripped': False, 'object_key': None, 'error': ''},
               'pacing': {'min_per_minute': min_per_minute, 'degraded': False, 'gap_limit_next': gap_limit}}
@@ -192,7 +200,12 @@ def drive_rounds(folder, rounds, discovery_pages, max_objects, limit, gap_limit,
             round_collector, trip = breaker_guard(collector, breaker_failures, round_stop)
         used_gap = round_gap
         started = clock()
-        gap = collect_gaps(folder, limit, used_gap, stop=round_stop, emit=emit, collector=round_collector)
+        # 4.4.1 并发时把当日剩余额度交给本模块：多线程共用一份额度，先预占再开新对象；
+        #       串行模式不传，配额口径与以前一致（轮结束累计判定）。
+        quota_remaining = (daily_quota - state['collected_today']) if daily_quota > 0 else None
+        gap = collect_gaps(folder, limit, used_gap, stop=round_stop, emit=emit, collector=round_collector,
+                           workers=workers,
+                           quota_remaining=quota_remaining if workers > 1 else None)
         elapsed = clock() - started
         before, after = gap['before'], gap['after']
         delta = after['collected'] - before['collected']
