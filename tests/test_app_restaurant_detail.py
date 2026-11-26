@@ -144,9 +144,23 @@ class AppRestaurantDetailTests(unittest.TestCase):
                 if scan['complete']:
                     self.assertEqual(scan['method'], 'menu')
 
+    def test_menu_navigation_waits_for_the_list_without_tapping_again(self):
+        root = ET.parse(Path(__file__).parent / 'fixtures' / 'app-restaurant-menu-pages.xml').getroot()
+        first, last = (ET.tostring(frame, encoding='unicode') for frame in root)
+        device = Mock()
+        device.snapshot.side_effect = (FRAMES[0], FRAMES[0], first, last)
+        stop = Mock()
+        stop.is_set.return_value = stop.wait.return_value = False
+        with TemporaryDirectory() as output:
+            report = capture_restaurant_detail(device, output, NAME, recommendation_stop=stop)
+        self.assertEqual(report['recommendation_scan'], {
+            'method': 'menu', 'reason': 'expected_count_reached', 'screens': 2, 'complete': True,
+        })
+        self.assertEqual([call.args[2] for call in device.run.call_args_list], ['tap', 'swipe'])
+
     def test_scan_falls_back_when_opening_the_menu_leaves_the_same_detail(self):
         device = Mock()
-        device.snapshot.side_effect = (FRAMES[0], FRAMES[0], *FRAMES[1:])
+        device.snapshot.side_effect = (*([FRAMES[0]] * 5), *FRAMES[1:])
         stop = Mock()
         stop.is_set.return_value = stop.wait.return_value = False
         with TemporaryDirectory() as output:

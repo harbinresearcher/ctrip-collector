@@ -36,15 +36,24 @@ def overlaps(node, area):
 def dish_name(card, area):
     if not app_view(card, VIEW) or len(card) < 2 or not overlaps(card, area):
         return None
-    # The first column is the dish photo. The second starts with the name and may include a description.
-    photo, details = card[:2]
-    if not app_view(photo, VIEW) or not app_view(details, VIEW) or not len(details):
+    first, second = card[:2]
+    if not app_view(first, VIEW) or not app_view(second, VIEW):
         return None
-    photo_box, info_box = visible_bounds(photo), visible_bounds(details)
-    title = details[0]
-    if (photo_box and info_box and photo_box[2] <= info_box[0]
-            and app_view(title, TEXT_VIEW) and overlaps(title, area)
-            and (name := text(title)) and any(char.isalnum() for char in name)):
+    first_box, second_box = visible_bounds(first), visible_bounds(second)
+    if not first_box or not second_box:
+        return None
+
+    # Photo cards separate the photo from the title and description column.
+    if first_box[2] <= second_box[0] and len(second) and app_view(second[0], TEXT_VIEW):
+        title = second[0]
+    # Text-only cards put their title in the first branch, above the row's two actions.
+    elif (len(first) == 1 and app_view(first[0], TEXT_VIEW) and len(card) == 3
+          and app_view(card[2], VIEW) and first_box[3] <= second_box[1]
+          and any(app_view(node, TEXT_VIEW) and text(node) == '\ue956' for node in card[2])):
+        title = first[0]
+    else:
+        return None
+    if overlaps(title, area) and (name := text(title)) and any(char.isalnum() for char in name):
         return name
     return None
 

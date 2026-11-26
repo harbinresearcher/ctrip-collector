@@ -23,6 +23,16 @@ class RestaurantMenuTests(unittest.TestCase):
         name.set('bounds', '[325,2168][1050,2168]')
         self.assertEqual(parse_restaurant_menu(ET.tostring(tree, 'unicode'))[1], DISHES[:6])
 
+    def test_text_only_rows_keep_titles_between_the_fixed_header_and_add_button(self):
+        xml = (FIXTURES / 'app-restaurant-menu-text-rows.xml').read_text('utf-8')
+        total, names, area = parse_restaurant_menu(xml)
+        self.assertEqual(total, 29)
+        self.assertEqual(names, [
+            'M5和牛腰肉', '草莓冰霜', '法芙娜巧克力蛋糕', '青瓜沙冰配青苹果', 'M7和牛',
+            '福建多宝鱼', '莫纳生蚝', '生和牛塔塔150g', '甜品车',
+        ])
+        self.assertEqual(area, (0, 244, 1080, 2226))
+
     def test_duplicate_dish_names_remain_separate_rows(self):
         xml = FIRST.replace('脆烤章鱼', '黑松露披萨')
         self.assertEqual(parse_restaurant_menu(xml)[1], [DISHES[0], DISHES[0], *DISHES[2:7]])

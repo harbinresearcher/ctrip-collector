@@ -177,12 +177,27 @@ def moved_view(device, stop, action, settle):
     device.ensure_foreground()
     if stop.is_set():
         return None
-    device.run('shell', 'input', *action)
+    if action:
+        device.run('shell', 'input', *action)
     if stop.wait(settle):
         return None
     xml = device.snapshot()
     device.ensure_foreground()
     return None if stop.is_set() else xml
+
+
+def read_menu_transition(device, stop, tap):
+    # The WebView may replace the detail before its list appears.
+    action = tap
+    for settle in (1.2, .8, .8, .8):
+        xml = moved_view(device, stop, action, settle)
+        if xml is None:
+            return None, None
+        try:
+            return xml, parse_restaurant_menu(xml)
+        except ValueError:
+            action = None
+    return xml, None
 
 
 def scan_recommendations(device, report, carousel, menu_link, stop):
@@ -222,7 +237,10 @@ def scan_recommendations(device, report, carousel, menu_link, stop):
                 y = top + height * 62 // 100
                 action = ('swipe', *map(str, (start, y, end, y)), '520')
         try:
-            xml = moved_view(device, stop, action, 2.3 if opening_menu else .4)
+            if opening_menu:
+                xml, menu = read_menu_transition(device, stop, action)
+            else:
+                xml, menu = moved_view(device, stop, action, .4), None
         except Exception:
             # ADB and UI automation use different exception types. Keep the verified names on I/O failure.
             reason = 'device_error'
@@ -231,24 +249,24 @@ def scan_recommendations(device, report, carousel, menu_link, stop):
             reason = 'cancelled'
             break
 
-        if opening_menu or method == 'menu':
+        if method == 'menu':
             try:
-                count, visible, list_area = parse_restaurant_menu(xml)
+                menu = parse_restaurant_menu(xml)
             except ValueError:
-                if method == 'menu':
-                    reason = 'context_changed'
-                    break
-            else:
-                if count != expected:
-                    reason = 'count_changed'
-                    break
-                if opening_menu and (visible[:len(previous)] != previous
-                                     or len(set(visible)) != len(visible) or len(visible) > count):
-                    reason = 'unverified_transition'
-                    break
-                method, carousel = 'menu', list_area
-                if opening_menu:
-                    screens = 0  # Menu report counts the validated list screens.
+                reason = 'context_changed'
+                break
+        if menu is not None:
+            count, visible, list_area = menu
+            if count != expected:
+                reason = 'count_changed'
+                break
+            if opening_menu and (visible[:len(previous)] != previous
+                                 or len(set(visible)) != len(visible) or len(visible) > count):
+                reason = 'unverified_transition'
+                break
+            method, carousel = 'menu', list_area
+            if opening_menu:
+                screens = 0  # Menu report counts the validated list screens.
         if method == 'carousel':
             try:
                 current, carousel, _ = detail_view(xml, report['name'])
