@@ -38,6 +38,8 @@ adb devices
 
 实测范围包括东方明珠的展开总结与图集续采、上海美食与购物列表、餐厅和购物点评样本，以及 Mercato 和 PHENIX 的推荐菜清单、Mercato 两条点评的 2 页和 15 页图集。App 任务显示的总数、页面核对结果和实际读到的记录分别写入报告。平台全量、所有 App 字段和媒体原文件仍待验证，详见 [路线图](ROADMAP.md)。
 
+长期运行、App 更新韧性、风控处理与日志监控的约定见 [部署与运维方案](docs/DEPLOYMENT.md)；验收标准见 [docs/GOAL.md](docs/GOAL.md)。
+
 ## 覆盖台账与缺口续采
 
 三条只读/自动命令回答「还差多少」并自己补采。验收标准见 [docs/GOAL.md](docs/GOAL.md)。
