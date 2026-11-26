@@ -325,6 +325,39 @@ def export_review_observations(db, object_key, folder):
     return str(path)
 
 
+def write_report_pair(stem, pairs):
+    # /* ===== 步骤1：成对提交报告；数据源：待写内容；操作：1) 全部写临时文件 2) 逐个替换 3) 失败回滚 ===== */
+    logger.info('开始写入成对报告')
+    # 1.1 续跑和下游会同时读 TXT 与 JSON；两份文件必须对应同一次提交，不能一新一旧。
+    entries, temporaries, backups = [], [], []
+    try:
+        for suffix, content in pairs:
+            target = stem.with_suffix(suffix)
+            temporary = target.with_name(target.name + '.' + uuid.uuid4().hex + '.tmp')
+            temporaries.append(temporary)
+            temporary.write_text(content, encoding='utf-8')
+            entries.append((target, temporary))
+        # 1.2 替换前记下旧内容；第 N 份替换失败时，把已替换的写回旧版本（原本没有的删掉）。
+        for target, temporary in entries:
+            backups.append((target, target.read_bytes() if target.exists() else None))
+            temporary.replace(target)
+    except Exception:
+        for target, previous in reversed(backups):
+            try:
+                if previous is None:
+                    target.unlink(missing_ok=True)
+                else:
+                    target.write_bytes(previous)
+            except OSError as exc:
+                logger.warning('报告回滚失败：%s %s', target, exc)
+        raise
+    finally:
+        # 1.3 成功或失败都不在输出目录留下本次临时文件。
+        for temporary in temporaries:
+            temporary.unlink(missing_ok=True)
+    logger.info('成对报告写入完成：%s', stem.name)
+
+
 def collect_network(target, output, limit=500, stop=None, emit=None, fetch=None, delay=0.8, max_pages=10000, *, refresh=False):
     # /* ===== 步骤7：分页持久化；数据源：指定对象；操作：1) 按服务端 ID 去重 2) 中止仍留报告 ===== */
     logger.info('开始网络采集')

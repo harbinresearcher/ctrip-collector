@@ -2,29 +2,21 @@
 import json
 import logging
 import re
-import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import Event
 from urllib.request import urlopen
 
-from network import MAX_HTML_BYTES, NextData, canonical_url, sanitize
+from network import MAX_HTML_BYTES, NextData, canonical_url, sanitize, write_report_pair
 
 logger = logging.getLogger(__name__)
 
 
 def save_report(stem, report):
-    # /* ===== 步骤1：原子保存目录报告；数据源：当前清单；操作：1) 唯一临时文件 2) 全部写完再替换 ===== */
-    # 1.1 目录报告会被续跑和覆盖统计读回；写到一半被打断不能留下半个 JSON。
-    for suffix, content in (('.txt', ''.join(item['url'] + '\n' for item in report['objects'])),
-                            ('.json', json.dumps(report, ensure_ascii=False, indent=2))):
-        target = stem.with_suffix(suffix)
-        temporary = target.with_name(target.name + '.' + uuid.uuid4().hex + '.tmp')
-        try:
-            temporary.write_text(content, encoding='utf-8')
-            temporary.replace(target)
-        finally:
-            temporary.unlink(missing_ok=True)
+    # /* ===== 步骤1：原子保存目录报告；数据源：当前清单；操作：1) 全部写临时文件 2) 失败回滚 ===== */
+    # 1.1 目录报告会被续跑和覆盖统计读回；TXT 与 JSON 必须对应同一次提交。
+    write_report_pair(stem, (('.txt', ''.join(item['url'] + '\n' for item in report['objects'])),
+                             ('.json', json.dumps(report, ensure_ascii=False, indent=2))))
     logger.info('目录报告保存完成：%s', stem.name)
 
 

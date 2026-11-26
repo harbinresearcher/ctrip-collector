@@ -8,7 +8,8 @@ from pathlib import Path
 from threading import Event
 from unittest.mock import patch
 
-from network import collect_network, export_records, load_target, parse_target, sanitize, shopping_target
+from network import (collect_network, export_records, load_target, parse_target, sanitize, shopping_target,
+                     write_report_pair)
 
 logger = logging.getLogger(__name__)
 
@@ -273,6 +274,46 @@ class NetworkTests(unittest.TestCase):
                 load_target(url)
         self.assertNotIn('大小限制', str(caught.exception))
         logger.info('详情页上限测试完成')
+
+
+class ReportPairWriteTests(unittest.TestCase):
+    def test_second_replace_failure_rolls_back_first_file(self):
+        # /* ===== 步骤1：核验成对提交；数据源：模拟第二次替换失败；操作：1) 回滚第一份 2) 不留临时文件 ===== */
+        logger.info('开始成对报告回滚测试')
+        with tempfile.TemporaryDirectory() as folder:
+            stem = Path(folder) / 'report'
+            stem.with_suffix('.txt').write_text('old-link\n', encoding='utf-8')
+            stem.with_suffix('.json').write_text('{"old": true}', encoding='utf-8')
+            original = Path.replace
+            def replace(path, destination):
+                if destination.suffix == '.json':
+                    raise OSError('simulated second replace failure')
+                return original(path, destination)
+            # 1.1 第二份替换失败时，已替换的第一份必须写回旧版本，两份仍对应上一次提交。
+            with patch.object(Path, 'replace', replace), self.assertRaises(OSError):
+                write_report_pair(stem, (('.txt', 'new-link\n'), ('.json', '{"new": true}')))
+            self.assertEqual(stem.with_suffix('.txt').read_text(encoding='utf-8'), 'old-link\n')
+            self.assertEqual(stem.with_suffix('.json').read_text(encoding='utf-8'), '{"old": true}')
+            self.assertEqual(list(Path(folder).glob('*.tmp')), [])
+        logger.info('成对报告回滚测试完成')
+
+    def test_rollback_removes_file_that_did_not_exist(self):
+        # /* ===== 步骤2：核验回滚删除；数据源：首次写入失败；操作：1) 删掉已替换的新文件 2) 不留临时文件 ===== */
+        logger.info('开始成对报告首次写入回滚测试')
+        with tempfile.TemporaryDirectory() as folder:
+            stem = Path(folder) / 'report'
+            original = Path.replace
+            def replace(path, destination):
+                if destination.suffix == '.json':
+                    raise OSError('simulated second replace failure')
+                return original(path, destination)
+            # 2.1 原本不存在的文件在回滚后不能留下半份结果。
+            with patch.object(Path, 'replace', replace), self.assertRaises(OSError):
+                write_report_pair(stem, (('.txt', 'new-link\n'), ('.json', '{}')))
+            self.assertFalse(stem.with_suffix('.txt').exists())
+            self.assertFalse(stem.with_suffix('.json').exists())
+            self.assertEqual(list(Path(folder).glob('*.tmp')), [])
+        logger.info('成对报告首次写入回滚测试完成')
 
 
 if __name__ == '__main__':

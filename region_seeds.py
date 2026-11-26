@@ -8,6 +8,8 @@ from pathlib import Path
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
+from network import write_report_pair
+
 logger = logging.getLogger(__name__)
 SOURCE = 'https://you.ctrip.com/'
 HOTEL_SOURCE = 'https://hotels.ctrip.com/jiudian/'
@@ -57,16 +59,9 @@ class HotelCityLinks(HTMLParser):
 
 
 def save_report(stem, report, entries):
-    # /* ===== 步骤1：原子保存种子报告；数据源：候选清单；操作：1) 唯一临时文件 2) 写完再替换 ===== */
-    for suffix, content in (('.txt', ''.join(entry + '\n' for entry in entries)),
-                            ('.json', json.dumps(report, ensure_ascii=False, indent=2))):
-        target = stem.with_suffix(suffix)
-        temporary = target.with_name(target.name + '.' + uuid.uuid4().hex + '.tmp')
-        try:
-            temporary.write_text(content, encoding='utf-8')
-            temporary.replace(target)
-        finally:
-            temporary.unlink(missing_ok=True)
+    # /* ===== 步骤1：原子保存种子报告；数据源：候选清单；操作：1) 全部写临时文件 2) 失败回滚 ===== */
+    write_report_pair(stem, (('.txt', ''.join(entry + '\n' for entry in entries)),
+                             ('.json', json.dumps(report, ensure_ascii=False, indent=2))))
 
 
 def discover_regions(output, kind, max_regions=50, *, html=None):

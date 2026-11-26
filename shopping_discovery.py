@@ -1,29 +1,21 @@
 """当前全球购公开目录；不把请求页码当成服务端已验证页码。"""
 import json
 import logging
-import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import Event
 
-from network import HEAD, post_json, sanitize
+from network import HEAD, post_json, sanitize, write_report_pair
 
 logger = logging.getLogger(__name__)
 ENDPOINT = 'https://m.ctrip.com/restapi/soa2/18423/shoppingPoiSearch'
 
 
 def save_report(stem, report):
-    # /* ===== 步骤1：原子保存目录报告；数据源：当前清单；操作：1) 唯一临时文件 2) 写完再替换 ===== */
-    # 1.1 每页都会重写这份报告；写到一半被打断不能留下半个 JSON。
-    for suffix, content in (('.txt', ''.join(item['url'] + '\n' for item in report['objects'])),
-                            ('.json', json.dumps(report, ensure_ascii=False, indent=2))):
-        target = stem.with_suffix(suffix)
-        temporary = target.with_name(target.name + '.' + uuid.uuid4().hex + '.tmp')
-        try:
-            temporary.write_text(content, encoding='utf-8')
-            temporary.replace(target)
-        finally:
-            temporary.unlink(missing_ok=True)
+    # /* ===== 步骤1：原子保存目录报告；数据源：当前清单；操作：1) 全部写临时文件 2) 失败回滚 ===== */
+    # 1.1 每页都会重写这份报告；TXT 与 JSON 必须对应同一次提交。
+    write_report_pair(stem, (('.txt', ''.join(item['url'] + '\n' for item in report['objects'])),
+                             ('.json', json.dumps(report, ensure_ascii=False, indent=2))))
 
 
 def discover_shopping(district, output, max_pages=5, max_objects=50, stop=None, fetch=None, delay=1.5):

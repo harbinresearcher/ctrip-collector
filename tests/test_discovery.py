@@ -103,6 +103,9 @@ class DiscoveryTests(unittest.TestCase):
             self.assertEqual(len(saved), 1)
             checkpoint = json.loads(saved[0].read_text(encoding='utf-8'))
             self.assertEqual([x['resource_id'] for x in checkpoint['objects']], [1])
+            # 3.3 续跑和下游会同时读两份文件；TXT 与 JSON 必须列同一批链接，不能一新一旧。
+            links = saved[0].with_suffix('.txt').read_text(encoding='utf-8').splitlines()
+            self.assertEqual(links, [item['url'] for item in checkpoint['objects']])
             self.assertEqual(list(Path(folder).glob('*.tmp')), [])
         logger.info('目录报告写入检查完成')
 

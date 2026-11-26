@@ -5,13 +5,12 @@ import json
 import logging
 import re
 import time
-import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import Event
 from urllib.parse import urlparse
 
-from network import sanitize
+from network import sanitize, write_report_pair
 from browser_context import open_hotel_context
 
 logger = logging.getLogger(__name__)
@@ -117,17 +116,10 @@ def hotel_initial(html, city):
 
 
 def save_report(stem, report):
-    # /* ===== 步骤1：原子保存目录报告；数据源：当前清单；操作：1) 唯一临时文件 2) 写完再替换 ===== */
-    # 1.1 每页都会重写这份报告；写到一半被打断不能留下半个 JSON。
-    for suffix, content in (('.txt', ''.join(item['url'] + '\n' for item in report['objects'])),
-                            ('.json', json.dumps(report, ensure_ascii=False, indent=2))):
-        target = stem.with_suffix(suffix)
-        temporary = target.with_name(target.name + '.' + uuid.uuid4().hex + '.tmp')
-        try:
-            temporary.write_text(content, encoding='utf-8')
-            temporary.replace(target)
-        finally:
-            temporary.unlink(missing_ok=True)
+    # /* ===== 步骤1：原子保存目录报告；数据源：当前清单；操作：1) 全部写临时文件 2) 失败回滚 ===== */
+    # 1.1 每页都会重写这份报告；TXT 与 JSON 必须对应同一次提交。
+    write_report_pair(stem, (('.txt', ''.join(item['url'] + '\n' for item in report['objects'])),
+                             ('.json', json.dumps(report, ensure_ascii=False, indent=2))))
 
 
 def discover_hotels_page(page, url, output, max_pages=5, max_objects=50, stop=None,
