@@ -94,6 +94,27 @@ def blocked_today(report):
     return stamp == datetime.now().date()
 
 
+def phone_all_label(data):
+    # /* ===== 步骤5.2：手机侧「全部」计数；数据源：手机报告的屏幕观察；操作：1) 只认精确整数 2) 出现多个值就不猜 ===== */
+    # 5.2.1 页面不会把页签标成 selected，所以这里只记录「屏幕上看到的全部计数」，
+    #       不声称当前筛选就是全部；调用方必须带上来源标注。
+    context = data.get('sampling_context')
+    observations = context.get('observations') if isinstance(context, dict) else None
+    if not isinstance(observations, list):
+        return None
+    totals = set()
+    for observation in observations:
+        filters = observation.get('visible_filters') if isinstance(observation, dict) else None
+        if not isinstance(filters, list):
+            continue
+        for entry in filters:
+            if isinstance(entry, dict) and entry.get('label') == '全部':
+                value = count_value(entry.get('display_count'))
+                if value is not None:
+                    totals.add(value)
+    return totals.pop() if len(totals) == 1 else None
+
+
 def app_all_run_evidence(path, data):
     run_id, check = data.get('run_id'), data.get('review_count_check')
     if (not isinstance(run_id, str) or not MOBILE_REVIEW_RUN_ID.fullmatch(run_id)
@@ -260,8 +281,14 @@ def write_coverage_audit(folder):
         item['files'].append(path.name)
         if not item['name']:
             item['name'] = place.strip()
-        if not key.startswith('mobile:') and (app_run := app_all_run_evidence(path, data)):
-            item['app_runs'].append(app_run)
+        if not key.startswith('mobile:'):
+            if app_run := app_all_run_evidence(path, data):
+                item['app_runs'].append(app_run)
+            # 3.5.1 页面不会标注当前筛选，所以这里只记「屏幕上看到的全部计数」，
+            #       取最新一份报告，多个值不一致就不采用。
+            if (label_total := phone_all_label(data)) is not None:
+                item['phone_label'] = {'display_total': label_total, 'file': path.name,
+                                       'mtime': path.stat().st_mtime}
 
     # 3.6 目录报告给出平台总数与已发现对象；目录卡片的点评数可作对象级目标。
     for path in sorted(folder.glob('discovery-*.json')):
@@ -426,12 +453,27 @@ def write_coverage_audit(folder):
             gap = 'missing'
         else:
             gap = 'unadapted'
+        # 5.2.2 手机侧目标：优先用已核对「全部」筛选的本次运行，其次用屏幕上看到的「全部」计数。
+        app_run = app_comparisons.get(key)
+        phone_collected = counts.get('reviews_scoped', 0)
+        label = item.get('phone_label') or {}
+        if app_run:
+            phone_target, phone_target_source = app_run['display_total'], 'confirmed_run'
+        elif label:
+            phone_target, phone_target_source = label['display_total'], 'all_label'
+        else:
+            phone_target, phone_target_source = None, None
+        phone_missing = max(phone_target - phone_collected, 0) if phone_target is not None else None
         objects.append({'object_key': key, 'kind': item['kind'], 'name': item['name'], 'url': item['url'],
                         'target': target, 'target_source': item['target_source'], 'target_unknown': target is None,
                         'collected': total,
                         'collected_by_source': {store: counts.get(store, 0)
                                                 for store in ('network_reviews', 'reviews_scoped', 'reviews')},
                         'app_all_run': app_comparisons.get(key),
+                        'phone_collected': counts.get('reviews_scoped', 0),
+                        'phone_target': phone_target,
+                        'phone_target_source': phone_target_source,
+                        'phone_missing': phone_missing,
                         'missing': missing, 'gap_reason': gap,
                         'blocked': blocked,
                         'blocked_status': report.get('blocked_status') if report else '',
