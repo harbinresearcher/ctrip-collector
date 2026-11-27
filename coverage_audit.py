@@ -202,9 +202,10 @@ def coverage_summary(objects):
             best_target += chosen_target
         elif other_target is not None:
             best_target += other_target
-    return {'web': {'target': sum(obj['target'] for obj in web_known),
+    # 5.3.4 网页侧一个目标都没有时同样给 null：没有目标不等于目标是 0。
+    return {'web': {'target': sum(obj['target'] for obj in web_known) if web_known else None,
                     'collected': sum(obj['collected'] for obj in objects),
-                    'missing': sum(obj['missing'] for obj in web_known)},
+                    'missing': sum(obj['missing'] for obj in web_known) if web_known else None},
             'phone': {'target': sum(obj['phone_target'] for obj in phone_known) if phone_known else None,
                       'collected': sum(obj['phone_collected'] for obj in objects),
                       'missing': sum(obj['phone_missing'] for obj in phone_known) if phone_known else None},
