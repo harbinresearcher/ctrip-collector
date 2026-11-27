@@ -3,6 +3,7 @@ import logging
 import re
 import subprocess
 import threading
+import time
 import uuid
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
@@ -130,22 +131,36 @@ class Adb:
             filtered.extend(windows)
             logger.info('快速页面读取完成')
             return ET.tostring(filtered, encoding='unicode')
-        remote = '/sdcard/Download/ctrip-collector-' + uuid.uuid4().hex + '.xml'
-        try:
-            # 2.1 不依赖退出码判断 dump 成功，避免复用旧文件。
-            message = self.run('shell', 'uiautomator', 'dump', remote)
-            if 'dumped to:' not in message:
-                raise RuntimeError('页面读取失败：' + message.strip())
-            xml = self.run('shell', 'cat', remote)
-            ET.fromstring(xml)
-            logger.info('页面读取完成')
-            return xml
-        finally:
-            # 2.2 只删除本次创建的唯一远端文件。
+        # 2.0.1 真机会偶发 'null root node returned by UiTestAutomationBridge'（屏幕刚亮起、
+        #       转场动画未结束、或 uiautomator 服务抖动）。重试一次，仍失败再报错，并说清可能原因。
+        attempt = 0
+        while True:
+            remote = '/sdcard/Download/ctrip-collector-' + uuid.uuid4().hex + '.xml'
             try:
-                self.run('shell', 'rm', '-f', remote, timeout=5)
-            except (RuntimeError, subprocess.TimeoutExpired):
-                logger.warning('临时页面文件未清理')
+                # 2.1 不依赖退出码判断 dump 成功，避免复用旧文件。
+                message = self.run('shell', 'uiautomator', 'dump', remote)
+                if 'dumped to:' not in message:
+                    raise RuntimeError('页面读取失败：' + message.strip())
+                xml = self.run('shell', 'cat', remote)
+                ET.fromstring(xml)
+                logger.info('页面读取完成')
+                return xml
+            except (RuntimeError, subprocess.TimeoutExpired, ET.ParseError) as exc:
+                attempt += 1
+                if attempt >= 2:
+                    raise RuntimeError(
+                        '页面读取失败：' + str(exc).strip()
+                        + '；若手机锁屏或应用无响应，请唤醒屏幕并确认携程停目标页面后重试。') from exc
+                logger.warning('页面读取失败，重试一次：%s', exc)
+                self.run('shell', 'input', 'keyevent', 'KEYCODE_WAKEUP', timeout=10)
+                time.sleep(1.5)
+                continue
+            finally:
+                # 2.2 只删除本次创建的唯一远端文件。
+                try:
+                    self.run('shell', 'rm', '-f', remote, timeout=5)
+                except (RuntimeError, subprocess.TimeoutExpired):
+                    logger.warning('临时页面文件未清理')
 
     def enter_text(self, text):
         if self._ui is None:
