@@ -231,6 +231,26 @@ python app.py --phone-queue --output <目录> --max-objects 5
 - 单测 5 项（从未采过 / 部分已采 / 目标未知 / 采尽与拦截进 skipped /
   排序与命令字段），不触网不连设备。
 
+#### C1i 验收记录：已达标（2026-11-27）
+
+真机数据（`95e007f0` 真机 + `.test-tmp\real` 目录）上的实际输出：
+
+```
+summary: {objects: 3, with_phone_gap: 1, never_collected: 2, target_unknown: 2, skipped: 0}
+sight-1407863  万达长白山国际滑雪场  target=None phone=0    missing=None  never_collected
+sight-5706212  长白山万达国际度假区  target=None phone=0    missing=None  never_collected
+sight-136039   长白山西景区        target=1099 phone=13   missing=1086  partial
+              -> --object-ref sight-136039 --limit 213（已采 13 + 建议 200）
+```
+
+照着队列命令在真机上开工：`--limit 60 --max-swipes 12 --adb-serial 95e007f0`
+→ 13 屏、13 条、新增 9 条、37.3 秒；`layout.changed=false`；
+再对账 `reviews_scoped` 4 → 13，队列里 `missing` 由 1095 降到 1086。
+手机侧「全部」计数来自手机自己的页面（1099），不与网页目标混用。
+
+顺带修掉一个真机阻塞：两台设备同时在线时命令行采集直接拒绝，
+`--adb-serial` 原本只允许配合 `--workbench`；现在命令行也能指定设备。
+
 ### C1 覆盖台账与缺口对账
 
 - 新增只读命令 `python app.py --audit --output <输出目录>`，输出 JSON，包含：
