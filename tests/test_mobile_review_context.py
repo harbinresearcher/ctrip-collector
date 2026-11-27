@@ -100,7 +100,8 @@ class MobileReviewContextTests(unittest.TestCase):
         self.assertIsNone(result['sort_order'])
         sight_xml = (FIXTURE.parent / 'ctrip-comments2.xml').read_text('utf-8')
         result = read_review_context(ET.fromstring(sight_xml), 'sight')
-        self.assertIn({'label': '消费后评价', 'display_count': '551'}, result['visible_filters'])
+        self.assertIn({'label': '消费后评价', 'display_count': 551, 'display_count_text': '551'},
+                      result['visible_filters'])
         self.assertIsNone(result['selected_filter'])
 
     def test_explicit_filter_change_stops_before_storing_new_screen(self):
