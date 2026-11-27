@@ -191,6 +191,13 @@ python app.py --drive --output <目录> --workers 2 --rounds 3 --limit 200 --gap
 - 报告新增 `layout {family, fingerprint, expected, version, changed}`，
   `changed=true` 只标记不中断（`layout_changed` + limitation 说明）。
 
+真机验证（2026-11-27，`emulator-5556`）：
+
+- 云冈石窟与长白山西景区两屏真实点评页 → 同一指纹 `cf768820b13d178f`；
+- 年度榜单页（没有点评锚点）→ 指纹为 `None`，报告不报警；
+- 指纹只算锚点（`o_gs_comments*` / `htl_x_htlcmtlist*`）子树内深度 ≤3 的去重结构，
+  因此滚动位置、卡片数量、卡片内部差异都不影响它；卡片内部的变化交给 C3 未知布局上报。
+
 真实采集验证（`--url .../136039.html --limit 8` 的真实报告）：
 
 ```json
