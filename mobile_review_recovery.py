@@ -40,6 +40,27 @@ def saved_review_runs(folder):
             for run, kind, object_id, name, stamp, reason, count in rows if MOBILE_REVIEW_RUN_ID.fullmatch(run)]
 
 
+def saved_sight_attempt(folder, run_id, object_id, name):
+    if not isinstance(run_id, str) or not MOBILE_REVIEW_RUN_ID.fullmatch(run_id):
+        return None
+    try:
+        database = review_database(folder)
+    except FileNotFoundError:
+        return None
+    with database as db:
+        if not has_run_tables(db):
+            return None
+        return db.execute('''SELECT run.final_reason, COUNT(review.key)
+                             FROM mobile_review_runs run
+                             LEFT JOIN mobile_review_run_items item USING(run_id)
+                             LEFT JOIN reviews_scoped review ON review.key=item.review_key
+                               AND review.kind=run.kind AND review.scope=run.scope AND review.object_id=run.object_id
+                             WHERE run.run_id=? AND run.kind='sight' AND run.scope=?
+                               AND run.object_id=? AND run.place=?
+                             GROUP BY run.run_id, run.final_reason''',
+                          (run_id, f'declared:ctrip:sight:{object_id}', object_id, name)).fetchone()
+
+
 def open_saved_review_sample(folder, run_id):
     if not isinstance(run_id, str) or not MOBILE_REVIEW_RUN_ID.fullmatch(run_id):
         raise ValueError('无效的点评任务编号')

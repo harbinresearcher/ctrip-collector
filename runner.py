@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from core import Store, bounds, parse_reviews
-from mobile_scoped_store import IDENTITY_SOURCES, OPERATOR_DECLARED, MobileScopedStore
+from mobile_scoped_store import IDENTITY_SOURCES, MOBILE_REVIEW_RUN_ID, OPERATOR_DECLARED, MobileScopedStore
 from mobile_expansion import expand_card, expansion_target
 from mobile_review_context import read_review_context, summarize_review_count
 from mobile_review_fields import SHOPPING_DIMENSION, SHOPPING_RATING_FIELDS
@@ -302,9 +302,13 @@ def reviews_moved_up(before, after, viewport):
             and max(shifts) - min(shifts) <= height * .01)
 
 
+def new_review_run_id():
+    return datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S') + '-' + uuid.uuid4().hex[:6]
+
+
 def collect(adb, kind, place, folder, limit=500, max_swipes=1500, stop=None, progress=None, object_id=None,
             *, expand_reviews=False, refresh=False, save_visible_ai=False, save_review_thumbnails=False,
-            identity_source=OPERATOR_DECLARED, identity_evidence=None, sight_navigation=None):
+            identity_source=OPERATOR_DECLARED, identity_evidence=None, sight_navigation=None, run_id=None):
     # /* ================================================================
     # 步骤3：按屏幕顺序采集并持久化
     # 目标：当前对象；操作：1) 保存 XML 和评论 2) 小幅滑动保留卡片重叠
@@ -331,7 +335,10 @@ def collect(adb, kind, place, folder, limit=500, max_swipes=1500, stop=None, pro
     stop = stop or threading.Event()
     progress = progress or (lambda message: logger.info('%s', message))
     folder = Path(folder)
-    run_id = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S') + '-' + uuid.uuid4().hex[:6]
+    if run_id is None:
+        run_id = new_review_run_id()
+    elif not isinstance(run_id, str) or not MOBILE_REVIEW_RUN_ID.fullmatch(run_id):
+        raise ValueError('点评采集任务编号无效')
     thumbnails = ReviewThumbnails(folder, run_id, kind=kind) if save_review_thumbnails else None
     sample_orders = {}
     raw = folder / 'raw' / run_id

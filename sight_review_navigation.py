@@ -127,8 +127,9 @@ def matching_sight_result(root, name, address):
             titles = [n for n in labels if text(n) in (name, f'{name} 可订明日')]
             for label in labels:
                 _, bar, location = text(label).partition('|')
-                region, separator, suffix = location.rpartition(f'-{name}-')
-                if len(titles) == 1 and bar and region.strip() and separator and compact_address(suffix) == address:
+                location = compact_address(location)
+                suffix = '-' + address
+                if len(titles) == 1 and bar and len(location) > len(suffix) and location.endswith(suffix):
                     results.append(titles[0])
                     break
     if len(results) > 1:
@@ -178,30 +179,93 @@ def checked_reviews_title(root, name):
     return title
 
 
-def open_sight_reviews(device, name, address, stop):
+def detail_or_reviews(root, name, address):
+    if checked_reviews_title(root, name):
+        return 'reviews', None
+    entry = detail_review_entry(root, name, address)
+    return ('detail', entry) if entry is not None else None
+
+
+def open_sight_reviews(device, name, address, stop, *, allow_search=False, require_address_search=False):
     if not isinstance(name, str) or not (name := name.strip()):
         raise ValueError('请填写景点名称。')
     start = read_screen(device, stop)
     if sight_screen_title(start) == name:
+        if require_address_search:
+            raise ValueError('请回到携程首页，队列会先从搜索结果核对景点地址。')
         if checked_reviews_title(start, name) is None:
             wait_for(device, stop, lambda root: checked_reviews_title(root, name), REVIEW_NOT_CONFIRMED)
         return 'already_open'
     entry = home_search(start)
-    if entry is None:
+    reuse_search = allow_search and search_editor(start) is not None
+    if entry is None and not reuse_search:
         raise ValueError('请先在模拟器打开携程首页或目标景点的用户点评。')
     if not isinstance(address, str) or not (address := compact_address(address)):
         raise ValueError('目录缺少景点地址，请手动打开目标景点点评。')
 
-    tap(device, entry, stop)
-    wait_for(device, stop, search_editor, '未打开携程搜索框，请回到首页重试。')
+    if entry is not None:
+        tap(device, entry, stop)
+        wait_for(device, stop, search_editor, '未打开携程搜索框，请回到首页重试。')
     device.ensure_foreground()
     cancellation_check(stop)
     device.enter_text(name)
     candidate = wait_for(device, stop, lambda root: matching_sight_result(root, name, address),
                          '搜索未找到同时匹配名称和地址的景点，请手动打开目标点评。')
     tap(device, candidate, stop)
-    reviews = wait_for(device, stop, lambda root: detail_review_entry(root, name, address),
-                       '未找到地址和点评入口可核对的景点详情，请手动打开目标点评。')
-    tap(device, reviews, stop)
-    wait_for(device, stop, lambda root: checked_reviews_title(root, name), REVIEW_NOT_CONFIRMED)
+    scene, entry = wait_for(device, stop, lambda root: detail_or_reviews(root, name, address),
+                            '未找到可核对的景点详情或点评，请手动打开目标点评。')
+    if scene == 'detail':
+        tap(device, entry, stop)
+        wait_for(device, stop, lambda root: checked_reviews_title(root, name), REVIEW_NOT_CONFIRMED)
     return 'opened'
+
+
+def queue_return_scene(root, previous_name, next_name):
+    if home_search(root) is not None:
+        return 'home'
+    title = sight_screen_title(root)
+    if title and checked_reviews_title(root, title):
+        if title != previous_name:
+            raise ValueError('当前景点点评名称与队列记录不符，请回到携程首页。')
+        return 'reviews'
+    titles = [node for node in app_nodes(root) if node.get('resource-id') == DETAIL_TITLE]
+    if titles:
+        words = [text(node) for title in titles for node in title if node.get('package') == APP and text(node)]
+        if words and words != [previous_name]:
+            raise ValueError('返回的景点详情名称与队列记录不符。')
+        if len(titles) == 1 and words:
+            try:
+                parse_sight_snapshot(ET.tostring(root, encoding='unicode'), previous_name)
+            except ValueError:
+                return None
+            return 'detail'
+    editor = search_editor(root)
+    if editor is not None and text(editor):
+        if text(editor) not in (previous_name, next_name):
+            raise ValueError('当前搜索框与队列景点不符，请回到携程首页。')
+        return 'search'
+    return None
+
+
+def return_from_sight_reviews(device, previous_name, stop, *, next_name=None):
+    def scene(root):
+        return queue_return_scene(root, previous_name, next_name)
+
+    state = scene(read_screen(device, stop))
+    for known in ('reviews', 'detail'):
+        if state != known:
+            continue
+        cancellation_check(stop)
+        device.ensure_foreground()
+        cancellation_check(stop)
+        device.run('shell', 'input', 'keyevent', 'KEYCODE_BACK')
+        state = wait_for(device, stop, lambda root: changed_scene(root, scene, known),
+                         '未确认返回景点搜索，请回到携程首页后继续队列。')
+    if state in ('home', 'search'):
+        return state
+    raise ValueError('无法核对当前页面，请回到携程首页后继续队列。')
+
+
+def changed_scene(root, classify, previous):
+    state = classify(root)
+    return state if state != previous else None

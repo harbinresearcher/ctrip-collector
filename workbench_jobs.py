@@ -24,6 +24,7 @@ from multi_discovery import discover_many, resume_details
 from discovery import discover_objects
 from shopping_discovery import discover_shopping
 from workbench_app_jobs import prepare_app_job, resolve_app_job_object
+from app_sight_queue_jobs import prepare_sight_queue_job
 from workbench_media_jobs import prepare_media_job
 from workbench_capture_jobs import prepare_capture_job
 from coverage_report import write_coverage_report
@@ -40,6 +41,8 @@ def make_job(request, output, adb_path=None, *, adb_serial=None):
     # /* ===== 步骤1：验证任务输入；数据源：工作台表单；操作：1) 限定模式 2) 核验参数并固定快照 ===== */
     logger.info('开始核验工作台输入')
     mode = request.get('mode')
+    if mode == 'app_sight_queue':
+        return prepare_sight_queue_job(request, output, adb_path, adb_serial=adb_serial)
     if mode == 'public_poi_profile':
         urls = request.get('urls')
         if not isinstance(urls, list) or not 1 <= len(urls) <= 20 or not all(isinstance(url, str) for url in urls):

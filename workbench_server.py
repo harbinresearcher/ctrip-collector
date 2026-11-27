@@ -13,6 +13,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from zipfile import BadZipFile, ZipFile
 from object_identity import list_object_refs
+from mobile_sight_queue import list_sight_queues
 from workbench_jobs import make_job
 from app_page_fields import list_raw_page_runs
 from screenshot_ocr import MAX_IMAGE_BYTES, recognize_screenshot
@@ -195,6 +196,8 @@ def create_server(output, adb_path=None, port=8765, *, adb_serial=None):
                     self.reply(200, {'runs': list_raw_page_runs(output)})
                 except OSError:
                     self.reply(500, {'error': '无法列出已保存的 App 页面任务'})
+            elif self.path == '/api/sight-review-queues':
+                self.reply(200, {'queues': list_sight_queues(output)})
             elif self.path == '/api/saved-review-runs':
                 try:
                     self.reply(200, {'runs': saved_review_runs(output)})

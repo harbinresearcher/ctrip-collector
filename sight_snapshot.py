@@ -107,8 +107,13 @@ def sight_header(nodes, parents, title_node):
         if node.get('package') == APP and node.get('resource-id') == 'gs_spotdetail_view_map_button':
             container = parents.get(node)
             if container is not None and container.get('package') == APP:
-                addresses.extend(text for sibling in container if sibling is not node
-                                 and sibling.get('package') == APP for text in visible_words(sibling))
+                for sibling in container:
+                    if sibling is node or sibling.get('package') != APP:
+                        continue
+                    if any(child.get('package') == APP and child.get('resource-id') == 'gs_spotdetail_view_phone'
+                           for child in sibling.iter('node')):
+                        continue
+                    addresses.extend(visible_words(sibling))
     if address := unique_value(addresses):
         fields['address_text'] = address
     return fields

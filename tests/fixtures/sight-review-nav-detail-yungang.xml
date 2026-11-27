@@ -1,0 +1,84 @@
+<hierarchy>
+  <node index="0" class="android.widget.FrameLayout" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[0,0][1080,2400]">
+    <node index="1" class="android.widget.LinearLayout" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[0,0][1080,2337]">
+      <node index="0" resource-id="android:id/content" class="android.widget.FrameLayout" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[0,0][1080,2337]">
+        <node index="0" resource-id="ctrip.android.view:id/a" class="android.widget.FrameLayout" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[0,0][1080,2337]">
+          <node index="0" resource-id="ctrip.android.view:id/a" class="android.widget.FrameLayout" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[0,0][1080,2337]">
+            <node index="0" resource-id="ctrip.android.view:id/a" class="android.widget.FrameLayout" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[0,0][1080,2337]">
+              <node index="0" class="android.widget.LinearLayout" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[0,0][1080,2337]">
+                <node index="0" resource-id="ctrip.android.view:id/a" class="android.widget.FrameLayout" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[0,0][1080,2337]">
+                  <node index="0" class="android.widget.FrameLayout" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[0,0][1080,2337]">
+                    <node index="0" class="android.view.ViewGroup" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[0,0][1080,2337]">
+                      <node index="0" class="android.view.ViewGroup" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[0,0][1080,2337]">
+                        <node index="0" class="android.widget.ScrollView" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="true" visible-to-user="true" bounds="[0,0][1080,2337]">
+                          <node index="0" class="android.view.ViewGroup" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[0,0][1080,2337]">
+                            <node index="1" class="android.view.ViewGroup" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[0,851][1080,1482]">
+                              <node index="1" class="android.view.ViewGroup" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[32,883][1049,1341]">
+                                <node index="0" resource-id="gs_spotdetail_view_name" class="android.view.ViewGroup" package="ctrip.android.view" content-desc="gs_spotdetail_view_name" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[32,883][899,960]">
+                                  <node index="0" text="云冈石窟 " class="android.widget.TextView" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[32,883][278,960]" />
+                                  <node index="1" class="android.view.ViewGroup" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[278,898][342,945]">
+                                    <node index="0" text="5A" class="android.widget.TextView" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[288,901][331,942]" />
+                                  </node>
+                                  <node index="2" resource-id="c_spotdetail_view_hot" class="android.view.ViewGroup" package="ctrip.android.view" content-desc="c_spotdetail_view_hot" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[358,898][452,945]" />
+                                  <node index="3" class="android.view.ViewGroup" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[358,898][452,945]">
+                                    <node index="0" class="android.view.View" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[358,898][452,945]" />
+                                    <node index="1" text=".." class="android.widget.TextView" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[363,905][395,937]" />
+                                    <node index="2" text="9.0" class="android.widget.TextView" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[395,901][444,942]" />
+                                  </node>
+                                </node>
+                                <node index="1" class="android.view.ViewGroup" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[32,981][367,1031]">
+                                  <node index="0" class="android.view.ViewGroup" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[32,981][367,1031]">
+                                    <node index="0" class="android.view.ViewGroup" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[32,981][367,1031]">
+                                      <node index="0" class="android.view.ViewGroup" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[32,981][367,1031]">
+                                        <node index="0" class="android.view.ViewGroup" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[32,981][136,1031]" />
+                                        <node index="1" text="4.8" class="android.widget.TextView" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[39,981][94,1031]" />
+                                        <node index="2" text="/5" class="android.widget.TextView" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[94,985][128,1026]" />
+                                        <node index="3" text="4.3万条点评" class="android.widget.TextView" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[144,985][333,1026]" />
+                                        <node index="4" resource-id="image" class="android.widget.ImageView" package="ctrip.android.view" content-desc="image" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[334,992][363,1020]" />
+                                      </node>
+                                    </node>
+                                  </node>
+                                </node>
+                                <node index="5" class="android.view.ViewGroup" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[32,1202][1049,1341]">
+                                  <node index="0" class="android.view.ViewGroup" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[32,1202][1048,1341]">
+                                    <node index="0" class="android.widget.ImageView" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[32,1202][1048,1341]" />
+                                    <node index="1" class="android.view.ViewGroup" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[64,1249][815,1294]">
+                                      <node index="0" text="山西省大同市云冈区云冈镇1号" class="android.widget.TextView" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[64,1249][815,1294]" />
+                                    </node>
+                                    <node index="2" resource-id="gs_spotdetail_view_map_button" class="android.view.ViewGroup" package="ctrip.android.view" content-desc="gs_spotdetail_view_map_button" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[847,1223][917,1320]">
+                                      <node index="0" class="android.view.ViewGroup" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[856,1223][909,1275]" />
+                                      <node index="1" text="" class="android.widget.TextView" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[865,1232][900,1267]" />
+                                      <node index="2" text="地图" class="android.widget.TextView" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[847,1275][917,1320]" />
+                                    </node>
+                                    <node index="3" class="android.view.ViewGroup" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[948,1223][1018,1320]">
+                                      <node index="0" resource-id="gs_spotdetail_view_phone" class="android.view.ViewGroup" package="ctrip.android.view" content-desc="gs_spotdetail_view_phone" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[957,1223][1009,1275]" />
+                                      <node index="1" text=".." class="android.widget.TextView" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[966,1232][1002,1267]" />
+                                      <node index="2" text="电话" class="android.widget.TextView" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[948,1275][1018,1320]" />
+                                    </node>
+                                  </node>
+                                </node>
+                              </node>
+                            </node>
+                            <node index="5" class="android.view.ViewGroup" package="ctrip.android.view" content-desc="预订" clickable="true" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[35,1482][177,1597]">
+                              <node index="3" text="预订" class="android.widget.TextView" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[87,1514][177,1567]" />
+                            </node>
+                            <node index="6" class="android.view.ViewGroup" package="ctrip.android.view" content-desc="点评/笔记" clickable="true" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[332,1482][517,1597]">
+                              <node index="0" text="点评/笔记" class="android.widget.TextView" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[332,1515][517,1564]" />
+                            </node>
+                            <node index="7" class="android.view.ViewGroup" package="ctrip.android.view" content-desc="须知" clickable="true" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[671,1482][755,1597]">
+                              <node index="0" text="须知" class="android.widget.TextView" package="ctrip.android.view" clickable="false" enabled="true" focused="false" scrollable="false" visible-to-user="true" bounds="[671,1515][755,1564]" />
+                            </node>
+                          </node>
+                        </node>
+                      </node>
+                    </node>
+                  </node>
+                </node>
+              </node>
+            </node>
+          </node>
+        </node>
+      </node>
+    </node>
+  </node>
+</hierarchy>
