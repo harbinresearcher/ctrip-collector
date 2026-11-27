@@ -283,6 +283,26 @@ sight-136039   长白山西景区        target=1099 phone=13   missing=1086  pa
 餐饮顺带发现并修掉：真机页签写的是「视频/图片」（与景点页「图片/视频」词序相反），
 原来的筛选集合不收这个写法，计数会漏一个页签。
 
+### C1l 统一覆盖率总表（下一步）
+
+目标：把「离全量还有多远」变成一行数字——同一批对象、两条通道（网页 / 手机）各自的
+目标与已采，以及整体状态分布；**不许把两条通道的已采数相加冒充覆盖**。
+
+验收：
+
+- --audit 的 summary 增加 coverage 块（additive，不改现有字段）：
+  - web {target, collected, missing}、phone {target, collected, missing}；
+  - objects {total, complete, partial, unknown_target, no_phone_data}；
+  - est_effort {covered, target, ratio}：每个对象取「两条通道里已采更多的那个」，
+    按对象汇总；ratio 为 covered/target，target 未知的对象不计入分母；
+  - 
+ote：一句话写明「网页与手机没有共同主键，不能相加去重」；
+- 目标未知（	arget_unknown）的对象单独计数，不冒充 0；
+- 页面/手机数据缺失时字段为 
+ull，不写 0；
+- 单测 4 项（两通道都有数据 / 只有网页 / 只有手机 / 目标未知不计入分母），不触网；
+- 真实目录上跑一次，把数字写进验收记录。
+
 ### C1 覆盖台账与缺口对账
 
 - 新增只读命令 `python app.py --audit --output <输出目录>`，输出 JSON，包含：
