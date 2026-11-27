@@ -23,6 +23,7 @@ from multi_discovery import discover_many, resume_details
 from region_seeds import discover_regions
 from coverage_report import write_coverage_report
 from coverage_audit import write_coverage_audit
+from phone_queue import write_phone_queue
 from gap_collect import MAX_WORKERS, collect_gaps
 from drive import drive_rounds
 from object_identity import resolve_object_ref
@@ -291,6 +292,8 @@ def main():
     parser.add_argument('--gui-smoke', action='store_true')
     parser.add_argument('--coverage', action='store_true', help='统计输出目录内已有网络评论及字段覆盖')
     parser.add_argument('--audit', action='store_true', help='对账输出目录内已有证据：平台目标数、已采数与缺口原因')
+    parser.add_argument('--phone-queue', action='store_true',
+                        help='只读：读对账与手机库，列出下一步该在手机上采哪个对象及可直接复制的命令')
     parser.add_argument('--collect-gaps', action='store_true', help='按对账缺口续采：只处理目标已知、缺口最大且有链接的对象')
     parser.add_argument('--gap-limit', type=int, default=10, help='--collect-gaps / --drive 每轮最多处理几个对象，默认 10')
     parser.add_argument('--drive', action='store_true', help='无人值守驱动循环：只在首轮发现目录，之后按缺口续采直到轮数用完或没有进展')
@@ -318,7 +321,8 @@ def main():
     parser.add_argument('--max-regions', type=int, default=50, help='本次最多处理的首页地区数')
     parser.add_argument('--shopping-district', type=int, help='发现购物目录，携程地区ID，上海为2；0表示全球')
     parser.add_argument('--discovery-pages', type=int, default=5)
-    parser.add_argument('--max-objects', type=int, default=50)
+    parser.add_argument('--max-objects', type=int, default=None,
+                        help='目录发现 / --drive 的对象上限，默认 50；--phone-queue 默认 10')
     parser.add_argument('--collect-discovered', action='store_true')
     parser.add_argument('--url-file', type=Path, help='每行一个对象详情链接的 UTF-8 文件')
     parser.add_argument('--kind', choices=['hotel', 'sight'], default='hotel')
@@ -333,9 +337,12 @@ def main():
     #     其他模式（含 --collect-gaps）保持原来的 500，不改既有命令的口径。
     if args.limit is None:
         args.limit = 200 if args.drive else 500
+    # 3.0.0 --max-objects 的默认值也跟模式走：--phone-queue 默认 10，其他模式保持 50。
+    if args.max_objects is None:
+        args.max_objects = 10 if args.phone_queue else 50
     if args.workbench:
-        if any((args.check, args.gui_smoke, args.coverage, args.audit, args.collect_gaps, args.drive,
-                args.hotel_public, args.collect,
+        if any((args.check, args.gui_smoke, args.coverage, args.audit, args.phone_queue, args.collect_gaps,
+                args.drive, args.hotel_public, args.collect,
                 args.object_ref, args.url,
                 args.url_file, args.import_capture, args.download_media, args.capture_ai, args.city_list,
                 args.region_seeds, args.resume_regions, args.shopping_district is not None, args.collect_discovered)):
@@ -379,6 +386,16 @@ def main():
             parser.error('--object-ref 只能与 --collect 一起使用')
         if args.place.strip() or args.resource_id.strip():
             parser.error('--object-ref 与 --place/--resource-id 互斥：编号和名称都从证据取，请去掉手填值')
+    # 3.0.1.5 手机侧缺口队列：只读对账与手机库，不连设备、不触网；与采集、统计、对账互斥。
+    if args.phone_queue:
+        if any((args.url, args.url_file, args.city_list, args.region_seeds, args.resume_regions, args.hotel_public,
+                args.shopping_district is not None, args.collect, args.capture_ai, args.import_capture,
+                args.download_media, args.coverage, args.collect_gaps, args.drive, args.audit, args.check)):
+            parser.error('--phone-queue 不能与采集任务、覆盖统计、对账或设备自检同时使用')
+        if args.max_objects < 1:
+            parser.error('max-objects 必须大于零')
+        print(json.dumps(write_phone_queue(args.output, args.max_objects), ensure_ascii=False, indent=2))
+        return
     # 3.0.2 覆盖对账只读取落盘证据；与采集任务、覆盖统计互斥，避免参数混用。
     if args.audit:
         if any((args.url, args.url_file, args.city_list, args.region_seeds, args.resume_regions, args.hotel_public,
