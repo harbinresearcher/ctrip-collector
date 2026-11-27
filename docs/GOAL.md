@@ -303,6 +303,22 @@ ull，不写 0；
 - 单测 4 项（两通道都有数据 / 只有网页 / 只有手机 / 目标未知不计入分母），不触网；
 - 真实目录上跑一次，把数字写进验收记录。
 
+#### C1l 验收记录：已达标（2026-11-27）
+
+真实目录 `.test-tmp\real`（3 个对象，网页目标 1099/357/62，手机目标同为 1099/357/62）：
+
+```json
+{"web":   {"target": 1518, "collected": 694, "missing": 824},
+ "phone": {"target": 1518, "collected": 30,  "missing": 1488},
+ "objects": {"total": 3, "complete": 0, "partial": 3, "unknown_target": 0, "no_phone_data": 0},
+ "best_effort": {"covered": 694, "target": 1518, "ratio": 0.457},
+ "note": "网页与手机没有共同主键，不能相加去重；best_effort 表示每个对象取已采更多的那条通道"}
+```
+
+读法：覆盖率 **45.7%**（694/1518），三条通道都还是部分完成；`phone.collected=30`
+是手机侧真实入库条数，**没有**和网页 694 相加去当「总计」。原有 8 个 summary
+字段一字未改。641 项测试全绿。
+
 ### C1 覆盖台账与缺口对账
 
 - 新增只读命令 `python app.py --audit --output <输出目录>`，输出 JSON，包含：
