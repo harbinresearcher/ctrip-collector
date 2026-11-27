@@ -170,6 +170,51 @@ def review_source_counts(db):
                       (*WEB_REVIEW_METHODS, APP_IMPORTED_METHOD))
 
 
+COVERAGE_NOTE = '网页与手机没有共同主键，不能相加去重；best_effort 表示每个对象取已采更多的那条通道'
+
+
+def coverage_summary(objects):
+    # /* ===== 步骤5.3：统一覆盖率总表；数据源：对象行；操作：1) 两条通道分开算 2) 跨通道只取较大值不相加 ===== */
+    # 5.3.1 网页口径与 summary 一致；手机没有任何目标时为 null，已采数仍给真实值。
+    web_known = [obj for obj in objects if obj['target'] is not None]
+    phone_known = [obj for obj in objects if obj['phone_target'] is not None]
+    complete = partial = unknown_target = no_phone_data = 0
+    covered = best_target = 0
+    for obj in objects:
+        web_target, phone_target = obj['target'], obj['phone_target']
+        # 5.3.2 任一通道达到目标就算完整；两条通道都没有目标时单独计数，不冒充 0。
+        if (web_target is not None and obj['collected'] >= web_target) or (
+                phone_target is not None and obj['phone_collected'] >= phone_target):
+            complete += 1
+        elif web_target is not None or phone_target is not None:
+            partial += 1
+        else:
+            unknown_target += 1
+        if phone_target is None and obj['phone_collected'] == 0:
+            no_phone_data += 1
+        # 5.3.3 best_effort 每个对象只取一条通道：已采更多的那条；目标取同一条通道的目标，
+        #       该通道没有目标时退回另一条已知目标，仍不把两条已采数相加。
+        phone_bigger = obj['phone_collected'] > obj['collected']
+        covered += obj['phone_collected'] if phone_bigger else obj['collected']
+        chosen_target = phone_target if phone_bigger else web_target
+        other_target = web_target if phone_bigger else phone_target
+        if chosen_target is not None:
+            best_target += chosen_target
+        elif other_target is not None:
+            best_target += other_target
+    return {'web': {'target': sum(obj['target'] for obj in web_known),
+                    'collected': sum(obj['collected'] for obj in objects),
+                    'missing': sum(obj['missing'] for obj in web_known)},
+            'phone': {'target': sum(obj['phone_target'] for obj in phone_known) if phone_known else None,
+                      'collected': sum(obj['phone_collected'] for obj in objects),
+                      'missing': sum(obj['phone_missing'] for obj in phone_known) if phone_known else None},
+            'objects': {'total': len(objects), 'complete': complete, 'partial': partial,
+                        'unknown_target': unknown_target, 'no_phone_data': no_phone_data},
+            'best_effort': {'covered': covered, 'target': best_target,
+                            'ratio': covered / best_target if best_target else None},
+            'note': COVERAGE_NOTE}
+
+
 def write_coverage_audit(folder):
     # /* ===== 步骤3：读取对象级与目录级证据；数据源：输出目录；操作：1) 只读打开 2) 记录目标数来源 3) 记录对象链接 ===== */
     logger.info('开始对账已落盘采集证据')
@@ -489,7 +534,7 @@ def write_coverage_audit(folder):
                'reachable_missing': sum(obj['reachable_missing'] for obj in known),
                'unknown_target': sum(1 for obj in objects if obj['target_unknown']),
                'object_count': len(objects), 'directory_count': len(directories),
-               'complete': False}
+               'coverage': coverage_summary(objects), 'complete': False}
     report_path = folder / ('audit-' + uuid.uuid4().hex + '.json')
     report = {'scope': 'landed_evidence_only', 'review_totals_scope': 'web_reviews', 'complete': False,
               'objects': objects, 'directories': sorted(directories, key=lambda row: row['report']),

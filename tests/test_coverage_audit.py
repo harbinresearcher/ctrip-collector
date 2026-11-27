@@ -165,9 +165,12 @@ class CoverageAuditTests(unittest.TestCase):
             self.assertEqual(obj['target_source'], 'sight-1-object.json:display_total')
             self.assertFalse(obj['target_unknown'])
             self.assertEqual((obj['missing'], obj['gap_reason'], obj['complete']), (0, None, True))
-            self.assertEqual(report['summary'], {'target': 2, 'collected': 2, 'missing': 0,
-                                                 'reachable_missing': 0, 'unknown_target': 0,
-                                                 'object_count': 1, 'directory_count': 0, 'complete': False})
+            self.assertEqual({field: report['summary'][field]
+                              for field in ('target', 'collected', 'missing', 'reachable_missing',
+                                            'unknown_target', 'object_count', 'directory_count', 'complete')},
+                             {'target': 2, 'collected': 2, 'missing': 0, 'reachable_missing': 0,
+                              'unknown_target': 0, 'object_count': 1, 'directory_count': 0,
+                              'complete': False})
             # 1.1 报告文件写进同一目录，但下一次对账不能把它当成采集证据。
             saved = json.loads(Path(report['report_file']).read_text(encoding='utf-8'))
             self.assertEqual(saved['objects'], report['objects'])
