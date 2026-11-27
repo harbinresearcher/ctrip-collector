@@ -5,7 +5,8 @@ from decimal import ROUND_HALF_UP, Decimal
 from mobile_review_fields import SHOPPING_DIMENSION, SHOPPING_RATING_FIELDS, SHOPPING_SCORE_VALUE
 
 APP = 'ctrip.android.view'
-FILTERS = {'全部', '好评', '中评', '差评', '有图·视频', '图片/视频', '消费后评价'}
+# 真机餐饮点评页用的是「视频/图片」（与景点页的「图片/视频」词序不同），两个都收。
+FILTERS = {'全部', '好评', '中评', '差评', '有图·视频', '图片/视频', '视频/图片', '消费后评价'}
 RESTAURANT_FILTERS = FILTERS | {'图/视频', '带图'}
 SHOPPING_FILTERS = FILTERS | {'只看笔记'}
 COUNT = re.compile(r'(?:[0-9]+(?:\.[0-9]+)?|[0-9]{1,3}(?:,[0-9]{3})+)[万千wW]?\+?')
