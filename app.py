@@ -360,8 +360,10 @@ def main():
         except OSError as exc:
             parser.exit(1, f'工作台启动失败：{exc}\n')
         return
-    if args.adb_serial is not None or args.port is not None or args.no_browser:
-        parser.error('--adb-serial、--port 和 --no-browser 需要使用 --workbench')
+    # 3.1 只把工作台专属的参数挡在门外；--adb-serial 对命令行采集同样有用：
+    #     同时连着模拟器和真机时，串行采集也要能指定其中一台。
+    if args.port is not None or args.no_browser:
+        parser.error('--port 和 --no-browser 需要使用 --workbench')
     args.adb = args.adb or 'adb'
     # 3.0 采集模式互斥：同时给了多个入口时明确拒绝，而不是悄悄只跑其中一个。
     modes = []
@@ -518,11 +520,11 @@ def main():
                 raise BlockedError(blocked.get('blocked_status'))
             raise SystemExit(1)
     elif args.capture_ai:
-        with Adb(args.adb, ui_backend=args.ui_backend) as adb:
+        with Adb(args.adb, serial=args.adb_serial, ui_backend=args.ui_backend) as adb:
             adb.connect()
             print(json.dumps(capture_ai(adb, args.kind, args.place, args.resource_id, args.output), ensure_ascii=False, indent=2))
     elif args.check:
-        adb = Adb(args.adb)
+        adb = Adb(args.adb, serial=args.adb_serial)
         adb.connect()
         print(json.dumps({'device': 'authorized', 'ctrip': 'installed'}, ensure_ascii=False))
     elif args.collect:
@@ -532,7 +534,7 @@ def main():
             parser.error('limit > 0，max-swipes >= 0')
         if identity is None and not args.place.strip():
             parser.error('必须指定 --place（或改用 --object-ref）')
-        with Adb(args.adb, ui_backend=args.ui_backend) as adb:
+        with Adb(args.adb, serial=args.adb_serial, ui_backend=args.ui_backend) as adb:
             adb.connect()
             if identity is None:
                 # 3.1.2 旧入口保持原样：手填名称，身份仍标为操作者声明。
