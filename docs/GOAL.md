@@ -208,6 +208,29 @@ python app.py --drive --output <目录> --workers 2 --rounds 3 --limit 200 --gap
 模拟验证：同一 fixture 改一个 TextView 的 class → `changed=true`、`count` 仍为 1
 （改版不会把采集判成失败）。562 项测试全绿。
 
+### C1i 手机侧缺口队列（下一步）
+
+目标：把「下一步该在手机上采哪个对象」变成可判定输出——不用凭记忆翻目录，
+也不会因为忘了哪个对象没采而漏。
+
+```powershell
+python app.py --phone-queue --output <目录> --max-objects 5
+```
+
+验收：
+
+- 只读：不连设备、不发网络请求，读对账与手机库后输出工作清单；
+- 每个条目给：`object_key`、`place`、`kind`、对象链接（来自证据）、
+  `target`（手机侧「全部」计数；拿不到就 `target_unknown`）、
+  `phone_collected`、`missing`、`reason`（`never_collected` / `partial` /
+  `source_exhausted` / `blocked` / `target_unknown`）、以及可直接复制的
+  `command`（`--collect --object-ref <key> --limit <n>`）；
+- 排序可判定：已知缺口按 missing 降序；`never_collected` 排在「已采过但还缺」前面；
+  `source_exhausted` 与 `blocked` 单独列在 `skipped[]` 并说明原因，不混进待办；
+- 输出同时给 `summary{objects, with_phone_gap, never_collected, target_unknown}`；
+- 单测 5 项（从未采过 / 部分已采 / 目标未知 / 采尽与拦截进 skipped /
+  排序与命令字段），不触网不连设备。
+
 ### C1 覆盖台账与缺口对账
 
 - 新增只读命令 `python app.py --audit --output <输出目录>`，输出 JSON，包含：
