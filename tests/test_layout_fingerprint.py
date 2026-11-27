@@ -18,6 +18,25 @@ def parent_of(root, target):
     return next((node for node in root.iter('node') if any(child is target for child in node)), None)
 
 
+def _anchor_node(root):
+    """第一个点评列表锚点节点（o_gs_comments / htl_x_htlcmtlist）。"""
+    for node in root.iter('node'):
+        if (node.get('resource-id') or '').rsplit(':', 1)[-1].startswith(('o_gs_comments', 'htl_x_htlcmtlist')):
+            return node
+    raise AssertionError('样本里没有点评锚点')
+
+
+def _depth(root, target):
+    """节点深度（根为 0），用于把测试改动落在浅层或深层。"""
+    stack = [(root, 0)]
+    while stack:
+        node, depth = stack.pop()
+        if node is target:
+            return depth
+        stack.extend((child, depth + 1) for child in node)
+    return -1
+
+
 class LayoutFingerprintTests(unittest.TestCase):
     def test_same_page_gives_same_fingerprint(self):
         # /* ===== 步骤1：指纹稳定；数据源：真实景点点评首屏；操作：1) 重复计算 2) 重排属性 ===== */
@@ -46,21 +65,30 @@ class LayoutFingerprintTests(unittest.TestCase):
         baseline = FAMILIES['mobile_reviews_sight']['fingerprint']
         self.assertEqual(structure_fingerprint(xml), baseline)
 
+        # 3.0 改动落在点评列表锚点区域内才算改版：删子节点、加子节点、改 class。
         removed_root = ET.fromstring(xml)
-        leaf = [node for node in removed_root.iter('node') if len(node) == 0][-1]
-        parent_of(removed_root, leaf).remove(leaf)
+        anchor = _anchor_node(removed_root)
+        self.assertTrue(len(anchor), '锚点节点应当有子节点')
+        anchor.remove(list(anchor)[-1])
         removed = structure_fingerprint(ET.tostring(removed_root, encoding='unicode'))
         self.assertNotEqual(removed, baseline)
 
         added_root = ET.fromstring(xml)
-        added_root.append(ET.Element('node', {'class': 'android.widget.Toast', 'text': '新增节点'}))
+        _anchor_node(added_root).append(ET.Element('node', {'class': 'android.widget.Toast', 'text': '新增节点'}))
         self.assertNotEqual(structure_fingerprint(ET.tostring(added_root, encoding='unicode')), baseline)
 
         class_root = ET.fromstring(xml)
-        next(node for node in class_root.iter('node')
-             if node.get('class') == 'android.widget.TextView').set('class', 'android.view.View')
+        _anchor_node(class_root).set('class', 'android.view.View')
         changed_class = structure_fingerprint(ET.tostring(class_root, encoding='unicode'))
         self.assertNotEqual(changed_class, baseline)
+
+        # 3.0.1 锚点区域之外的改动不算改版（例如页面底部的推荐位）。
+        outside_root = ET.fromstring(xml)
+        outside = [node for node in outside_root.iter('node')
+                   if not (node.get('resource-id') or '').rsplit(':', 1)[-1].startswith(
+                       ('o_gs_comments', 'htl_x_htlcmtlist'))]
+        outside[-1].set('class', 'android.view.View')
+        self.assertEqual(structure_fingerprint(ET.tostring(outside_root, encoding='unicode')), baseline)
 
         # 3.1 结构变了：报告给出 changed 与 layout_changed，并写一条限制说明。
         report = {'limitations': []}
@@ -119,10 +147,10 @@ class LayoutFingerprintTests(unittest.TestCase):
             self.assertNotIn('layout_changed', report)
             self.assertEqual(report['count'], 1)
 
-        # 6.1 只改一个 TextView 的 class：结构指纹变化，报告提示改版，点评照常入库。
+        # 6.1 只改一个**浅层**节点的 class：结构指纹变化，报告提示改版，点评照常入库。
+        #     （深层卡片节点按 3.0.1 的取舍不影响指纹）
         root = ET.fromstring(xml)
-        next(node for node in root.iter('node')
-             if node.get('class') == 'android.widget.TextView').set('class', 'android.view.View')
+        _anchor_node(root).set('class', 'android.view.View')
         with tempfile.TemporaryDirectory() as folder:
             adb = Mock()
             adb.snapshot.return_value = ET.tostring(root, encoding='unicode')
@@ -147,10 +175,9 @@ class LayoutFingerprintTests(unittest.TestCase):
             self.assertNotIn('layout_changed', report)
             self.assertGreater(report['count'], 0)
 
-        # 7.1 改一个节点的 class：报告标 layout_changed，但点评仍然入库。
+        # 7.1 改锚点区域里一个节点的 class：报告标 layout_changed，但点评仍然入库。
         root = ET.fromstring(hotel)
-        next(node for node in root.iter('node')
-             if node.get('class') == 'android.widget.ImageView').set('class', 'android.view.View')
+        _anchor_node(root).set('class', 'android.view.View')
         with tempfile.TemporaryDirectory() as folder:
             adb = Mock()
             adb.snapshot.return_value = ET.tostring(root, encoding='unicode')

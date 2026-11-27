@@ -31,9 +31,9 @@ WEB_FAMILIES = {'sight': 'web_reviews'}
 
 FAMILIES = {
     'mobile_reviews_sight': {'kind': 'xml', 'fixture': 'sight-review-live-yungang.xml',
-                             'fingerprint': '7866921e38cff5d7', 'version': 1},
+                             'fingerprint': 'cf768820b13d178f', 'version': 1},
     'mobile_reviews_hotel': {'kind': 'xml', 'fixture': 'hotel-comments.xml',
-                             'fingerprint': '764ea7df112ae9b7', 'version': 1},
+                             'fingerprint': '86734d5091226598', 'version': 1},
     'web_reviews': {'kind': 'page', 'fixture': 'web-sight-comment-info.json',
                     'fingerprint': '697dd017b08b88e3', 'version': 1},
 }
@@ -43,18 +43,40 @@ def _digest(lines):
     return hashlib.sha256('\n'.join(lines).encode('utf-8')).hexdigest()[:16]
 
 
+# 点评列表的锚点：这些 resource-id 前缀标记「这一屏是点评列表」，并且是解析要依赖的部分。
+# 只对锚点子树取指纹，滚动位置和卡片内容都不会改变它。
+REVIEW_ANCHORS = ('o_gs_comments', 'htl_x_htlcmtlist')
+ANCHOR_DEPTH = 3
+
+
 def structure_fingerprint(xml):
-    """手机 UI XML 的结构指纹；正文和 bounds 不参与计算。"""
+    """手机点评页的结构指纹：只算**点评列表锚点区域**的浅层结构。
+
+    真机验证（2026-11-27）踩过两次坑，记在这里避免重复：
+    - 按整棵树的节点序列算，同家族不同对象会被判成改版（卡片数量不同）；
+    - 按深度 ≤12 的整屏结构算，滚动位置一变就变，而且和榜单页撞成同一个值。
+    所以只取锚点（o_gs_comments* / htl_x_htlcmtlist*）子树内深度 ≤3 的
+    去重结构集合。滚动不动锚点行，卡片内部差异不进指纹（那类差异由未知布局
+    上报负责）。不是点评页（找不到锚点）时返回 None——未知就是未知，不报警。
+    """
     root = ET.fromstring(xml)
-    lines = []
-    stack = [(root, 0)]
-    while stack:
-        node, depth = stack.pop()
+    lines = set()
+    found = False
+
+    def walk(node, depth):
         resource_id = (node.get('resource-id') or '').rsplit(':', 1)[-1]
-        has_text = '1' if (node.get('text') or '').strip() else '0'
-        lines.append('\t'.join((str(depth), node.get('class') or '', resource_id, has_text)))
-        stack.extend((child, depth + 1) for child in reversed(list(node)))
-    return _digest(lines)
+        text_flag = '1' if (node.get('text') or '').strip() else '0'
+        lines.add('\t'.join((str(depth), node.get('class') or '', resource_id, text_flag)))
+        if depth >= ANCHOR_DEPTH:
+            return
+        for child in node:
+            walk(child, depth + 1)
+
+    for node in root.iter('node'):
+        if (node.get('resource-id') or '').rsplit(':', 1)[-1].startswith(REVIEW_ANCHORS):
+            found = True
+            walk(node, 0)
+    return _digest(sorted(lines)) if found else None
 
 
 def page_structure_fingerprint(page):
