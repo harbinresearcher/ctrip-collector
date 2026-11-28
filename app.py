@@ -10,6 +10,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
 from runner import Adb, collect, scan_phone_target
+from sight_review_navigation import open_sight_reviews
 from network import BlockedError, canonical_url, collect_network, load_target
 from hotel_browser import collect_hotel
 from capture_io import import_capture
@@ -332,6 +333,8 @@ def main():
                         help='每个对象本次最多再补这么多条；--drive 默认 200（每个对象每轮最多再补这么多条，实测约 230 条/分钟），其他模式默认 500')
     parser.add_argument('--max-swipes', type=int, default=1500)
     parser.add_argument('--ui-backend', choices=['adb', 'uiautomator2'], default='uiautomator2')
+    parser.add_argument('--auto-open', action='store_true',
+                        help='配合 --phone-target：先用导航打开景点点评页（按名称+目录地址核对）')
     parser.add_argument('--phone-target', action='store_true',
                         help='只读手机当前页面的「全部」点评数，不采点评；配合 --object-ref 使用')
     args = parser.parse_args()
@@ -536,6 +539,14 @@ def main():
             parser.error('--phone-target 需要 --object-ref（身份来自落盘证据）')
         with Adb(args.adb, serial=args.adb_serial, ui_backend=args.ui_backend) as adb:
             adb.connect()
+            # 3.1.0.1 --auto-open 用仓库内已验证的景点导航（按「名称+地址」核对搜索结果），
+            #         而不是靠猜坐标点卡片；地址来自目录证据，缺地址就直接报错不硬猜。
+            if args.auto_open:
+                if identity['kind'] != 'sight':
+                    parser.error('--auto-open 目前只支持景点')
+                if not identity.get('address'):
+                    parser.error('目录证据里没有地址关键词，无法自动核对搜索结果；请手动打开点评页')
+                open_sight_reviews(adb, identity['name'], identity['address'], threading.Event())
             result = scan_phone_target(adb, identity['kind'], identity['name'], args.output,
                                        object_id=identity['object_id'],
                                        identity_source=identity['identity_source'])

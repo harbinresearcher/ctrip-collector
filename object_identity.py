@@ -74,7 +74,9 @@ def directory_objects(path, data):
         identity = positive_identity(row.get('resource_id'))
         name = clean_name(row.get('name'))
         if identity and name:
-            yield f'{kind}-{identity}', name
+            # 4.1.1 地址关键词只用来缩小手机搜索结果，缺了不影响身份解析。
+            address = row.get('address') or row.get('zone_name') or row.get('district_name')
+            yield f'{kind}-{identity}', name, (address.strip() if isinstance(address, str) and address.strip() else None)
 
 
 def evidence_candidates(folder, object_ref=None):
@@ -107,6 +109,7 @@ def evidence_objects(path, scope, key):
     if scope == 'directory_report':
         yield from directory_objects(path, data)
         return
+    # 其它证据只有名称，没有地址关键词。
     if scope == 'object_snapshot':
         kind, identity = key.split('-', 1)
         if data.get('kind') != kind:
@@ -128,13 +131,16 @@ def evidence_objects(path, scope, key):
     name = clean_name(data.get('place' if scope == 'mobile_report' else 'name'))
     if name is None:
         raise ValueError('没有对象名称')
-    yield key, name
+    yield key, name, None
 
 
-def object_identity(object_ref, name, path):
+def object_identity(object_ref, name, path, address=None):
     kind, identity = object_ref.split('-', 1)
-    return {'object_ref': object_ref, 'kind': kind, 'object_id': identity, 'name': name,
-            'identity_source': EVIDENCE_MANIFEST, 'identity_evidence': path.name}
+    found = {'object_ref': object_ref, 'kind': kind, 'object_id': identity, 'name': name,
+             'identity_source': EVIDENCE_MANIFEST, 'identity_evidence': path.name}
+    if address:
+        found['address'] = address
+    return found
 
 
 def resolve_object_ref(folder, object_ref):
@@ -150,10 +156,10 @@ def resolve_object_ref(folder, object_ref):
     problems = []
     for path, scope, key in evidence_candidates(folder, text):
         try:
-            for found, name in evidence_objects(path, scope, key):
+            for found, name, address in evidence_objects(path, scope, key):
                 if found == text:
                     logger.info('对象身份来自%s：%s', scope, path.name)
-                    return object_identity(text, name, path)
+                    return object_identity(text, name, path, address)
         except (OSError, ValueError, TypeError) as exc:
             problems.append(f'{path.name}：{exc}')
     detail = '；'.join(problems) if problems else '输出目录内没有该对象的证据文件'
@@ -176,9 +182,9 @@ def list_object_refs(folder, *, kind=None, query='', limit=50):
     objects = {}
     for path, scope, key in evidence_candidates(folder):
         try:
-            for ref, name in evidence_objects(path, scope, key):
+            for ref, name, address in evidence_objects(path, scope, key):
                 if ref not in objects:
-                    objects[ref] = object_identity(ref, name, path)
+                    objects[ref] = object_identity(ref, name, path, address)
         except (OSError, ValueError, TypeError):
             continue
 

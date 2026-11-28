@@ -210,9 +210,14 @@ def discover_sights(url, output, max_pages=5, max_objects=50, stop=None, fetch=N
                 if identity in seen:
                     continue
                 seen.add(identity)
+                # 2.3 记下区县与片区：手机侧搜索结果里同名景点很多，只按名称核对会认错，
+                #     导航要能用「名称 + 地址关键词」把结果缩到一个。
                 report['objects'].append({'kind': 'sight', 'resource_id': identity,
                                           'poi_id': card.get('poiId'), 'name': card.get('poiName'),
                                           'district_id': district, 'comment_count': card.get('commentCount'),
+                                          'district_name': card.get('districtName'),
+                                          'zone_name': card.get('zoneName'),
+                                          'address': card.get('zoneName') or card.get('districtName'),
                                           'url': detail, 'discovered_on': page_url})
                 if len(seen) >= max_objects:
                     report['reason'] = 'object_budget_reached'
