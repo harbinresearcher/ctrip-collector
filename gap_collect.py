@@ -5,6 +5,7 @@
 酒店走专用浏览器且需要人工登录，不放进自动续采，缺口对象仍用 --url 采集。
 对象之间可以按 --workers 做线程级并发；同一对象内部仍串行翻页，间隔不变。
 """
+import http.client
 import logging
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from pathlib import Path
@@ -149,6 +150,20 @@ def run_concurrently(selected, limit, workers, stop, emit, run_object, quota_rem
     return [finished[key] for key in sorted(finished)], halted
 
 
+TRANSIENT = (http.client.IncompleteRead, TimeoutError, ConnectionResetError, OSError)
+
+
+def call_with_retry(collector, url, output, add, stop, emit):
+    # /* ===== 步骤3.3.0：单个对象的瞬时读取失败重试一次；数据源：采集入口；操作：1) 重试 2) 仍失败就抛出 ===== */
+    # 3.3.0.1 实测：网页长页面偶发 IncompleteRead，会把这个对象直接记成 failed，
+    #         而它下一次续采本来能成功。重试一次成本很低。
+    try:
+        return collector(url, output, add, stop, emit)
+    except TRANSIENT:
+        emit('读取失败，重试一次：' + url)
+        return collector(url, output, add, stop, emit)
+
+
 def collect_gaps(folder, limit, gap_limit=10, stop=None, emit=None, collector=None,
                  *, workers=1, quota_remaining=None):
     # /* ===== 步骤3：按缺口续采；数据源：只读对账与既有采集入口；操作：1) 排序限量 2) 逐对象采（可并发）3) 重新对账 ===== */
@@ -194,13 +209,21 @@ def collect_gaps(folder, limit, gap_limit=10, stop=None, emit=None, collector=No
             return effective, dict(batch['reused_results'][0], reason='reused_verified')
         return effective, {'reason': 'no_result', 'error': batch.get('error') or batch.get('reason') or ''}
 
+    def _retry_object(obj, add):
+        # 3.3.0.2 串行路径也用重试：单个对象读失败不该让它直接记 failed。
+        try:
+            return run_object(obj, add)
+        except TRANSIENT:
+            emit('读取失败，重试一次：' + obj['object_key'])
+            return run_object(obj, add)
+
     if workers == 1:
         # 3.3.2 默认串行：保持原有处理顺序与日志，一个对象采完再开下一个。
         serial, halted = [], None
         for obj in selected:
             if stop.is_set():
                 break
-            effective, result = run_object(obj, limit)
+            effective, result = _retry_object(obj, limit)
             serial.append((obj, result, limit, effective))
             signal = blocked_signal(result)
             if signal is not None:
