@@ -415,7 +415,25 @@ history 最新行: {"missing": 824, "reachable_missing": 824, "capped_count": 3}
 `batch.py` 现在记一笔失败后继续，只有「被平台拦住」或「用户取消」才停整轮，
 并对 `IncompleteRead`/连接重置/超时重试一次。
 
-### C1p 城市级手机补采（未完成，设备侧受阻）
+### C1p 城市级手机补采（已打通第一个对象，2026-11-28）
+
+队列按网页缺口排出的第一个对象 `sight-136039 长白山西景区（web_missing=1069）`
+已在模拟器上采到手机侧数据：
+
+- 到达判据 `arrived=True`（`all_count=1099`、对象名 exact）；
+- 两轮采集：6 条（11 屏）→ 累计 16 条（26 屏），`identity_source=evidence_manifest`；
+- 对账变成 `phone {target: 1099, collected: 16, missing: 1083}`，
+  `no_phone_data` 从 86 降到 85。
+
+**设备侧的坑（下次别再踩）**：之前 `adb shell uiautomator dump` 一直返回
+`null root node returned by UiTestAutomationBridge`，原因是 uiautomator2 的
+ATX agent 与 adb dump 桥冲突；`adb shell am force-stop com.github.uiautomator*`
+之后 adb 后端立刻恢复。**同一台设备不要混用两个 UI 后端**。
+
+另外深链 `ctrip://wireless/search?keyword=` 在这台模拟器上会落到酒店结果页，
+景点卡片不在首位；按文字找卡片要认「可订明日 / 门票」这类景点行，别用「名字完全匹配」。
+
+### C1p 原始记录（设备侧受阻时的笔记，保留备查）
 
 队列已经能指出该先采哪个对象（按网页缺口降序）：
 
