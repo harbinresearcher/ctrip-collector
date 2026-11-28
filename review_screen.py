@@ -65,27 +65,60 @@ def _all_count(root, texts):
     return None, None
 
 
-def review_screen_state(xml, expected_name=None):
+SEPARATORS = ' ·（(【[-—~～'
+
+
+def _name_state(texts, expected, allow_missing_name):
+    """返回 (name_seen, name_match, matched_text)。
+
+    规则按真机踩过的坑定：
+    - 完全相等 → exact；
+    - 以目标名开头、紧跟分隔符（门店名/分店名常见写法）→ prefix，例如
+      「琼州糟粕醋·海南酸汤火锅(清水湾东榕环球美食店)」对目标「琼州糟粕醋」；
+    - 目标名只出现在**中间** → contains，判失败：把「汉拿山温泉」认成
+      「长白山万达瑞景汉拿山温泉酒店」会把别的对象的数据记错账；
+    - 页面上根本没有名字 → absent（酒店点评页确实不显示店名，调用方决定是否接受）。
+    """
+    if not expected:
+        return None, None, None
+    expected = expected.strip()
+    exact = [item for item in texts if item == expected]
+    if exact:
+        return True, 'exact', exact[0]
+    prefix = [item for item in texts
+              if item.startswith(expected) and len(item) > len(expected) and item[len(expected)] in SEPARATORS]
+    if prefix:
+        return True, 'prefix', prefix[0]
+    middle = [item for item in texts if item != expected and expected in item]
+    if middle:
+        return False, 'contains', middle[0]
+    if allow_missing_name:
+        return None, 'absent', None
+    return False, 'none', None
+
+
+def review_screen_state(xml, expected_name=None, allow_missing_name=False):
     # /* ===== 步骤1：判断是否停在目标点评页；数据源：屏幕 XML；操作：1) 锚点 2) 名字 3) 全部计数 ===== */
     try:
         root = ET.fromstring(xml)
     except ET.ParseError:
         return {'arrived': False, 'reason': 'invalid_xml', 'anchor': False, 'name_seen': None,
+                'name_match': None, 'matched_text': None,
                 'all_count': None, 'all_count_text': None, 'texts': []}
     texts = _texts(root)
     anchor = any(_anchor(node) for node in root.iter('node'))
-    name_seen = None
-    if expected_name:
-        expected = expected_name.strip()
-        name_seen = any(expected == text or expected in text or text in expected for text in texts)
+    name_seen, name_match, matched_text = _name_state(texts, expected_name, allow_missing_name)
     total, total_text = _all_count(root, texts)
     if not anchor:
         reason = 'no_review_anchor'
-    elif name_seen is False:
+    elif name_match == 'contains':
+        reason = 'name_partial_match'
+    elif name_match == 'none':
         reason = 'name_mismatch'
     elif total is None:
         reason = 'no_all_count'
     else:
         reason = 'arrived'
     return {'arrived': reason == 'arrived', 'reason': reason, 'anchor': anchor, 'name_seen': name_seen,
+            'name_match': name_match, 'matched_text': matched_text,
             'all_count': total, 'all_count_text': total_text, 'texts': texts[:12]}

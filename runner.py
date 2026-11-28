@@ -26,6 +26,7 @@ ARRIVAL_HINT = {
     'no_review_anchor': '当前屏幕不是点评列表（没找到点评列表锚点），请先在手机打开目标对象的全部评论。',
     'name_mismatch': '当前点评页的对象名与目标不一致，请确认手机停在正确的对象上。',
     'no_all_count': '点评页没有显示「全部」计数，无法确认总数；请切到「全部」页签后重试。',
+    'name_partial_match': '屏幕标题只是包含目标名（可能是另一个对象），请确认打开的是目标对象。',
     'invalid_xml': '读取到的界面不是有效的 XML，无法判断是否到达点评页。',
 }
 
@@ -438,7 +439,8 @@ def collect(adb, kind, place, folder, limit=500, max_swipes=1500, stop=None, pro
             if review_scope_reader is None and ('全部' not in texts or not any(
                     t in ('好评', '差评', '有图·视频') for t in texts)):
                 # 3.1.3 到没到点评页要能说清楚缺哪一条：锚点 / 对象名 / 全部计数。
-                state = review_screen_state(review_xml, place)
+                state = review_screen_state(review_xml, place,
+                                            allow_missing_name=kind == 'hotel')
                 raise RuntimeError(ARRIVAL_HINT.get(state['reason'],
                                                     '未识别为评论页面，请先在手机打开目标对象的全部评论。'))
             if first_screen_ai is not None and index == 0 and not stop.is_set():

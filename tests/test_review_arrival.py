@@ -17,12 +17,13 @@ class ArrivalTests(unittest.TestCase):
     def test_sight_and_restaurant_and_hotel_pages_count_as_arrived(self):
         # /* ===== 步骤1：三类真实点评页；数据源：fixtures；操作：1) 锚点 2) 名字 3) 全部计数 ===== */
         logger.info('开始三类点评页到达测试')
-        cases = [('sight-review-live-yungang.xml', '云冈石窟', 43000),
-                 ('restaurant-review-live-lingshui.xml', '琼州糟粕醋', 99),
-                 ('hotel-comments.xml', '长白山万达锦华度假酒店', 5722)]
-        for name, expected, total in cases:
+        cases = [('sight-review-live-yungang.xml', '云冈石窟', 43000, False),
+                 ('restaurant-review-live-lingshui.xml', '琼州糟粕醋', 99, False),
+                 ('hotel-comments.xml', '长白山万达锦华度假酒店', 5722, True)]
+        for name, expected, total, allow in cases:
             with self.subTest(fixture=name):
-                state = review_screen_state((FIXTURES / name).read_text(encoding='utf-8'), expected)
+                state = review_screen_state((FIXTURES / name).read_text(encoding='utf-8'), expected,
+                                            allow_missing_name=allow)
                 self.assertTrue(state['arrived'], state)
                 self.assertEqual(state['reason'], 'arrived')
                 self.assertEqual(state['all_count'], total)
