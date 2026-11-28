@@ -388,16 +388,14 @@ def write_coverage_audit(folder):
             #       但它是可数的布局缺口，对账要能统计「几个对象因为页面没认出来而没采到」。
             # 3.5.3 详情页读到了但没有点评入口（暂无评分）：平台没有可采点评，
             #       和「还没扫」「认不出页面」都不同，单独记一笔。
-            if data.get('review_entry_missing'):
-                previous = item.get('phone_no_review')
-                if previous is None or path.stat().st_mtime >= previous['mtime']:
-                    item['phone_no_review'] = {'file': path.name, 'mtime': path.stat().st_mtime}
-            if data.get('reason') == 'arrival_failed':
-                previous = item.get('phone_arrival')
-                if previous is None or path.stat().st_mtime >= previous['mtime']:
-                    item['phone_arrival'] = {'reason': data.get('reason'),
-                                             'arrival_reason': data.get('arrival_reason'),
-                                             'file': path.name, 'mtime': path.stat().st_mtime}
+            # 3.5.4 同时记住「最新一次手机尝试」：后面的成功报告要能把旧的失败状态清掉，
+            #       否则一个已经采到目标的对象会一直挂着「未知布局」。
+            previous = item.get('phone_latest')
+            if previous is None or path.stat().st_mtime >= previous['mtime']:
+                item['phone_latest'] = {'reason': data.get('reason'),
+                                        'arrival_reason': data.get('arrival_reason'),
+                                        'no_review_entry': bool(data.get('review_entry_missing')),
+                                        'file': path.name, 'mtime': path.stat().st_mtime}
 
     # 3.6 目录报告给出平台总数与已发现对象；目录卡片的点评数可作对象级目标。
     for path in sorted(folder.glob('discovery-*.json')):
@@ -617,14 +615,14 @@ def write_coverage_audit(folder):
                         'arrival_reason': (report or {}).get('arrival_reason') if arrival_failed else None,
                         # 5.2.6 手机上「没认出点评页」的那次尝试：与网页缺口分开记，
                         #       否则一个从来没被认出来的对象看起来和「还没轮到」一模一样。
-                        #       但后来的「没有点评入口」报告会覆盖它：以最新一次为准，
-                        #       否则已查明「平台没有点评」的对象会一直被算成未知布局。
-                        'phone_layout_unknown': bool(item.get('phone_arrival')) and (
-                            item.get('phone_no_review') is None
-                            or item['phone_arrival']['mtime'] > item['phone_no_review']['mtime']),
+                        #       只看最新一次手机尝试：后来的成功/无点评报告会清掉旧状态，
+                        #       否则已采到目标或已查明「平台没有点评」的对象会一直挂着未知布局。
+                        'phone_layout_unknown': (item.get('phone_latest') or {}).get('reason') == 'arrival_failed',
                         # 5.2.8 平台侧没有点评入口的对象：不能当成「还没采」。
-                        'phone_no_review_entry': bool(item.get('phone_no_review')),
-                        'phone_arrival_reason': (item.get('phone_arrival') or {}).get('arrival_reason'),
+                        'phone_no_review_entry': bool((item.get('phone_latest') or {}).get('no_review_entry')),
+                        'phone_arrival_reason': (item.get('phone_latest') or {}).get('arrival_reason')
+                        if (item.get('phone_latest') or {}).get('reason') == 'arrival_failed' else None,
+                        'latest_phone_reason': (item.get('phone_latest') or {}).get('reason'),
                         'latest_reason': report['reason'] if report else None,
                         'latest_error': report['error'] if report else '',
                         'evidence_files': sorted(item['files']),
