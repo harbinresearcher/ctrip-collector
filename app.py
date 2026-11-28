@@ -386,8 +386,8 @@ def main():
         parser.error('一次只能运行一种模式，当前同时给了：' + '、'.join(modes))
     # 3.0.1 对象身份只取一个来源：证据引用与手填名称/编号同时给出时明确拒绝，不悄悄选一个。
     if args.object_ref:
-        if not args.collect:
-            parser.error('--object-ref 只能与 --collect 一起使用')
+        if not (args.collect or args.phone_target):
+            parser.error('--object-ref 只能与 --collect 或 --phone-target 一起使用')
         if args.place.strip() or args.resource_id.strip():
             parser.error('--object-ref 与 --place/--resource-id 互斥：编号和名称都从证据取，请去掉手填值')
     # 3.0.1.5 手机侧缺口队列：只读对账与手机库，不连设备、不触网；与采集、统计、对账互斥。

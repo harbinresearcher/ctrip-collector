@@ -115,7 +115,7 @@ class ObjectRefTests(unittest.TestCase):
             with self.assertRaises(SystemExit) as caught:
                 app.main()
         self.assertEqual(caught.exception.code, 2)
-        self.assertIn('只能与 --collect 一起使用', err.getvalue())
+        self.assertIn('只能与 --collect 或 --phone-target 一起使用', err.getvalue())
         logger.info('身份来源互斥测试完成')
 
     def test_legacy_path_keeps_operator_declared_unverified(self):

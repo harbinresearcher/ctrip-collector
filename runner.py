@@ -363,8 +363,11 @@ def scan_phone_target(adb, kind, place, folder, object_id=None, identity_source=
               'error': '' if state['arrived'] else ARRIVAL_HINT.get(state['reason'], '未识别为评论页面'),
               'arrival_reason': arrival_reason, 'run_id': run_id, 'target_scope': 'target_only',
               'complete': False,
-              'sampling_context': {'selected_filter': context.get('selected_filter'),
-                                   'observations': [context], 'scope': 'current_run_ui_controls_only'},
+              # 2.9.3 身份没核对上时绝不记数字：屏幕可能停在别的对象上，
+              #       把它的「全部 228」记到本对象头上会直接污染分母。
+              'sampling_context': ({'selected_filter': context.get('selected_filter'),
+                                    'observations': [context],
+                                    'scope': 'current_run_ui_controls_only'} if state['arrived'] else None),
               'limitations': ['只读取屏幕上可见的「全部」计数，不采点评',
                               '页面不会把页签标注为已选中，此处只记录看到的数字']}
     if object_id is not None:
