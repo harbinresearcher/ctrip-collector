@@ -173,6 +173,28 @@ def review_source_counts(db):
 COVERAGE_NOTE = '网页与手机没有共同主键，不能相加去重；best_effort 表示每个对象取已采更多的那条通道'
 
 
+def discovery_summary(directories):
+    # /* ===== 步骤5.3.0：对象发现覆盖；数据源：目录报告行；操作：1) 平台目录总数 2) 已发现对象 3) 比值 ===== */
+    # 5.3.0.1 平台目录总数可能是截断上限（整千值尤其可疑），不是真实总数；这里按报告原样记录
+    #         并给出比值，同时把这点写进说明，不拿它当「全量已发现」的结论。
+    # 5.3.0.2 同一城市跑多次发现会留下多份目录报告，只取每个 (类型, 范围) 的最新一份，
+    #         否则总数与已发现对象会被重复累加（实测 3000/19 会变成 6000/38）。
+    latest = {}
+    for row in directories:
+        scope = (row.get('kind'), row.get('scope_id'))
+        current = latest.get(scope)
+        if current is None or (row.get('report') or '') > (current.get('report') or ''):
+            latest[scope] = row
+    known = [row for row in latest.values() if row.get('listing_total') is not None]
+    listing_total = sum(row['listing_total'] for row in known) if known else None
+    discovered = sum(row.get('discovered_objects') or 0 for row in latest.values())
+    ratio = None
+    if listing_total:
+        ratio = round(min(discovered / listing_total, 1.0), 4)
+    return {'listing_total': listing_total, 'discovered': discovered, 'ratio': ratio,
+            'note': 'listing_total 可能被平台截断（整千值尤其可疑），比值只作参考，不当作「全量已发现」'}
+
+
 def coverage_summary(objects):
     # /* ===== 步骤5.3：统一覆盖率总表；数据源：对象行；操作：1) 两条通道分开算 2) 跨通道只取较大值不相加 ===== */
     # 5.3.1 网页口径与 summary 一致；手机没有任何目标时为 null，已采数仍给真实值。
@@ -535,7 +557,8 @@ def write_coverage_audit(folder):
                'reachable_missing': sum(obj['reachable_missing'] for obj in known),
                'unknown_target': sum(1 for obj in objects if obj['target_unknown']),
                'object_count': len(objects), 'directory_count': len(directories),
-               'coverage': coverage_summary(objects), 'complete': False}
+               'coverage': dict(coverage_summary(objects), discovery=discovery_summary(directories)),
+               'complete': False}
     report_path = folder / ('audit-' + uuid.uuid4().hex + '.json')
     report = {'scope': 'landed_evidence_only', 'review_totals_scope': 'web_reviews', 'complete': False,
               'objects': objects, 'directories': sorted(directories, key=lambda row: row['report']),
