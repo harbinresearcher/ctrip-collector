@@ -230,10 +230,10 @@ python app.py --phone-queue --output <目录> --max-objects 5
 - 每个条目给：`object_key`、`place`、`kind`、对象链接（来自证据）、
   `target`（手机侧「全部」计数；拿不到就 `target_unknown`）、
   `phone_collected`、`missing`、`reason`（`never_collected` / `partial` /
-  `source_exhausted` / `blocked` / `target_unknown`）、以及可直接复制的
+  `channel_capped` / `blocked` / `target_unknown`）、以及可直接复制的
   `command`（`--collect --object-ref <key> --limit <n>`）；
 - 排序可判定：已知缺口按 missing 降序；`never_collected` 排在「已采过但还缺」前面；
-  `source_exhausted` 与 `blocked` 单独列在 `skipped[]` 并说明原因，不混进待办；
+  `channel_capped` 与 `blocked` 单独列在 `skipped[]` 并说明原因，不混进待办；
 - 输出同时给 `summary{objects, with_phone_gap, never_collected, target_unknown}`；
 - 单测 5 项（从未采过 / 部分已采 / 目标未知 / 采尽与拦截进 skipped /
   排序与命令字段），不触网不连设备。
