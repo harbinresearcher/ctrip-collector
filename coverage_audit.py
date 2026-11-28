@@ -625,6 +625,12 @@ def write_coverage_audit(folder):
                'capped_count': sum(1 for obj in objects if obj['capped']),
                'layout_unknown': sum(1 for obj in objects if obj['layout_unknown']),
                'phone_layout_unknown': sum(1 for obj in objects if obj['phone_layout_unknown']),
+               # 5.2.7 两通道目标数不一致的对象列出来：分叉要人看，不能被其中一个数字淹没。
+               'target_mismatch': [{'object_key': obj['object_key'], 'name': obj['name'],
+                                    'web': obj['target_mismatch']['web'],
+                                    'phone': obj['target_mismatch']['phone'],
+                                    'delta': obj['target_mismatch']['delta']}
+                                   for obj in objects if obj['target_mismatch']],
                'unknown_target': sum(1 for obj in objects if obj['target_unknown']),
                'object_count': len(objects), 'directory_count': len(directories),
                'coverage': dict(coverage_summary(objects), discovery=discovery_summary(directories)),
