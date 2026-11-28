@@ -13,6 +13,8 @@ MANUAL_PROMPTS = {'安全验证', '请完成验证', '拖动滑块完成拼图',
 REVIEW_NOT_CONFIRMED = '未确认已进入目标景点的用户点评，请核对后重试。'
 STANDARD_READS = 12
 LOADING_READS = 44
+# 1.3.2 搜索结果等约 18 秒：真机实测小景点查询明显更慢。
+SEARCH_READS = 40
 
 
 def text(node):
@@ -49,8 +51,10 @@ def read_screen(device, stop):
     return root
 
 
-def wait_for(device, stop, find, message, *, loading=None):
-    max_reads = LOADING_READS if loading else STANDARD_READS
+def wait_for(device, stop, find, message, *, loading=None, reads=None):
+    # 1.3.1 reads 用于「网络查询类」等待（如搜索结果）：默认窗口约 5 秒，
+    #       小景点的查询经常比这个大景点慢，用默认窗口会误判成「搜不到」。
+    max_reads = reads or (LOADING_READS if loading else STANDARD_READS)
     for attempt in range(1, max_reads + 1):
         still_loading = False
         try:
@@ -62,7 +66,8 @@ def wait_for(device, stop, find, message, *, loading=None):
             if (result := find(root)) is not None:
                 return result
             still_loading = loading is not None and loading(root)
-        if attempt == max_reads or (attempt >= STANDARD_READS and not still_loading):
+        # 1.3.3 显式指定 reads 时不要被默认的 12 次提前截断，否则长窗口形同虚设。
+        if attempt == max_reads or (reads is None and attempt >= STANDARD_READS and not still_loading):
             break
         if stop.wait(0.45):
             cancellation_check(stop)
@@ -263,7 +268,8 @@ def open_sight_reviews(device, name, address, stop, *, allow_search=False, requi
     cancellation_check(stop)
     device.enter_text(name)
     candidate = wait_for(device, stop, lambda root: matching_sight_result(root, name, address),
-                         '搜索未找到同时匹配名称和地址的景点，请手动打开目标点评。')
+                         '搜索未找到同时匹配名称和地址的景点，请手动打开目标点评。',
+                         reads=SEARCH_READS)
     tap(device, candidate, stop)
     scene, entry = wait_for(device, stop, lambda root: detail_or_reviews(root, name, address),
                             '未找到可核对的景点详情或点评，请稍后回到首页重试。',
