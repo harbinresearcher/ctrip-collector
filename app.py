@@ -549,10 +549,16 @@ def main():
                 # 3.1.0.2 导航要从首页搜索框开始：先退回首页，退不回去就明确报错。
                 if not ensure_home(adb, threading.Event()):
                     parser.error('没能回到携程首页，请手动回到首页后重试')
-                open_sight_reviews(adb, identity['name'], identity['address'], threading.Event())
+                # 3.1.0.3 导航可能停在「详情页没有点评入口」上（如暂无评分）：
+                #         这不是失败，而是这个对象平台上没有可采点评，交给扫描去记录。
+                try:
+                    open_sight_reviews(adb, identity['name'], identity['address'], threading.Event())
+                except (ValueError, RuntimeError) as exc:
+                    logger.warning('自动导航未完成：%s', exc)
             result = scan_phone_target(adb, identity['kind'], identity['name'], args.output,
                                        object_id=identity['object_id'],
-                                       identity_source=identity['identity_source'])
+                                       identity_source=identity['identity_source'],
+                                       allow_detail_probe=args.auto_open)
         print(json.dumps(result, ensure_ascii=False, indent=2))
         if result['reason'] == 'arrival_failed':
             raise SystemExit(1)

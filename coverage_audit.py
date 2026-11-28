@@ -386,6 +386,12 @@ def write_coverage_audit(folder):
                                        'mtime': path.stat().st_mtime}
             # 3.5.2 手机侧「没认出点评页」也要留下一笔：这类报告没有数据，
             #       但它是可数的布局缺口，对账要能统计「几个对象因为页面没认出来而没采到」。
+            # 3.5.3 详情页读到了但没有点评入口（暂无评分）：平台没有可采点评，
+            #       和「还没扫」「认不出页面」都不同，单独记一笔。
+            if data.get('review_entry_missing'):
+                previous = item.get('phone_no_review')
+                if previous is None or path.stat().st_mtime >= previous['mtime']:
+                    item['phone_no_review'] = {'file': path.name, 'mtime': path.stat().st_mtime}
             if data.get('reason') == 'arrival_failed':
                 previous = item.get('phone_arrival')
                 if previous is None or path.stat().st_mtime >= previous['mtime']:
@@ -612,6 +618,8 @@ def write_coverage_audit(folder):
                         # 5.2.6 手机上「没认出点评页」的那次尝试：与网页缺口分开记，
                         #       否则一个从来没被认出来的对象看起来和「还没轮到」一模一样。
                         'phone_layout_unknown': bool(item.get('phone_arrival')),
+                        # 5.2.8 平台侧没有点评入口的对象：不能当成「还没采」。
+                        'phone_no_review_entry': bool(item.get('phone_no_review')),
                         'phone_arrival_reason': (item.get('phone_arrival') or {}).get('arrival_reason'),
                         'latest_reason': report['reason'] if report else None,
                         'latest_error': report['error'] if report else '',
@@ -625,6 +633,7 @@ def write_coverage_audit(folder):
                'capped_count': sum(1 for obj in objects if obj['capped']),
                'layout_unknown': sum(1 for obj in objects if obj['layout_unknown']),
                'phone_layout_unknown': sum(1 for obj in objects if obj['phone_layout_unknown']),
+               'phone_no_review_entry': sum(1 for obj in objects if obj['phone_no_review_entry']),
                # 5.2.7 两通道目标数不一致的对象列出来：分叉要人看，不能被其中一个数字淹没。
                'target_mismatch': [{'object_key': obj['object_key'], 'name': obj['name'],
                                     'web': obj['target_mismatch']['web'],

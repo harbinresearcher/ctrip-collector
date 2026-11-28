@@ -357,7 +357,8 @@ def new_review_run_id():
     return datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S') + '-' + uuid.uuid4().hex[:6]
 
 
-def scan_phone_target(adb, kind, place, folder, object_id=None, identity_source=None, run_id=None):
+def scan_phone_target(adb, kind, place, folder, object_id=None, identity_source=None, run_id=None,
+                      allow_detail_probe=False):
     # /* ===== 步骤2.9：只读手机侧「全部」计数；数据源：当前屏幕；操作：1) 校验到达 2) 记录可见筛选 3) 落盘报告 ===== */
     # 2.9.1 采点评慢（约每屏 0.6 条），但「这个对象到底有多少条点评」只要看一眼。
     #       先补分母，才能判断缺口是「还没采」还是「平台没有」。
@@ -379,14 +380,28 @@ def scan_phone_target(adb, kind, place, folder, object_id=None, identity_source=
     root = ET.fromstring(xml)
     state = review_screen_state(xml, place, allow_missing_name=kind == 'hotel')
     context = read_review_context(root, kind)
+    detail_state = None
     if state['arrived']:
         reason, arrival_reason = 'target_scanned', None
     else:
         # 2.9.2 没认出点评页也照样落报告：这是可数的未知布局，不是「没跑过」。
         reason, arrival_reason = 'arrival_failed', state['reason']
+        # 2.9.2.1 停在景点详情页但页面上根本没有点评入口（例如「暂无评分」）时，
+        #         这既不是未知布局也不是失败：平台就是没有可采的点评。
+        if allow_detail_probe:
+            try:
+                from sight_snapshot import parse_sight_snapshot
+                detail_state = parse_sight_snapshot(xml, place)
+            except (ValueError, ET.ParseError):
+                detail_state = None
+            if detail_state is not None and not detail_state.get('review_display'):
+                reason, arrival_reason = 'no_review_entry', None
     report = {'kind': kind, 'place': place, 'count': 0, 'screens': 1, 'reason': reason,
               'error': '' if state['arrived'] else ARRIVAL_HINT.get(state['reason'], '未识别为评论页面'),
               'arrival_reason': arrival_reason, 'run_id': run_id, 'target_scope': 'target_only',
+              # 2.9.3 详情页读到了但页面没有点评入口：留证据，别和「未知布局」混为一谈。
+              'detail_seen': detail_state is not None,
+              'review_entry_missing': reason == 'no_review_entry',
               'complete': False,
               # 2.9.3 身份没核对上时绝不记数字：屏幕可能停在别的对象上，
               #       把它的「全部 228」记到本对象头上会直接污染分母。
