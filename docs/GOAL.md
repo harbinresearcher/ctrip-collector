@@ -322,7 +322,32 @@ ull，不写 0；
  "note": "网页与手机没有共同主键，不能相加去重；best_effort 表示每个对象取已采更多的那条通道"}
 ```
 
-读法：覆盖率 **45.7%**（694/1518），三条通道都还是部分完成；`phone.collected=30`
+#### C1l 城市级复核（2026-11-28，抚松景点目录）
+
+`--city-list .../sight/fusong2479/s0-p1.html --collect-discovered --discovery-pages 2
+--max-objects 30 --limit 30`（90.6 秒，19 个对象、479 条），审计输出：
+
+```json
+{"web":   {"target": 3999, "collected": 479,  "missing": 3520},
+ "phone": {"target": 520,  "collected": 21,   "missing": 499},
+ "objects": {"total": 19, "complete": 0, "partial": 19, "unknown_target": 0, "no_phone_data": 18},
+ "best_effort": {"covered": 479, "target": 3999, "ratio": 0.1198},
+ "discovery": {"listing_total": 3000, "discovered": 19, "ratio": 0.0063}}
+```
+
+**两级覆盖率，结论不同**：
+
+- **点评采集**覆盖率 11.98%（479/3999）——19 个对象的点评我们采到了近 12%；
+- **对象发现**覆盖率 0.63%（19/3000）——目录里只有 19 个对象被我们发现。
+
+也就是说，城市级的瓶颈在**对象发现**，不在点评采集；而且 `listing_total=3000`
+是整千值，很可能是平台截断上限，真实目录总数未知（已在 `discovery.note` 写明）。
+
+手机侧：真机 `95e007f0` 上采了「汉拿山温泉」（`sight-143364`）21 条，
+`phone_target=520`（来源 `all_label`）、`phone_missing=499`；
+另外 18 个对象还没有手机数据（`no_phone_data=18`）。
+
+读法：单对象目录的覆盖率 **45.7%**（694/1518），三条通道都还是部分完成；`phone.collected=30`
 是手机侧真实入库条数，**没有**和网页 694 相加去当「总计」。原有 8 个 summary
 字段一字未改。641 项测试全绿。
 
