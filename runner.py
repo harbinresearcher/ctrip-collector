@@ -123,7 +123,23 @@ class Adb:
                     self._ui = uiautomator2.connect(self.serial)
                 except Exception as exc:
                     raise RuntimeError('快速读取服务连接失败；请关闭其他手机自动化工具，或改用 ADB 模式。') from exc
-            parsed = ET.fromstring(self._ui.dump_hierarchy(compressed=False))
+            # 2.0.2 快速读取也会偶发读不到携程窗口（转场动画、页面正在重建）：
+            #       重试两次再报错，避免把「正在切页」当成「App 没了」。
+            parsed = None
+            for attempt in range(3):
+                try:
+                    parsed = ET.fromstring(self._ui.dump_hierarchy(compressed=False))
+                except Exception as exc:
+                    if attempt >= 2:
+                        raise RuntimeError('快速读取页面失败：' + str(exc)[:80] + '；请确认携程停目标页面后重试。') from exc
+                    time.sleep(0.6)
+                    continue
+                windows = [node for node in parsed if node.get('package') == 'ctrip.android.view']
+                if windows:
+                    break
+                if attempt >= 2:
+                    raise RuntimeError('快速读取没有携程窗口，已停止')
+                time.sleep(0.6)
             windows = [node for node in parsed if node.get('package') == 'ctrip.android.view']
             if not windows:
                 raise RuntimeError('快速读取没有携程窗口，已停止')
