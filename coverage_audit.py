@@ -556,6 +556,11 @@ def write_coverage_audit(folder):
         else:
             phone_target, phone_target_source = None, None
         phone_missing = max(phone_target - phone_collected, 0) if phone_target is not None else None
+        # 5.2.3 两条通道对「这个对象有多少点评」说法不同时明确标出来。
+        #       实测：讷殷古城网页 display_total=420、手机「全部」=450——差 30 条。
+        target_mismatch = None
+        if target is not None and phone_target is not None and target != phone_target:
+            target_mismatch = {'web': target, 'phone': phone_target, 'delta': phone_target - target}
         objects.append({'object_key': key, 'kind': item['kind'], 'name': item['name'], 'url': item['url'],
                         'target': target, 'target_source': item['target_source'], 'target_unknown': target is None,
                         'collected': total,
@@ -566,6 +571,7 @@ def write_coverage_audit(folder):
                         'phone_target': phone_target,
                         'phone_target_source': phone_target_source,
                         'phone_missing': phone_missing,
+                        'target_mismatch': target_mismatch,
                         'missing': missing, 'gap_reason': gap,
                         'capped': capped,
                         # 5.2.3 到顶只说明这一条通道，不代表对象没数据：提醒去手机等其它通道继续找。
