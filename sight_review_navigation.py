@@ -113,13 +113,26 @@ def search_editor(root):
     return editors[0] if len(editors) == 1 else None
 
 
+WIDTH_TABLE = str.maketrans({'（': '(', '）': ')', '［': '[', '］': ']', '【': '[', '】': ']'})
+
+
+def normalize_name(value):
+    # /* ===== 步骤1.1：名称宽度归一；数据源：目录名与页面标题；操作：1) 全角括号转半角 2) 去空白 ===== */
+    # 1.1.1 App 会把「(原鲁能胜地)」显示成全角括号，逐字符相等就会永远对不上。
+    return compact_address(value.translate(WIDTH_TABLE))
+
+
+def same_name(left, right):
+    return normalize_name(left) == normalize_name(right)
+
+
 def compact_address(value):
     return ''.join(value.split())
 
 
 def matching_sight_result(root, name, address):
     editor = search_editor(root)
-    if editor is None or text(editor) != name:
+    if editor is None or not same_name(text(editor), name):
         return None
     window = root.find('node')
     results = []
@@ -131,7 +144,7 @@ def matching_sight_result(root, name, address):
                 continue
             labels = [n for n in row.iter('node') if n.get('class') == 'android.widget.TextView'
                       and visible_in(n, row)]
-            titles = [n for n in labels if text(n) in (name, f'{name} 可订明日')]
+            titles = [n for n in labels if same_name(text(n), name) or same_name(text(n), f'{name} 可订明日')]
             for label in labels:
                 _, bar, location = text(label).partition('|')
                 location = compact_address(location)
@@ -181,7 +194,7 @@ def checked_reviews_title(root, name):
     labels = {text(node) for node in app_nodes(root) if visible_in(node, window)}
     if '全部' not in labels or not labels.intersection(('好评', '差评', '有图·视频')):
         return None
-    if title != name:
+    if not same_name(title, name):
         raise ValueError('打开的点评页与目录景点名称不符，请核对后重试。')
     return title
 
@@ -213,6 +226,19 @@ def ensure_home(device, stop, attempts=4):
     return False
 
 
+def reviews_ready(root, name):
+    # /* ===== 步骤1.2：确认真的停在点评列表；数据源：当前屏幕；操作：1) 标签判据 2) 锚点判据 ===== */
+    # 1.2.1 只看「全部/好评」这些字会被详情页的点评摘要骗过；扫描用的是锚点判据
+    #       （review_screen_state），两边必须一致，否则导航以为到了、扫描说没到。
+    if checked_reviews_title(root, name) is None:
+        return None
+    from review_screen import review_screen_state
+    state = review_screen_state(ET.tostring(root, encoding='unicode'), name)
+    # 1.2.2 只要求「点评列表锚点」在，不要求屏幕上一定有计数：
+    #       有的点评页不显示条数，导航不该因此重来；计数缺失由扫描如实记录。
+    return root if state['anchor'] else None
+
+
 def open_sight_reviews(device, name, address, stop, *, allow_search=False, require_address_search=False):
     if not isinstance(name, str) or not (name := name.strip()):
         raise ValueError('请填写景点名称。')
@@ -220,8 +246,8 @@ def open_sight_reviews(device, name, address, stop, *, allow_search=False, requi
     if sight_screen_title(start) == name:
         if require_address_search:
             raise ValueError('请回到携程首页，队列会先从搜索结果核对景点地址。')
-        if checked_reviews_title(start, name) is None:
-            wait_for(device, stop, lambda root: checked_reviews_title(root, name), REVIEW_NOT_CONFIRMED)
+        if reviews_ready(start, name) is None:
+            wait_for(device, stop, lambda root: reviews_ready(root, name), REVIEW_NOT_CONFIRMED)
         return 'already_open'
     entry = home_search(start)
     reuse_search = allow_search and search_editor(start) is not None
@@ -244,7 +270,7 @@ def open_sight_reviews(device, name, address, stop, *, allow_search=False, requi
                             loading=detail_loading)
     if scene == 'detail':
         tap(device, entry, stop)
-        wait_for(device, stop, lambda root: checked_reviews_title(root, name), REVIEW_NOT_CONFIRMED)
+        wait_for(device, stop, lambda root: reviews_ready(root, name), REVIEW_NOT_CONFIRMED)
     return 'opened'
 
 

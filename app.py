@@ -559,6 +559,13 @@ def main():
                                        object_id=identity['object_id'],
                                        identity_source=identity['identity_source'],
                                        allow_detail_probe=args.auto_open)
+            # 3.1.0.4 批量跑完退回首页：下一个对象若从上一次的点评页开始，
+            #         导航要先自己找首页，容易落到「认不出页面」。这里只按返回键，失败不算错。
+            if args.auto_open:
+                try:
+                    ensure_home(adb, threading.Event())
+                except (ValueError, RuntimeError) as exc:
+                    logger.warning('扫描后没能回到首页：%s', exc)
         print(json.dumps(result, ensure_ascii=False, indent=2))
         if result['reason'] == 'arrival_failed':
             raise SystemExit(1)
