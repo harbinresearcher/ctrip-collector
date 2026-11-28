@@ -376,13 +376,17 @@ def scan_phone_target(adb, kind, place, folder, object_id=None, identity_source=
     # 2.9.0 页面可能还在转场：锚点缺失或读不出结构时多看两屏再判，
     #       别把「正在加载」记成「未知布局」（批量扫描里这类假失败最多）。
     retryable = {'no_review_anchor', 'invalid_xml'}
-    for attempt in range(3):
+    # 2.9.0.1 详情页加载能到 6 秒以上（实测「精彩即将呈现」要 5~6 秒才变正文），
+    #         开着详情探测时给更长的等待，否则会把加载中记成失败。
+    attempts = 12 if allow_detail_probe else 3
+    for attempt in range(attempts):
         xml = adb.snapshot()
         state = review_screen_state(xml, place, allow_missing_name=kind == 'hotel')
-        if state['arrived'] or state['reason'] not in retryable or attempt >= 2:
+        loading = '精彩即将呈现' in xml
+        if state['arrived'] or (state['reason'] not in retryable and not loading) or attempt >= attempts - 1:
             break
         logger.info('页面还没稳定（%s），等待后重试', state['reason'])
-        time.sleep(0.8)
+        time.sleep(1.0)
     raw = folder / 'raw' / run_id
     raw.mkdir(parents=True, exist_ok=True)
     (raw / '00000.xml').write_text(xml, encoding='utf-8')
