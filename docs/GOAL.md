@@ -415,6 +415,32 @@ history 最新行: {"missing": 824, "reachable_missing": 824, "capped_count": 3}
 `batch.py` 现在记一笔失败后继续，只有「被平台拦住」或「用户取消」才停整轮，
 并对 `IncompleteRead`/连接重置/超时重试一次。
 
+### C1t 手机导航打通：仓库导航 + 全地址 + 前台重试（2026-11-28）
+
+上一轮手机侧批量扫描只有 11/30 成功，根因查明是**导航**而不是采集：只按名称找卡片，
+同名景点认不出、卡片结构不同就点不到；而仓库里其实已有按「名称 + 地址」核对的
+`sight_review_navigation.open_sight_reviews`，只是目录证据里没有地址，所以一直没用上。
+
+三处改动（都进了测试）：
+
+1. `discovery` 记录 `district_name` / `zone_name` / `address`；
+   `object_identity` 在对象快照里读 `details.address`（全地址），
+   同一对象多份证据时**取最长的地址**（全地址 > 区县名）；
+2. `app --auto-open`：先用 `ensure_home` 退回首页（只按返回键、最多 4 次），
+   再用 `open_sight_reviews` 按「名称+全地址」核对搜索结果；没有地址就明确报错，不猜坐标；
+3. `Adb.ensure_foreground` 读不到焦点时重试两次（每次 0.5 秒）：
+   模拟器切页瞬间会把 `mCurrentFocus` 读空，原来会误判「App 被切走」。
+
+实测成功率：**2/10 → 7/10**（同一批对象、同一台模拟器）。手机目标从 15 个补到 **23 个**：
+
+```
+phone {target: 6437, collected: 120, missing: 6317}
+与网页目标一致：22 / 23
+```
+
+剩下 3 个失败分别是 `快速读取没有携程窗口`（u2 后端 dump 失败，2 个）和
+`请先在模拟器打开携程首页`（1 个），都记在日志里，没有假装成功。
+
 ### C1s 交叉核对：网页总数 vs 手机「全部」（2026-11-28）
 
 用 `--phone-target` 补到 15 个对象的手机目标后，和网页 `display_total` 逐项比对：
