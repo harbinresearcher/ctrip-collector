@@ -131,7 +131,15 @@ def evidence_objects(path, scope, key):
     name = clean_name(data.get('place' if scope == 'mobile_report' else 'name'))
     if name is None:
         raise ValueError('没有对象名称')
-    yield key, name, None
+    # 4.0.5 对象快照里的 details.address 是全地址（「吉林省…长白山国际旅游度假区」），
+    #       手机搜索结果那一行正是它的尾部，导航按名称+地址核对时要用它。
+    address = None
+    if scope == 'object_snapshot':
+        details = data.get('details')
+        candidate = details.get('address') if isinstance(details, dict) else data.get('address')
+        if isinstance(candidate, str) and candidate.strip():
+            address = candidate.strip()
+    yield key, name, address
 
 
 def object_identity(object_ref, name, path, address=None):
@@ -155,24 +163,26 @@ def resolve_object_ref(folder, object_ref):
         raise ValueError(f'输出目录不存在，无法从落盘证据解析 {text}：{folder}')
     problems = []
     fallback = None
+    best = None
     for path, scope, key in evidence_candidates(folder, text):
         try:
             for found, name, address in evidence_objects(path, scope, key):
                 if found != text:
                     continue
-                # 4.2.1 同一对象可能有多份目录报告：带地址的那份信息更全，导航要用它；
-                #       先记住第一份可用的，再继续找带地址的。
+                # 4.2.1 同一对象可能有多份证据：地址越完整越能缩小手机搜索结果
+                #       （对象快照里的全地址 > 目录卡片的区县名），所以取最长的那个。
                 identity = object_identity(text, name, path, address)
                 if address:
-                    logger.info('对象身份来自%s：%s（含地址）', scope, path.name)
-                    return identity
-                if fallback is None:
+                    if best is None or len(address) > len(best[1].get('address') or ''):
+                        best = (scope, identity)
+                elif fallback is None:
                     fallback = (scope, identity)
         except (OSError, ValueError, TypeError) as exc:
             problems.append(f'{path.name}：{exc}')
-    if fallback is not None:
-        logger.info('对象身份来自%s：%s', fallback[0], fallback[1]['identity_evidence'])
-        return fallback[1]
+    chosen = best or fallback
+    if chosen is not None:
+        logger.info('对象身份来自%s：%s', chosen[0], chosen[1]['identity_evidence'])
+        return chosen[1]
     detail = '；'.join(problems) if problems else '输出目录内没有该对象的证据文件'
     raise ValueError(f'无法从落盘证据解析 {text}：{detail}。未采集；不会猜测对象编号。'
                      '请先采集一次网页版对象，或用 --audit 确认证据。')
