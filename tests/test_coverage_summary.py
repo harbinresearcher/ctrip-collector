@@ -54,7 +54,8 @@ class CoverageSummaryTests(unittest.TestCase):
             phone_report(root, 'sight', '1', 6)
             phone_rows(root, 'sight', '1', 3)
             coverage = write_coverage_audit(root)['summary']['coverage']
-            self.assertEqual(coverage['web'], {'target': 10, 'collected': 4, 'missing': 6})
+            self.assertEqual({key: coverage['web'][key] for key in ('target', 'collected', 'missing')},
+                         {'target': 10, 'collected': 4, 'missing': 6})
             # 1.1 手机已采 3 不能被加到网页已采里：两条通道没有共同主键。
             self.assertEqual(coverage['phone'], {'target': 6, 'collected': 3, 'missing': 3})
             self.assertEqual(coverage['objects'], {'total': 1, 'complete': 0, 'partial': 1,
@@ -70,7 +71,8 @@ class CoverageSummaryTests(unittest.TestCase):
             object_snapshot(root, total=10)
             web_rows(root, 'sight-1', 4)
             coverage = write_coverage_audit(root)['summary']['coverage']
-            self.assertEqual(coverage['web'], {'target': 10, 'collected': 4, 'missing': 6})
+            self.assertEqual({key: coverage['web'][key] for key in ('target', 'collected', 'missing')},
+                         {'target': 10, 'collected': 4, 'missing': 6})
             self.assertEqual(coverage['phone'], {'target': None, 'collected': 0, 'missing': None})
             self.assertEqual(coverage['objects'], {'total': 1, 'complete': 0, 'partial': 1,
                                                    'unknown_target': 0, 'no_phone_data': 1})
@@ -83,7 +85,8 @@ class CoverageSummaryTests(unittest.TestCase):
             phone_report(root, 'sight', '2', 6)
             phone_rows(root, 'sight', '2', 6)
             coverage = write_coverage_audit(root)['summary']['coverage']
-            self.assertEqual(coverage['web'], {'target': None, 'collected': 0, 'missing': None})
+            self.assertEqual({key: coverage['web'][key] for key in ('target', 'collected', 'missing')},
+                         {'target': None, 'collected': 0, 'missing': None})
             self.assertEqual(coverage['phone'], {'target': 6, 'collected': 6, 'missing': 0})
             # 3.1 任一条通道达到目标即算完整，这条通道是手机。
             self.assertEqual(coverage['objects'], {'total': 1, 'complete': 1, 'partial': 0,
@@ -97,7 +100,8 @@ class CoverageSummaryTests(unittest.TestCase):
             save_json(root, 'sight-1-object.json', kind='sight', resource_id=1, name='景点1')
             web_rows(root, 'sight-1', 1)
             coverage = write_coverage_audit(root)['summary']['coverage']
-            self.assertEqual(coverage['web'], {'target': None, 'collected': 1, 'missing': None})
+            self.assertEqual({key: coverage['web'][key] for key in ('target', 'collected', 'missing')},
+                         {'target': None, 'collected': 1, 'missing': None})
             self.assertEqual(coverage['phone'], {'target': None, 'collected': 0, 'missing': None})
             self.assertEqual(coverage['objects'], {'total': 1, 'complete': 0, 'partial': 0,
                                                    'unknown_target': 1, 'no_phone_data': 1})

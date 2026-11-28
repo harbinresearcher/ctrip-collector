@@ -240,9 +240,21 @@ def coverage_summary(objects):
         elif other_target is not None:
             best_target += other_target
     # 5.3.4 网页侧一个目标都没有时同样给 null：没有目标不等于目标是 0。
+    web_collected = sum(obj['collected'] for obj in objects)
+    # 5.3.5 通道到顶的对象已经拿不到更多了：它的「网页可得量」就等于已采量。
+    #       于是有两个覆盖率——相对平台总数（可能很低）与相对网页通道能给的量（通常接近满）。
+    #       实测：万达长白山国际滑雪场详情页写 357 条，接口翻到第 5 页就空、只给 61 条。
+    capped = [obj for obj in objects if obj.get('gap_reason') == 'channel_capped']
+    reachable = (sum(obj['target'] for obj in web_known if obj.get('gap_reason') != 'channel_capped')
+                 + sum(obj['collected'] for obj in capped))
     return {'web': {'target': sum(obj['target'] for obj in web_known) if web_known else None,
-                    'collected': sum(obj['collected'] for obj in objects),
-                    'missing': sum(obj['missing'] for obj in web_known) if web_known else None},
+                    'collected': web_collected,
+                    'missing': sum(obj['missing'] for obj in web_known) if web_known else None,
+                    'reachable': {'target': reachable if web_known else None,
+                                  'collected': web_collected,
+                                  'ratio': round(min(web_collected / reachable, 1.0), 4) if reachable else None,
+                                  'capped_objects': len(capped),
+                                  'note': '通道到顶的对象按已采量计入可得量；ratio 表示网页通道能给的量里我们采到了多少'}},
             'phone': {'target': sum(obj['phone_target'] for obj in phone_known) if phone_known else None,
                       'collected': sum(obj['phone_collected'] for obj in objects),
                       'missing': sum(obj['phone_missing'] for obj in phone_known) if phone_known else None},
