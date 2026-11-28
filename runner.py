@@ -18,6 +18,7 @@ from ai_capture import parse_ai, persist_app_ai_summary
 from hotel_review_thumbnails import ReviewThumbnails
 from layout_fingerprint import attach_layout, mobile_family, structure_fingerprint
 from review_screen import review_screen_state
+from local_locks import FileLockBusy, reserve_android_device
 
 logger = logging.getLogger(__name__)
 
@@ -39,29 +40,40 @@ class AndroidReadinessError(RuntimeError):
 
 
 class Adb:
-    def __init__(self, executable, serial=None, ui_backend='adb', *, command_timeout=35):
+    def __init__(self, executable, serial=None, ui_backend='adb', *, command_timeout=35, exclusive=False):
         self.executable = str(executable)
         self.serial = serial
         self.ui_backend = ui_backend
         self.command_timeout = command_timeout
         self._ui = None
+        self._exclusive = exclusive
+        self._managed_session = False
+        self._device_lease = None
 
     def __enter__(self):
+        # Managed App jobs reserve their device after resolving its serial in connect().
+        self._managed_session = True
         return self
 
     def __exit__(self, *args):
-        self.close()
+        try:
+            self.close()
+        finally:
+            self._managed_session = False
 
     def close(self):
         # /* ===== 步骤5：释放快速读取服务；数据源：本次连接；操作：1) 释放自动化占用 2) 清除引用 ===== */
         logger.info('开始释放页面读取服务')
-        if self._ui is not None:
-            try:
+        try:
+            if self._ui is not None:
                 self._ui.stop_uiautomator()
-            except Exception as exc:
-                logger.warning('页面读取服务释放失败：%s', exc)
-            finally:
-                self._ui = None
+        except Exception as exc:
+            logger.warning('页面读取服务释放失败：%s', exc)
+        finally:
+            self._ui = None
+            lease, self._device_lease = self._device_lease, None
+            if lease is not None:
+                lease.__exit__(None, None, None)
         logger.info('页面读取服务释放完成')
 
     def run(self, *args, timeout=None):
@@ -104,6 +116,13 @@ class Adb:
         packages = self.run('shell', 'pm', 'list', 'packages', 'ctrip.android.view')
         if 'package:ctrip.android.view' not in {line.strip() for line in packages.splitlines()}:
             raise AndroidReadinessError('not_installed', '选定的 Android 设备未安装携程。')
+        if (self._managed_session or self._exclusive) and self._device_lease is None:
+            lease = reserve_android_device(self.serial)
+            try:
+                lease.__enter__()
+            except FileLockBusy as exc:
+                raise AndroidReadinessError('device_busy', '这台 Android 设备正在被另一个任务使用，请在其结束后继续。') from exc
+            self._device_lease = lease
         logger.info('设备检查完成')
         return self.serial
 

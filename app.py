@@ -188,7 +188,7 @@ def gui(default_adb, smoke=False):
                     events.put(('log', json.dumps(result, ensure_ascii=False, indent=2)))
                 elif selected_mode == 'gallery':
                     # 2.2.2 图集入口自行建立缓存基线，与评论采集共用停止标记和设备清理。
-                    adb = Adb(selected['adb'], ui_backend=selected_backend)
+                    adb = Adb(selected['adb'], ui_backend=selected_backend, exclusive=True)
                     adb.connect()
                     result = capture_ai_gallery(adb, selected['resource_id'], Path(selected['folder']), stop,
                                                 max_pages=int(selected['pages']))
@@ -199,12 +199,12 @@ def gui(default_adb, smoke=False):
                     if result.get('error'):
                         events.put(('log', '错误：' + result['error']))
                 elif selected_mode == 'ai':
-                    adb = Adb(selected['adb'], ui_backend=selected_backend)
+                    adb = Adb(selected['adb'], ui_backend=selected_backend, exclusive=True)
                     adb.connect()
                     result = capture_ai(adb, selected_kind, selected['place'], selected['resource_id'], Path(selected['folder']), stop)
                     events.put(('log', json.dumps(result, ensure_ascii=False, indent=2)))
                 else:
-                    adb = Adb(selected['adb'], ui_backend=selected_backend)
+                    adb = Adb(selected['adb'], ui_backend=selected_backend, exclusive=True)
                     adb.connect()
                     result = collect(adb, selected_kind, selected['place'], Path(selected['folder']), target,
                                      max(1500, target * 8), stop, lambda msg: events.put(('log', msg)))

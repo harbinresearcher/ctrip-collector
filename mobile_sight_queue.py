@@ -1,15 +1,15 @@
 """Checkpoints for a Windows workbench scene queue."""
 
-import errno
 import json
 import os
 import re
 import uuid
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from time import sleep
 
+from local_locks import FileLockBusy, exclusive_file_lock
 from mobile_scoped_store import MOBILE_REVIEW_RUN_ID
 from object_identity import MAX_EVIDENCE_BYTES, OBJECT_REF, read_evidence
 
@@ -224,23 +224,9 @@ def lock_sight_queue(output, queue_id):
     path = queue_path(output, queue_id)
     lock_path = path.with_name(f'.{path.stem}.lock')
     check_destination(lock_path)
-    with lock_path.open('a+b') as stream:
+    with ExitStack() as lock:
         try:
-            if os.name == 'nt':
-                import msvcrt
-
-                if stream.tell() == 0:
-                    stream.write(b'\0')
-                    stream.flush()
-                stream.seek(0)
-                msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
-            else:
-                import fcntl
-
-                fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except OSError as exc:
-            if exc.errno in (errno.EACCES, errno.EAGAIN, errno.EDEADLK) or getattr(exc, 'winerror', None) in (33, 36):
-                raise RuntimeError('这份景点点评队列正在另一个工作台运行') from exc
-            raise
-        # Keep the lock file so all processes use the same handle target. The OS releases the lock on close or exit.
+            lock.enter_context(exclusive_file_lock(lock_path))
+        except FileLockBusy as exc:
+            raise RuntimeError('这份景点点评队列正在另一个工作台运行') from exc
         yield
