@@ -415,6 +415,30 @@ history 最新行: {"missing": 824, "reachable_missing": 824, "capped_count": 3}
 `batch.py` 现在记一笔失败后继续，只有「被平台拦住」或「用户取消」才停整轮，
 并对 `IncompleteRead`/连接重置/超时重试一次。
 
+### C1p 城市级手机补采（未完成，设备侧受阻）
+
+队列已经能指出该先采哪个对象（按网页缺口降序）：
+
+```
+sight-136039 长白山西景区    web_missing=1069  target=None
+sight-143364 汉拿山温泉      web_missing=490
+sight-2506647 讷殷古城       web_missing=420
+```
+
+但这一轮**没有完成手机侧采集**，原因记在这里免得下次重复踩：
+
+- 模拟器 `emulator-5556` 的 `adb shell uiautomator dump` 连续返回
+  `ERROR: null root node returned by UiTestAutomationBridge`；
+  `Adb.snapshot` 的重试用完后报「页面读取失败」，强制停止 App、重新深链都无效；
+- 同一台设备的 `uiautomator2` 后端可以连上（`u2.connect` 正常、能 dump），
+  所以下次应直接用 `--ui-backend uiautomator2`，或重启模拟器恢复 adb 后端；
+- 深链 `ctrip://wireless/search?keyword=` 在这台模拟器上会落到**酒店**结果页，
+  景点卡片不在首位，导致按文字找卡片失败。真机上同一深链正常。
+
+下一步（按优先级）：重启模拟器 → 用 u2 后端打开 `长白山西景区` 点评页 →
+`--collect --object-ref sight-136039 --limit 200 --ui-backend uiautomator2`
+→ 重新对账，看 `phone_target/phone_collected` 是否进入城市级总表。
+
 ### C1n 目录总数可信度：截断值不能当分母（已达标 2026-11-28）
 
 平台在目录接口里回显的 `totalCount` 可能是**截断值**。实测抚松景点目录第 1 页到
