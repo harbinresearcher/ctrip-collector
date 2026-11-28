@@ -5,7 +5,7 @@ coverage_audit.write_coverage_audit 的落盘对账；手机侧已采数来自 r
 reviews_scoped；手机侧目标数来自手机报告里「全部」筛选的精确计数。拿不到目标就是
 未知，不拿已采数冒充目标。
 
-网页通道的 source_exhausted 不等于手机侧采尽：网页采不出来时手机正是剩下的通道，
+网页通道的 channel_capped 不等于手机侧采尽：网页到顶时手机正是剩下的通道，
 所以本队列只按手机侧证据判断采尽（手机报告连续多屏没有新点评）与被拦
 （手机报告要求人工验证或登录，且只在当天）。
 """
@@ -118,8 +118,11 @@ def skip_reason(obj, phone):
                 'detail': f'网页通道今天被平台拦截（{status}）：今天停跑，明天再试，不换 IP 或账号重试'}
     report_reason = phone.get('reason')
     if report_reason in EXHAUSTED_REASONS:
-        return {'reason': 'source_exhausted',
-                'detail': f'手机侧这一轮连续多屏没有新点评（{report_reason}）：这一侧已采尽，先不要重复翻页'}
+        # 4.0 手机侧连续多屏没有新点评只是「这一屏型到顶」，不是这个对象采完了：
+        #     原因统一叫 channel_capped，措辞也不说「采尽」。
+        return {'reason': 'channel_capped',
+                'detail': f'手机侧这一轮连续多屏没有新点评（{report_reason}）：先不要重复翻页，'
+                          f'换筛选或换来源再判断是否真的采完'}
     # 4.1 手机侧要求人工验证/登录也是「被拦」，但只挡当天，隔天重新进队列。
     if report_reason in BLOCKED_REASONS and blocked_today({'mtime': phone.get('mtime')}):
         return {'reason': 'blocked',

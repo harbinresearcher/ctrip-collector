@@ -138,7 +138,7 @@ class PhoneQueueTests(unittest.TestCase):
             result = write_phone_queue(root, 10)
             self.assertEqual(result['queue'], [])
             self.assertEqual({item['object_key']: item['reason'] for item in result['skipped']},
-                             {'sight-4': 'source_exhausted', 'sight-5': 'blocked'})
+                             {'sight-4': 'channel_capped', 'sight-5': 'blocked'})
             self.assertTrue(all(item['detail'] for item in result['skipped']))
             self.assertEqual(result['summary'], {'objects': 2, 'with_phone_gap': 1, 'never_collected': 1,
                                                  'target_unknown': 1, 'skipped': 2})
