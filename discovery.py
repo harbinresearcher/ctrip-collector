@@ -12,6 +12,15 @@ from network import MAX_HTML_BYTES, NextData, canonical_url, sanitize, write_rep
 logger = logging.getLogger(__name__)
 
 
+def listing_total_suspect(total):
+    # /* ===== 步骤1.9：平台总数是否可疑；数据源：目录接口回显；操作：1) 整千值 2) 明确标注不猜 ===== */
+    # 1.9.1 真机验证（2026-11-28）：同一城市第 1 页到第 31 页 totalCount 恒为 3000，
+    #       每页仍有 10 张卡片且夹着邻城对象——那个 3000 是平台的截断值，不是本城对象数。
+    if type(total) is not int or total <= 0:
+        return False
+    return total % 1000 == 0
+
+
 def save_report(stem, report):
     # /* ===== 步骤1：原子保存目录报告；数据源：当前清单；操作：1) 全部写临时文件 2) 失败回滚 ===== */
     # 1.1 目录报告会被续跑和覆盖统计读回；TXT 与 JSON 必须对应同一次提交。
@@ -146,6 +155,7 @@ def discover_sights(url, output, max_pages=5, max_objects=50, stop=None, fetch=N
     report = {'district_id': district, 'source_url': url, 'objects': [], 'pages': 0,
               'skipped_nearby': 0, 'skipped_invalid': 0, 'complete': False,
               'reason': 'page_budget_reached', 'error': '', 'listing_total': None,
+              'cards_seen': 0, 'own_cards': 0, 'listing_total_suspect': False,
               'max_pages': max_pages, 'max_objects': max_objects,
               'links_file': str(stem.with_suffix('.txt'))}
     seen, repeated = set(), 0
@@ -176,16 +186,19 @@ def discover_sights(url, output, max_pages=5, max_objects=50, stop=None, fetch=N
                 raise ValueError('返回页码或地区不符，拒绝继续遍历')
             report['pages'] += 1
             report['listing_total'] = listing.get('totalCount')
+            report['listing_total_suspect'] = listing_total_suspect(listing.get('totalCount'))
             items = listing['attractionList']
             if not isinstance(items, list):
                 raise ValueError('目录结构变化，已停止')
             before = len(seen)
             # 2.2 保留有点评和暂无点评对象，后者可由调用方选择是否采集。
+            report['cards_seen'] += len(items)
             for item in items:
                 card = item.get('card') or {}
                 if card.get('districtId') != district:
                     report['skipped_nearby'] += 1
                     continue
+                report['own_cards'] += 1
                 try:
                     identity = int(card['businessId'])
                     detail = canonical_url(card['detailUrl'])

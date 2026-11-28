@@ -187,14 +187,27 @@ def discovery_summary(directories):
         current = latest.get(scope)
         if current is None or (row.get('report') or '') > (current.get('report') or ''):
             latest[scope] = row
-    known = [row for row in latest.values() if row.get('listing_total') is not None]
+    rows = list(latest.values())
+    # 5.3.0.3 老报告没有 listing_total_suspect 字段：按「整千值」兜底判断，
+    #         否则历史目录会继续用截断值当分母（实测 3000 就这样被当成真实总数）。
+    suspect = any(row.get('listing_total_suspect')
+                  or (isinstance(row.get('listing_total'), int) and row['listing_total'] > 0
+                      and row['listing_total'] % 1000 == 0)
+                  for row in rows)
+    known = [row for row in rows if row.get('listing_total') is not None and not suspect]
     listing_total = sum(row['listing_total'] for row in known) if known else None
-    discovered = sum(row.get('discovered_objects') or 0 for row in latest.values())
+    discovered = sum(row.get('discovered_objects') or 0 for row in rows)
+    pages = sum(row.get('pages') or 0 for row in rows)
+    # 5.3.0.2 平台总数可疑（整千截断值）时不给分母，也不给比值：
+    #         用截断值当分母算出来的「发现率」是假的（实测 19/3000 只是读了 2 页的产物）。
     ratio = None
     if listing_total:
         ratio = round(min(discovered / listing_total, 1.0), 4)
-    return {'listing_total': listing_total, 'discovered': discovered, 'ratio': ratio,
-            'note': 'listing_total 可能被平台截断（整千值尤其可疑），比值只作参考，不当作「全量已发现」'}
+    note = ('listing_total 是平台截断值（整千），不能当分母；已发现 %d 个对象、读了 %d 页'
+            % (discovered, pages)) if suspect else \
+           'listing_total 按目录报告原样汇总；已发现 %d 个对象、读了 %d 页' % (discovered, pages)
+    return {'listing_total': listing_total, 'listing_total_suspect': suspect,
+            'discovered': discovered, 'pages_read': pages, 'ratio': ratio, 'note': note}
 
 
 def coverage_summary(objects):
@@ -389,6 +402,12 @@ def write_coverage_audit(folder):
                             data.get('city_id') if type(data.get('city_id')) is int else None,
                             'listing_total': listing_total, 'listing_total_source': total_source,
                             'discovered_objects': len(items),
+                            # 3.6.1 目录读了几页、看到多少卡片、总数是否可疑，都随行带下去，
+                            #       否则覆盖率总表只能拿到一个数字、判断不了分母可不可信。
+                            'pages': count_value(data.get('pages')),
+                            'cards_seen': count_value(data.get('cards_seen')),
+                            'own_cards': count_value(data.get('own_cards')),
+                            'listing_total_suspect': data.get('listing_total_suspect') is True,
                             'regions': len(data['regions']) if isinstance(data.get('regions'), list) else None,
                             'reason': data.get('reason'),
                             'error': data.get('error') if isinstance(data.get('error'), str) else '',

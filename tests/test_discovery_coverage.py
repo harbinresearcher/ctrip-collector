@@ -34,9 +34,11 @@ class DiscoveryCoverageTests(unittest.TestCase):
             directory_report(root, '20261128T020645993604Z', 3000, [1, 2])
             directory_report(root, '20261128T021645993604Z', 3000, [1, 2])
             discovery = write_coverage_audit(root)['summary']['coverage']['discovery']
-            self.assertEqual(discovery['listing_total'], 3000)
+            # 3000 是整千值 → 按平台截断值处理：不给分母也不给比值，但对象数不重复累加。
+            self.assertTrue(discovery['listing_total_suspect'])
+            self.assertIsNone(discovery['listing_total'])
             self.assertEqual(discovery['discovered'], 2)
-            self.assertEqual(discovery['ratio'], 0.0007)
+            self.assertIsNone(discovery['ratio'])
         logger.info('目录去重测试完成')
 
     def test_no_directory_report_gives_null_target(self):
