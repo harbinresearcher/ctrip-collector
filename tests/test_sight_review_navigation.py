@@ -125,6 +125,13 @@ class SightReviewNavigationTests(unittest.TestCase):
         self.assertEqual(open_sight_reviews(device, NAME, ADDRESS, FastStop()), 'opened')
         self.assertEqual(device.actions[0], ('home', (453, 799)))
 
+    def test_waits_for_search_control_on_partially_loaded_home(self):
+        device = NavigationDevice()
+        device.frames['partial'] = (FIXTURES / 'sight-review-nav-partial-home.xml').read_text('utf-8')
+        device.stale_screen = 'partial'
+        self.assertEqual(open_sight_reviews(device, NAME, ADDRESS, FastStop()), 'opened')
+        self.assertEqual(device.actions[0], ('home', (453, 799)))
+
     def test_return_verifies_detail_and_waits_through_stale_frames(self):
         device = NavigationDevice('reviews')
         device.delay_back = True

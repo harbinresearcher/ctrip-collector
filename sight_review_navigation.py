@@ -282,7 +282,9 @@ def open_sight_reviews(device, name, address, stop, *, allow_search=False, requi
     entry = home_search(start)
     reuse_search = allow_search and search_editor(start) is not None
     if entry is None and not reuse_search:
-        raise ValueError('请先在模拟器打开携程首页或目标景点的用户点评。')
+        if not any(node.get('resource-id') == HOME_GUIDE for node in app_nodes(start)):
+            raise ValueError('请先在模拟器打开携程首页或目标景点的用户点评。')
+        entry = wait_for(device, stop, home_search, '携程首页的搜索框还未加载，请稍后继续。')
     if not isinstance(address, str) or not (address := compact_address(address)):
         raise ValueError('目录缺少景点地址，请手动打开目标景点点评。')
 
