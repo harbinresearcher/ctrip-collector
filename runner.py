@@ -622,7 +622,8 @@ def collect(adb, kind, place, folder, limit=500, max_swipes=1500, stop=None, pro
             if new_filter is None:
                 selection_confirmed = False
             else:
-                visible_counts.update(entry['display_count'] for entry in context['visible_filters']
+                visible_counts.update(entry.get('display_count_text', entry['display_count'])
+                                      for entry in context['visible_filters']
                                       if entry['label'] == new_filter)
             if expand_reviews:
                 screen_node = next((node for node in root.iter('node') if node.get('package') == 'ctrip.android.view'), None)

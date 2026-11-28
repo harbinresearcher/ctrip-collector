@@ -20,6 +20,8 @@ QUEUE_FILE = re.compile(rf'{QUEUE_PREFIX}([a-f0-9]{{32}})\.json')
 EVIDENCE_FILE = re.compile(r'[A-Za-z0-9][A-Za-z0-9-]*\.json')
 AI_REPORT_FILE = re.compile(r'sight-ai-([a-f0-9]{32})\.json')
 ITEM_FIELDS = ('object_ref', 'object_id', 'name', 'address', 'identity_evidence')
+GAP_EVIDENCE_FIELDS = ('collected', 'target', 'missing', 'suggested_add')
+MAX_REVIEW_TARGET = 100000
 QUEUE_MODE = 'app_sight_queue'
 QUEUE_REASONS = ('ready', 'running', 'queue_recorded', 'stopped_by_user', 'needs_attention')
 ITEM_STATUSES = ('pending', 'running', 'recorded', 'retry')
@@ -65,6 +67,23 @@ def validate_item_ai(item):
             raise ValueError('景点 AI 总结报告引用无效')
 
 
+def planned_review_target(evidence, budget):
+    if not isinstance(evidence, dict) or evidence.keys() != set(GAP_EVIDENCE_FIELDS):
+        raise ValueError('景点待补清单证据无效')
+    collected, target, missing, suggested = (evidence[key] for key in GAP_EVIDENCE_FIELDS)
+    if type(collected) is not int or not 0 <= collected < MAX_REVIEW_TARGET:
+        raise ValueError('景点待补清单的已采数量无效')
+    if type(suggested) is not int or suggested < 1:
+        raise ValueError('景点待补清单的建议追加数无效')
+    if target is None:
+        if missing is not None:
+            raise ValueError('目标未知时必须保留未知缺口')
+    elif (type(target) is not int or type(missing) is not int or missing != target - collected
+          or missing < suggested):
+        raise ValueError('景点待补清单的目标与缺口不符')
+    return min(MAX_REVIEW_TARGET, collected + min(budget, suggested))
+
+
 def validate_queue(queue, queue_id):
     if (not isinstance(queue, dict) or queue.get('queue_id') != queue_id
             or queue.get('mode') != QUEUE_MODE or queue.get('reason') not in QUEUE_REASONS
@@ -74,8 +93,11 @@ def validate_queue(queue, queue_id):
     queue_time(queue.get('updated_at'))
     if type(queue.get('save_ai_summary', False)) is not bool:
         raise ValueError('景点 AI 总结采集设置无效')
+    gap_plan = queue.get('gap_plan', False)
+    if type(gap_plan) is not bool:
+        raise ValueError('景点待补清单设置无效')
     limit, swipes, items = queue.get('limit'), queue.get('max_swipes'), queue.get('items')
-    if type(limit) is not int or not 1 <= limit <= 100000 or type(swipes) is not int or not 1 <= swipes <= 10000:
+    if type(limit) is not int or not 1 <= limit <= MAX_REVIEW_TARGET or type(swipes) is not int or not 1 <= swipes <= 10000:
         raise ValueError('目标点评数须为 1 至 100000，滑动上限须为 1 至 10000')
     if not isinstance(items, list) or not 1 <= len(items) <= 20:
         raise ValueError('请选择 1 至 20 个景点')
@@ -99,6 +121,12 @@ def validate_queue(queue, queue_id):
         if attempt is not None and (not isinstance(attempt, str) or not MOBILE_REVIEW_RUN_ID.fullmatch(attempt)):
             raise ValueError('景点点评队列的尝试编号无效')
         validate_item_ai(item)
+        if gap_plan:
+            target = planned_review_target(item.get('gap_evidence'), limit)
+            if type(item.get('review_target')) is not int or item['review_target'] != target:
+                raise ValueError('景点待补清单的本轮目标与证据不符')
+        elif 'review_target' in item or 'gap_evidence' in item:
+            raise ValueError('手动景点队列不能带有待补清单设置')
         result = item.get('result')
         if result is None:
             continue
@@ -110,15 +138,18 @@ def validate_queue(queue, queue_id):
                 raise ValueError('景点点评结果的任务编号无效')
 
 
-def create_sight_queue(output, items, limit, max_swipes, *, save_ai_summary=False):
+def create_sight_queue(output, items, limit, max_swipes, *, save_ai_summary=False, gap_plan=False):
     if not isinstance(items, (tuple, list)) or any(not isinstance(item, dict) for item in items):
         raise ValueError('请选择 1 至 20 个景点')
     now = datetime.now(timezone.utc).isoformat()
+    fields = (*ITEM_FIELDS, 'review_target', 'gap_evidence') if gap_plan else ITEM_FIELDS
     queue = {'queue_id': uuid.uuid4().hex, 'mode': QUEUE_MODE, 'created_at': now, 'updated_at': now,
              'limit': limit, 'max_swipes': max_swipes, 'reason': 'ready', 'complete': False,
              'save_ai_summary': save_ai_summary,
-             'items': [dict({key: item.get(key) for key in ITEM_FIELDS}, status='pending', result=None)
+             'items': [dict({key: item.get(key) for key in fields}, status='pending', result=None)
                        for item in items]}
+    if gap_plan:
+        queue['gap_plan'] = gap_plan
     save_sight_queue(output, queue)
     return queue
 

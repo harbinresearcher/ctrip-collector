@@ -35,25 +35,25 @@ class ScanPhoneTargetTests(unittest.TestCase):
         logger.info('全部计数扫描测试完成')
 
     def test_audit_reads_scanned_target(self):
-        # /* ===== 步骤2：对账能读到目标；数据源：扫描报告 + 网页快照；操作：1) phone_target 非空 ===== */
-        logger.info('开始扫描目标入账测试')
-        xml = FIXTURE.read_text('utf-8')
-        with tempfile.TemporaryDirectory() as folder:
-            root = Path(folder)
-            (root / 'sight-143364-object.json').write_text(json.dumps(
-                {'kind': 'sight', 'resource_id': 143364, 'name': '云冈石窟', 'display_total': 100,
-                 'url': 'https://you.ctrip.com/sight/a1/143364.html'}), encoding='utf-8')
-            adb = Adb('adb', 'test')
-            with patch.object(adb, 'ensure_foreground'), patch.object(adb, 'snapshot', return_value=xml):
-                scan_phone_target(adb, 'sight', '云冈石窟', root, object_id='143364',
-                                  identity_source='evidence_manifest')
-            row = [item for item in write_coverage_audit(root)['objects']
-                   if item['object_key'] == 'sight-143364'][0]
-            # 2.1 目标来自扫描报告，来源标注仍然是「屏幕上看到的全部」。
-            self.assertIsNotNone(row['phone_target'])
-            self.assertEqual(row['phone_target_source'], 'all_label')
-            self.assertEqual(row['phone_collected'], 0)
-        logger.info('扫描目标入账测试完成')
+        exact_fixture = FIXTURE.with_name('ctrip-comments2.xml')
+        cases = ((exact_fixture, '长白山西景区', 136039, 1095), (FIXTURE, '云冈石窟', 11311, None))
+        for path, name, identity, expected in cases:
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                key = f'sight-{identity}'
+                (root / f'{key}-object.json').write_text(json.dumps(
+                    {'kind': 'sight', 'resource_id': identity, 'name': name, 'display_total': 100,
+                     'url': f'https://you.ctrip.com/sight/a1/{identity}.html'}), encoding='utf-8')
+                adb = Adb('adb', 'test')
+                with patch.object(adb, 'ensure_foreground'), \
+                        patch.object(adb, 'snapshot', return_value=path.read_text('utf-8')):
+                    report = scan_phone_target(adb, 'sight', name, root, object_id=str(identity),
+                                               identity_source='evidence_manifest')
+                self.assertEqual(report['reason'], 'target_scanned')
+                row = next(item for item in write_coverage_audit(root)['objects'] if item['object_key'] == key)
+                self.assertEqual(row['phone_target'], expected)
+                self.assertEqual(row['phone_target_source'], 'all_label' if expected is not None else None)
+                self.assertEqual(row['phone_collected'], 0)
 
     def test_scan_on_wrong_screen_reports_arrival_failed(self):
         # /* ===== 步骤3：没到点评页；数据源：酒店详情页样本；操作：1) 记 arrival_failed 2) 仍落报告 ===== */

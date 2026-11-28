@@ -16,6 +16,7 @@ from object_identity import list_object_refs
 from mobile_sight_queue import list_sight_queues
 from sight_queue_ai_export import build_sight_queue_ai_export
 from workbench_jobs import make_job
+from workbench_sight_gap_plan import build_sight_gap_plan
 from app_page_fields import list_raw_page_runs
 from screenshot_ocr import MAX_IMAGE_BYTES, recognize_screenshot
 from workbench_tasks import TaskManager
@@ -201,6 +202,13 @@ def create_server(output, adb_path=None, port=8765, *, adb_serial=None):
                     self.reply(500, {'error': '无法列出已保存的 App 页面任务'})
             elif self.path == '/api/sight-review-queues':
                 self.reply(200, {'queues': list_sight_queues(output)})
+            elif self.path == '/api/sight-gap-plan':
+                try:
+                    self.reply(200, build_sight_gap_plan(output))
+                except ValueError as exc:
+                    self.reply(400, {'error': str(exc)})
+                except (OSError, sqlite3.Error):
+                    self.reply(500, {'error': '无法读取本地景点待补清单'})
             elif urlsplit(self.path).path == '/api/sight-queue-ai':
                 params = parse_qs(urlsplit(self.path).query, keep_blank_values=True)
                 queues = params.get('queue', [])

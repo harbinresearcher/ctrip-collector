@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from android_coverage import local_file
+from mobile_review_context import exact_count
 from mobile_scoped_store import MOBILE_REVIEW_RUN_ID
 
 logger = logging.getLogger(__name__)
@@ -96,25 +97,38 @@ def blocked_today(report):
     return stamp == datetime.now().date()
 
 
-def phone_all_label(data):
-    # /* ===== 步骤5.2：手机侧「全部」计数；数据源：手机报告的屏幕观察；操作：1) 只认精确整数 2) 出现多个值就不猜 ===== */
-    # 5.2.1 页面不会把页签标成 selected，所以这里只记录「屏幕上看到的全部计数」，
-    #       不声称当前筛选就是全部；调用方必须带上来源标注。
+def visible_phone_all_counts(data):
     context = data.get('sampling_context')
     observations = context.get('observations') if isinstance(context, dict) else None
     if not isinstance(observations, list):
-        return None
-    totals = set()
+        return
     for observation in observations:
         filters = observation.get('visible_filters') if isinstance(observation, dict) else None
         if not isinstance(filters, list):
             continue
         for entry in filters:
             if isinstance(entry, dict) and entry.get('label') == '全部':
-                value = count_value(entry.get('display_count'))
-                if value is not None:
-                    totals.add(value)
+                # Normalized display_count may turn abbreviated text such as 4.3w into 43000.
+                yield exact_count(entry.get('display_count_text', entry.get('display_count')))
+
+
+def phone_all_label(data):
+    # The visible tab alone does not verify which filter was selected.
+    totals = {value for value in visible_phone_all_counts(data) if value is not None and value >= 0}
     return totals.pop() if len(totals) == 1 else None
+
+
+def phone_comparison_total(data):
+    check = data.get('review_count_check')
+    if not isinstance(check, dict) or check.get('state') != 'compared_display_only' or check.get('filter') != '全部':
+        return None
+    total = count_value(check.get('display_total'))
+    labels = check.get('display_count_labels', [])
+    if total is None or not isinstance(labels, list) or (labels and {exact_count(label) for label in labels} != {total}):
+        return None
+    observed = set(visible_phone_all_counts(data))
+    # Older reports may have normalized their comparison labels as well as their display totals.
+    return total if not observed or observed == {total} else None
 
 
 def app_all_run_evidence(path, data):
@@ -122,10 +136,9 @@ def app_all_run_evidence(path, data):
     if (not isinstance(run_id, str) or not MOBILE_REVIEW_RUN_ID.fullmatch(run_id)
             or path.name != f'report-{run_id}.json' or not isinstance(check, dict)
             or check.get('scope') != 'current_run_fingerprints_vs_app_filter_label'
-            or check.get('state') != 'compared_display_only' or check.get('filter') != '全部'
             or not isinstance(data.get('reason'), str) or not data['reason']):
         return None
-    total = count_value(check.get('display_total'))
+    total = phone_comparison_total(data)
     if total is None:
         return None
     return {'run_id': run_id, 'kind': data['kind'], 'object_id': str(data['object_id']),
@@ -265,7 +278,7 @@ def coverage_summary(objects):
             'note': COVERAGE_NOTE}
 
 
-def write_coverage_audit(folder):
+def write_coverage_audit(folder, *, persist=True):
     # /* ===== 步骤3：读取对象级与目录级证据；数据源：输出目录；操作：1) 只读打开 2) 记录目标数来源 3) 记录对象链接 ===== */
     logger.info('开始对账已落盘采集证据')
     folder = Path(folder).resolve()
@@ -646,12 +659,15 @@ def write_coverage_audit(folder):
                'object_count': len(objects), 'directory_count': len(directories),
                'coverage': dict(coverage_summary(objects), discovery=discovery_summary(directories)),
                'complete': False}
-    report_path = folder / ('audit-' + uuid.uuid4().hex + '.json')
     report = {'scope': 'landed_evidence_only', 'review_totals_scope': 'web_reviews', 'complete': False,
               'objects': objects, 'directories': sorted(directories, key=lambda row: row['report']),
               'summary': summary, 'network_database': network_state, 'mobile_database': mobile_state,
               'invalid_evidence_files': invalid_files, 'invalid_rows': invalid_rows,
-              'limitations': LIMITATIONS, 'report_file': str(report_path), 'output': str(folder)}
+              'limitations': LIMITATIONS, 'output': str(folder)}
+    if not persist:
+        return report
+    report_path = folder / ('audit-' + uuid.uuid4().hex + '.json')
+    report['report_file'] = str(report_path)
     # 5.1 历史是旁路：追加当前这一行再回读曲线；写入失败只记警告，对账结果照常输出。
     append_audit_history(folder, report)
     report['history'] = read_audit_history(folder)

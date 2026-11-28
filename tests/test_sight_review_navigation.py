@@ -97,7 +97,8 @@ class SightReviewNavigationTests(unittest.TestCase):
     def test_waits_for_verified_detail_beyond_normal_window_on_observed_loading_page(self):
         device = NavigationDevice()
         loading = (FIXTURES / 'sight-review-nav-loading.xml').read_text('utf-8')
-        pending_frames = iter([loading] * 14)
+        transition = (FIXTURES / 'sight-review-nav-transition.xml').read_text('utf-8')
+        pending_frames = iter([loading] * 14 + [transition])
         original_snapshot = device.snapshot
 
         def snapshot():

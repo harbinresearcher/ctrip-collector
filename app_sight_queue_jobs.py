@@ -5,13 +5,15 @@ from pathlib import Path
 from subprocess import SubprocessError
 
 from mobile_review_recovery import saved_sight_attempt
-from mobile_sight_queue import create_sight_queue, load_sight_queue, lock_sight_queue, save_sight_queue
+from mobile_sight_queue import (GAP_EVIDENCE_FIELDS, MAX_REVIEW_TARGET, create_sight_queue,
+                                load_sight_queue, lock_sight_queue, planned_review_target, save_sight_queue)
 from object_identity import read_evidence, resolve_object_ref
 from runner import Adb, collect, new_review_run_id
 from sight_ai import capture_queue_sight_ai
 from sight_queue_ai_export import read_sight_queue_ai_report
 from sight_review_navigation import open_sight_reviews, return_from_sight_reviews
 from workbench_app_jobs import sight_navigation_address
+from workbench_sight_gap_plan import build_sight_gap_plan
 
 
 RECORDED_REASONS = {'target_reached', 'screen_budget_reached', 'stalled_unverified'}
@@ -20,7 +22,8 @@ REVIEW_FIELDS = ('run_id', 'count', 'new_count', 'screens', 'sample_csv_count', 
 
 
 def queue_result(queue):
-    return dict(queue, items=[{key: item[key] for key in ('object_ref', 'name', 'status', 'result', 'ai_summary')
+    fields = ('object_ref', 'name', 'status', 'result', 'ai_summary', 'review_target', 'gap_evidence')
+    return dict(queue, items=[{key: item[key] for key in fields
                                if key in item}
                               for item in queue['items']])
 
@@ -124,7 +127,8 @@ def run_sight_queue(output, queue, adb_path, adb_serial, stop, emit):
             if item['status'] == 'recorded':
                 previous = item['name']
                 continue
-            recovered, sample = recover_attempt(output, item, queue['limit'])
+            target = item.get('review_target', queue['limit'])
+            recovered, sample = recover_attempt(output, item, target)
             if recovered is not None:
                 item.update(status='recorded', result=recovered)
                 save_sight_queue(output, queue)
@@ -149,7 +153,7 @@ def run_sight_queue(output, queue, adb_path, adb_serial, stop, emit):
                                                 allow_search=origin == 'search', require_address_search=True)
                 if queue.get('save_ai_summary'):
                     save_queue_ai(device, output, queue, item, stop, emit)
-                report = collect(device, 'sight', name, output, queue['limit'], queue['max_swipes'], stop, emit,
+                report = collect(device, 'sight', name, output, target, queue['max_swipes'], stop, emit,
                                  object_id=item['object_id'], identity_source='evidence_manifest',
                                  identity_evidence=item['identity_evidence'], sight_navigation=navigation,
                                  run_id=attempt_run_id)
@@ -188,7 +192,7 @@ def prepare_sight_queue_job(request, output, adb_path, *, adb_serial=None):
         raise ValueError('景点点评队列需要配置 Android 模拟器。')
     output = Path(output).resolve()
     if 'queue_id' in request:
-        if any(field in request for field in ('object_refs', 'limit', 'max_swipes', 'save_ai_summary')):
+        if any(field in request for field in ('object_refs', 'limit', 'max_swipes', 'save_ai_summary', 'gap_plan')):
             raise ValueError('继续队列时沿用已保存的景点和数量设置。')
         queue_id = request['queue_id']
         try:
@@ -207,21 +211,33 @@ def prepare_sight_queue_job(request, output, adb_path, *, adb_serial=None):
             or not all(isinstance(ref, str) and ref == ref.strip() for ref in refs)
             or len(set(refs)) != len(refs)):
         raise ValueError('请选择 1 至 20 个不同的本地景点。')
-    limit, max_swipes = request.get('limit', 500), request.get('max_swipes', 1500)
+    gap_plan = request.get('gap_plan', False)
+    if type(gap_plan) is not bool:
+        raise ValueError('景点待补清单设置无效。')
+    limit = request.get('limit', 200 if gap_plan else 500)
+    max_swipes = request.get('max_swipes', 1500)
     save_ai_summary = request.get('save_ai_summary', False)
     if type(save_ai_summary) is not bool:
         raise ValueError('景点 AI 总结采集设置无效。')
-    if type(limit) is not int or not 1 <= limit <= 100000 or type(max_swipes) is not int or not 1 <= max_swipes <= 10000:
+    if type(limit) is not int or not 1 <= limit <= MAX_REVIEW_TARGET or type(max_swipes) is not int or not 1 <= max_swipes <= 10000:
         raise ValueError('每个景点的点评目标须为 1 至 100000，滑动上限须为 1 至 10000。')
+    planned = {row['object_ref']: row for row in build_sight_gap_plan(output)['items']} if gap_plan else {}
     items = []
     for ref in refs:
         evidence = resolve_object_ref(output, ref)
         if evidence['kind'] != 'sight':
             raise ValueError('请只将景点加入点评队列。')
-        items.append(dict(evidence, address=sight_navigation_address(output, evidence)))
+        item = dict(evidence, address=sight_navigation_address(output, evidence))
+        if gap_plan:
+            row = planned.get(ref)
+            if row is None or row['name'] != item['name']:
+                raise ValueError('景点已不在当前待补清单，请重新加载后选择。')
+            gap_evidence = {key: row[key] for key in GAP_EVIDENCE_FIELDS}
+            item.update(gap_evidence=gap_evidence, review_target=planned_review_target(gap_evidence, limit))
+        items.append(item)
 
     def start(stop, emit):
-        queue = create_sight_queue(output, items, limit, max_swipes, save_ai_summary=save_ai_summary)
+        queue = create_sight_queue(output, items, limit, max_swipes, save_ai_summary=save_ai_summary, gap_plan=gap_plan)
         queue_id = queue['queue_id']
         with lock_sight_queue(output, queue_id):
             return run_sight_queue(output, load_sight_queue(output, queue_id), adb_path, adb_serial, stop, emit)

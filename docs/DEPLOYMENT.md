@@ -12,6 +12,14 @@
 | Android 教师安装包 | 手机直接采集的可选交付，待实现 | 手机上安装并运行，提供任务、暂停、续采与导出。平台权限由用户在手机上按系统流程授予 |
 | 输出目录 | 唯一数据落点 | `data/`（数据库、CSV、报告、证据）；可整体搬走或备份 |
 
+### Windows 交付入口
+
+首版面向老师提供一个安装程序和一条 App 采集流程。打开桌面快捷方式，按向导连接已安装携程的 Android 设备，在手机上确认首次授权，然后选城市或景点、开始采集、下载结果。界面提示「设备未识别」「等待手机确认」「已连接」「请在设备上打开携程」。教师用的设备由使用者按正常方式授权；开发和回归使用模拟器。网页采集是单独可用的入口。
+
+- 参考 EasySpider 的开箱启动和 QtScrcpy 的设备连接方式。程序将可随包分发的组件放在安装目录内，依赖版本一并留档。 [EasySpider 快速开始](https://github.com/NaiboWang/EasySpider/wiki/Quick-Start) · [QtScrcpy 发布说明](https://github.com/barry-ran/QtScrcpy#download)
+- 把设备连通性列为安装验收。已有 UiAutomator2 用户遇到可执行文件能打开、缺少运行资源导致无法连接的问题。安装后的验收实际读取一次携程页面并检查导出。 [UiAutomator2 打包讨论](https://github.com/openatx/uiautomator2/issues/1060) · [Android 设备连接文档](https://developer.android.com/studio/run/device)
+- 交付时附一个已验证的数据样例。App 对象目录、点评、AI 总结和媒体分别列出覆盖范围、页面展示数、实际采集数和停止原因，便于老师直接检查数据。
+
 - 版本号 `major.minor`，每次交付打 tag；README 状态表与 ROADMAP 同步更新。
 - 输出目录结构保持向后兼容：新版本必须能读旧目录（`coverage_audit` 与
   `workbench_preview` 对旧表只读，不改旧字段）。

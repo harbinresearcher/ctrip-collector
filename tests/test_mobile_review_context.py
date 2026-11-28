@@ -104,6 +104,23 @@ class MobileReviewContextTests(unittest.TestCase):
                       result['visible_filters'])
         self.assertIsNone(result['selected_filter'])
 
+    def test_sight_report_uses_the_original_rounded_filter_label(self):
+        path = FIXTURE.parent / 'ctrip-comments2.xml'
+        root = ET.parse(path).getroot()
+        group = next(node for node in root.iter('node')
+                     if node.get('resource-id') == 'o_gs_comments_newlist_filter1'
+                     and any(child.get('text') == '全部' for child in node))
+        group.set('selected', 'true')
+        next(child for child in group if child.get('text') == '1095').set('text', '4.3w')
+        xml = ET.tostring(root, encoding='unicode')
+        with tempfile.TemporaryDirectory() as folder:
+            report = collect(Mock(**{'snapshot.return_value': xml}), 'sight', '长白山西景区',
+                             folder, max_swipes=0, object_id='136039')
+            counts = report['review_count_check']
+            self.assertEqual(counts['display_count_labels'], ['4.3w'])
+            self.assertEqual(counts['state'], 'approximate_count')
+            self.assertIsNone(counts['display_total'])
+
     def test_explicit_filter_change_stops_before_storing_new_screen(self):
         from core import parse_reviews
         xml = FIXTURE.read_text('utf-8')

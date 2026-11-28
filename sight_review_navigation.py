@@ -55,6 +55,7 @@ def wait_for(device, stop, find, message, *, loading=None, reads=None):
     # 1.3.1 reads 用于「网络查询类」等待（如搜索结果）：默认窗口约 5 秒，
     #       小景点的查询经常比这个大景点慢，用默认窗口会误判成「搜不到」。
     max_reads = reads or (LOADING_READS if loading else STANDARD_READS)
+    transition_reads = 0
     for attempt in range(1, max_reads + 1):
         still_loading = False
         try:
@@ -65,8 +66,15 @@ def wait_for(device, stop, find, message, *, loading=None, reads=None):
         else:
             if (result := find(root)) is not None:
                 return result
-            still_loading = loading is not None and loading(root)
-        # 1.3.3 显式指定 reads 时不要被默认的 12 次提前截断，否则长窗口形同虚设。
+            if loading is not None and loading(root):
+                still_loading = True
+                transition_reads = 2
+            elif transition_reads and blank_app_page(root):
+                still_loading = True
+                transition_reads -= 1
+            else:
+                transition_reads = 0
+        # 显式指定 reads 时使用调用方的等待窗口。
         if attempt == max_reads or (reads is None and attempt >= STANDARD_READS and not still_loading):
             break
         if stop.wait(0.45):
@@ -253,6 +261,12 @@ def reviews_ready(root, name):
     # 1.2.2 只要求「点评列表锚点」在，不要求屏幕上一定有计数：
     #       有的点评页不显示条数，导航不该因此重来；计数缺失由扫描如实记录。
     return root if state['anchor'] else None
+
+
+def blank_app_page(root):
+    window = root.find('node')
+    return (window is not None and window.get('package') == APP
+            and not any(text(node) or node.get('content-desc', '').strip() for node in app_nodes(root)))
 
 
 def open_sight_reviews(device, name, address, stop, *, allow_search=False, require_address_search=False):

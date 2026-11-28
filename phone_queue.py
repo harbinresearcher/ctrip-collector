@@ -16,8 +16,8 @@ from contextlib import closing
 from pathlib import Path
 
 from android_coverage import local_file
-from coverage_audit import KINDS, OBJECT_KEY, blocked_today, count_value, read_evidence, write_coverage_audit
-from mobile_review_context import exact_count
+from coverage_audit import (KINDS, OBJECT_KEY, blocked_today, phone_all_label, phone_comparison_total,
+                            read_evidence, write_coverage_audit)
 
 logger = logging.getLogger(__name__)
 # 手机报告停止原因里能判定「这一侧采不出来」与「今天被拦」的取值。
@@ -52,29 +52,8 @@ def phone_review_counts(folder):
 
 
 def report_target(data):
-    # /* ===== 步骤2：读手机侧「全部」计数；数据源：手机报告；操作：1) 优先本次全部核对 2) 退到筛选条计数 3) 不一致就不猜 ===== */
-    # 2.1 本次明确选中「全部」且已核对时，报告里的 display_total 是可直接比较的整数。
-    check = data.get('review_count_check')
-    if isinstance(check, dict) and check.get('filter') == '全部' and check.get('state') == 'compared_display_only':
-        value = count_value(check.get('display_total'))
-        if value is not None:
-            return value
-    # 2.2 否则读屏幕上「全部」筛选条的精确计数；4.3w 这类近似计数按未知处理。
-    context = data.get('sampling_context')
-    observations = context.get('observations') if isinstance(context, dict) else None
-    if not isinstance(observations, list):
-        return None
-    totals = set()
-    for observation in observations:
-        filters = observation.get('visible_filters') if isinstance(observation, dict) else None
-        if not isinstance(filters, list):
-            continue
-        for entry in filters:
-            if isinstance(entry, dict) and entry.get('label') == '全部':
-                value = exact_count(entry.get('display_count'))
-                if value is not None:
-                    totals.add(value)
-    return totals.pop() if len(totals) == 1 else None
+    total = phone_comparison_total(data)
+    return total if total is not None else phone_all_label(data)
 
 
 def phone_evidence(folder):
@@ -141,13 +120,16 @@ def queue_order(entry):
 
 
 def write_phone_queue(folder, max_objects=DEFAULT_MAX_OBJECTS):
-    # /* ===== 步骤5：生成手机侧缺口队列；数据源：只读对账与手机库；操作：1) 合并对象 2) 分类排序 3) 按上限截断 ===== */
-    logger.info('开始生成手机侧缺口队列')
     if type(max_objects) is not int or max_objects < 1:
         raise ValueError('对象上限必须是正整数')
     folder = Path(folder).resolve()
     # 5.0 对账只读落盘证据；它本身会把本次汇总追加到 audit-history.jsonl。
-    audit = write_coverage_audit(folder)
+    return build_phone_queue(folder, write_coverage_audit(folder), max_objects)
+
+
+def build_phone_queue(folder, audit, max_objects=None):
+    """Rank App review gaps from an existing audit and local evidence."""
+    logger.info('开始生成手机侧缺口队列')
     counts, database_state = phone_review_counts(folder)
     evidence = phone_evidence(folder)
     queue, skipped = [], []

@@ -66,6 +66,42 @@ def interrupted_queue(folder, *, final_reason=None, report_identity='4'):
 
 
 class SightQueueWorkbenchTests(unittest.TestCase):
+    def test_gap_plan_stores_and_reuses_per_object_cumulative_targets(self):
+        preview = {'items': [
+            {'object_ref': 'sight-1', 'name': '景点1', 'collected': 10, 'target': None,
+             'missing': None, 'suggested_add': 200},
+            {'object_ref': 'sight-2', 'name': '景点2', 'collected': 4, 'target': 5,
+             'missing': 1, 'suggested_add': 1},
+        ]}
+        with tempfile.TemporaryDirectory() as folder, patch('app_sight_queue_jobs.Adb'), \
+                patch('app_sight_queue_jobs.open_sight_reviews', return_value='opened'), \
+                patch('app_sight_queue_jobs.return_from_sight_reviews', return_value='search'), \
+                patch('app_sight_queue_jobs.build_sight_gap_plan', return_value=preview, create=True) as plan, \
+                patch('app_sight_queue_jobs.collect',
+                      side_effect=[review_result(1), RuntimeError('短时网络失败'), review_result(2)]) as collect:
+            refs = [write_sight(folder, number) for number in (1, 2)]
+            request = {'mode': 'app_sight_queue', 'object_refs': refs, 'limit': 2, 'gap_plan': True}
+            first = make_job(request, folder, 'adb.exe')(Event(), Mock())
+            self.assertEqual([item.get('review_target') for item in first['items']], [12, 5])
+            self.assertIsNone(first['items'][0]['gap_evidence']['target'])
+            self.assertEqual(first['reason'], 'needs_attention')
+            next_request = {'mode': 'app_sight_queue', 'queue_id': first['queue_id']}
+            final = make_job(next_request, folder, 'adb.exe')(Event(), Mock())
+            self.assertEqual(final['reason'], 'queue_recorded')
+            self.assertEqual([call.args[4] for call in collect.call_args_list], [12, 5, 5])
+            self.assertEqual(final['items'][0], first['items'][0])
+            plan.assert_called_once()
+
+    def test_gap_plan_rejects_stale_items_without_starting_a_queue(self):
+        with tempfile.TemporaryDirectory() as folder, patch('app_sight_queue_jobs.Adb') as adb, \
+                patch('app_sight_queue_jobs.build_sight_gap_plan', return_value={'items': []}, create=True):
+            ref = write_sight(folder, 1)
+            request = {'mode': 'app_sight_queue', 'object_refs': [ref], 'gap_plan': True}
+            with self.assertRaisesRegex(ValueError, '待补清单'):
+                make_job(request, folder, 'adb.exe')
+            self.assertEqual(list(Path(folder).glob('sight-review-queue-*.json')), [])
+            adb.assert_not_called()
+
     def test_sight_queue_keeps_ai_and_reviews_separate(self):
         from mobile_sight_queue import load_sight_queue
 
