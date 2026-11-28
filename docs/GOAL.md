@@ -415,6 +415,29 @@ history 最新行: {"missing": 824, "reachable_missing": 824, "capped_count": 3}
 `batch.py` 现在记一笔失败后继续，只有「被平台拦住」或「用户取消」才停整轮，
 并对 `IncompleteRead`/连接重置/超时重试一次。
 
+#### C1y 续：设备锁目录不可写会把整条链路挡死（2026-11-28）
+
+`38bd78d`（同一设备一次一个任务）把锁文件放到 `%LOCALAPPDATA%\CtripCollector\android-device-locks`。
+本机环境下**子进程写不了系统目录**，于是所有连设备的命令都在 `mkdir` 处失败：
+
+```
+ERROR [WinError 5] 拒绝访问。: 'C:\Users\<user>\AppData\Local\CtripCollector'
+```
+
+同一目录用 PowerShell 能建能写、用 `.venv\Scripts\python.exe` 就 Permission denied
+（沙箱只放开了工具自身进程的写入）。已在 issue #21 向 Codex 提出：
+允许 `CTRIP_COLLECTOR_STATE_DIR` 指定状态目录、`mkdir` 失败时退到临时目录、
+并补一条「状态目录不可写时采集仍能继续」的回归。
+
+**临时绕过（不改代码）**：把 `LOCALAPPDATA` 指到工作区内再跑，`--check` 与采集恢复：
+
+```powershell
+$env:LOCALAPPDATA = "$PWD\.test-tmp\localappdata"
+```
+
+绕过之后继续采集：汉拿山温泉 40 → **60** 条（84 屏，结束原因 `stalled_unverified`）。
+城市级手机侧 `collected 189 → 209`。
+
 ### C1y 手机侧长跑：`--collect --auto-open`，手机点评 120 → 189（2026-11-28）
 
 之前 `--auto-open` 只接在 `--phone-target` 上，长跑采集仍要人工先把手机摆到点评页，
