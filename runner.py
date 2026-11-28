@@ -458,6 +458,13 @@ def scan_phone_target(adb, kind, place, folder, object_id=None, identity_source=
     return report
 
 
+def scroll_distance(unchanged):
+    # /* ===== 步骤3.3.1：滑动距离随「屏幕没变」的次数加大；数据源：连续相同屏计数；操作：1) 起步 20% 2) 最多 65% ===== */
+    # 3.3.1.1 实测：卡片很高的对象（带商家回复）用小幅滑动（屏高 20%）时列表不推进，
+    #         连续 5 屏不变就被判成 stalled_unverified，其实再多滑一点就有新内容。
+    return min(0.20 + 0.15 * max(unchanged, 0), 0.65)
+
+
 def collect(adb, kind, place, folder, limit=500, max_swipes=1500, stop=None, progress=None, object_id=None,
             *, expand_reviews=False, refresh=False, save_visible_ai=False, save_review_thumbnails=False,
             identity_source=OPERATOR_DECLARED, identity_evidence=None, sight_navigation=None, run_id=None):
@@ -689,8 +696,11 @@ def collect(adb, kind, place, folder, limit=500, max_swipes=1500, stop=None, pro
             if stop.is_set():
                 reason = 'stopped_by_user'
                 break
-            adb.run('shell', 'input', 'swipe', str(x1 + width // 2), str(y1 + int(height * .78)),
-                    str(x1 + width // 2), str(y1 + int(height * .58)), '450')
+            # 3.3.1 屏幕连续不变时加大滑动距离，避免把「卡片太高滑不动」误判成采完。
+            distance = scroll_distance(unchanged)
+            adb.run('shell', 'input', 'swipe', str(x1 + width // 2),
+                    str(y1 + int(height * .82)),
+                    str(x1 + width // 2), str(y1 + int(height * (.82 - distance))), '450')
             if stop.wait(1):
                 reason = 'stopped_by_user'
                 break
