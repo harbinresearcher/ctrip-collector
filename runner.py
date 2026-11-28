@@ -373,12 +373,20 @@ def scan_phone_target(adb, kind, place, folder, object_id=None, identity_source=
     if not MOBILE_REVIEW_RUN_ID.fullmatch(run_id):
         raise ValueError('任务编号无效')
     adb.ensure_foreground()
-    xml = adb.snapshot()
+    # 2.9.0 页面可能还在转场：锚点缺失或读不出结构时多看两屏再判，
+    #       别把「正在加载」记成「未知布局」（批量扫描里这类假失败最多）。
+    retryable = {'no_review_anchor', 'invalid_xml'}
+    for attempt in range(3):
+        xml = adb.snapshot()
+        state = review_screen_state(xml, place, allow_missing_name=kind == 'hotel')
+        if state['arrived'] or state['reason'] not in retryable or attempt >= 2:
+            break
+        logger.info('页面还没稳定（%s），等待后重试', state['reason'])
+        time.sleep(0.8)
     raw = folder / 'raw' / run_id
     raw.mkdir(parents=True, exist_ok=True)
     (raw / '00000.xml').write_text(xml, encoding='utf-8')
     root = ET.fromstring(xml)
-    state = review_screen_state(xml, place, allow_missing_name=kind == 'hotel')
     context = read_review_context(root, kind)
     detail_state = None
     if state['arrived']:
