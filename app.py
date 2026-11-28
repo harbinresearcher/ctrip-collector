@@ -578,6 +578,16 @@ def main():
             parser.error('必须指定 --place（或改用 --object-ref）')
         with Adb(args.adb, serial=args.adb_serial, ui_backend=args.ui_backend) as adb:
             adb.connect()
+            # 3.1.2.1 --auto-open 也用同一套导航：长跑前不必手动把手机停在点评页，
+            #         退不回首页或导航失败就明确报错，不猜坐标硬点。
+            if args.auto_open and identity is not None:
+                if identity['kind'] != 'sight':
+                    parser.error('--auto-open 目前只支持景点')
+                if not identity.get('address'):
+                    parser.error('目录证据里没有地址关键词，无法自动核对搜索结果；请手动打开点评页')
+                if not ensure_home(adb, threading.Event()):
+                    parser.error('没能回到携程首页，请手动回到首页后重试')
+                open_sight_reviews(adb, identity['name'], identity['address'], threading.Event())
             if identity is None:
                 # 3.1.2 旧入口保持原样：手填名称，身份仍标为操作者声明。
                 result = collect(adb, args.kind, args.place, args.output, args.limit, args.max_swipes)
