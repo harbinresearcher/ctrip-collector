@@ -149,7 +149,18 @@ def matching_sight_result(root, name, address):
                 continue
             labels = [n for n in row.iter('node') if n.get('class') == 'android.widget.TextView'
                       and visible_in(n, row)]
-            titles = [n for n in labels if same_name(text(n), name) or same_name(text(n), f'{name} 可订明日')]
+
+            def is_title(node):
+                # 1.1.2 有的结果行把「标题 + 评分 + 地址」塞进同一个节点
+                #       （实测：「吉林省长白山如来寺   1.9 | 吉林-抚松-302省道」），
+                #       这时标题按「head 以名称开头」认，不能要求整段相等。
+                value = text(node)
+                if same_name(value, name) or same_name(value, f'{name} 可订明日'):
+                    return True
+                head, bar, _ = value.partition('|')
+                return bool(bar) and bool(head.strip()) and normalize_name(head).startswith(normalize_name(name))
+
+            titles = [n for n in labels if is_title(n)]
             for label in labels:
                 _, bar, location = text(label).partition('|')
                 location = compact_address(location)

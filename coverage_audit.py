@@ -617,7 +617,11 @@ def write_coverage_audit(folder):
                         'arrival_reason': (report or {}).get('arrival_reason') if arrival_failed else None,
                         # 5.2.6 手机上「没认出点评页」的那次尝试：与网页缺口分开记，
                         #       否则一个从来没被认出来的对象看起来和「还没轮到」一模一样。
-                        'phone_layout_unknown': bool(item.get('phone_arrival')),
+                        #       但后来的「没有点评入口」报告会覆盖它：以最新一次为准，
+                        #       否则已查明「平台没有点评」的对象会一直被算成未知布局。
+                        'phone_layout_unknown': bool(item.get('phone_arrival')) and (
+                            item.get('phone_no_review') is None
+                            or item['phone_arrival']['mtime'] > item['phone_no_review']['mtime']),
                         # 5.2.8 平台侧没有点评入口的对象：不能当成「还没采」。
                         'phone_no_review_entry': bool(item.get('phone_no_review')),
                         'phone_arrival_reason': (item.get('phone_arrival') or {}).get('arrival_reason'),
