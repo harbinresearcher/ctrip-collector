@@ -415,6 +415,32 @@ history 最新行: {"missing": 824, "reachable_missing": 824, "capped_count": 3}
 `batch.py` 现在记一笔失败后继续，只有「被平台拦住」或「用户取消」才停整轮，
 并对 `IncompleteRead`/连接重置/超时重试一次。
 
+### C1r 手机侧「只补分母」：`--phone-target`（已达标 2026-11-28）
+
+城市级 86 个对象里只有 3 个有手机目标，对账回答不了「网页到顶的那部分，手机上到底有多少」。
+采点评慢（约每屏 0.6 条），但**看一眼「全部」有多少条只要几秒**——所以先补分母。
+
+- `runner.scan_phone_target()`：读当前屏幕，落一份 `target_only` 报告
+  （`reason=target_scanned`，`sampling_context` 带 `visible_filters`），不采任何点评；
+- `app --phone-target --object-ref <key>`：未到达点评页时退出码 1；
+- 对账零改动即可读到：`phone_all_label` 把这份报告读成 `phone_target`（来源 `all_label`）。
+
+**真机扫描结果（模拟器，4/6 到达）**：
+
+| 对象 | 手机「全部」 | 已采 |
+| --- | --- | --- |
+| 长白山西景区 | 1099 | 50 |
+| 汉拿山温泉 | 520 | 40 |
+| 讷殷古城 | 450 | 30 |
+| 长白山万达水乐园 | **228**（新补） | 0 |
+
+对账从 `phone {target: 2069}` 变成 `phone {target: 2297}`，`no_phone_data` 83→82。
+
+**同时修掉一个会污染分母的漏洞**：屏幕上停在别的对象时，扫描虽然判出
+`arrival_failed/name_mismatch`，却仍把屏上的「全部 228」写进报告——对账会把它算成
+本对象的目标数。现在 `arrived=False` 时不写 `sampling_context`：**没核对上身份就一个数字都不记**，
+但仍落报告并记 `arrival_failed`（未知布局照样可数）。
+
 ### C1q 手机侧未知布局变成可计数缺口（已达标 2026-11-28）
 
 以前手机采集没认出点评页时只抛一句 `RuntimeError`，报告里落成普通 `reason=error`，
