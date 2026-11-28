@@ -415,6 +415,29 @@ history 最新行: {"missing": 824, "reachable_missing": 824, "capped_count": 3}
 `batch.py` 现在记一笔失败后继续，只有「被平台拦住」或「用户取消」才停整轮，
 并对 `IncompleteRead`/连接重置/超时重试一次。
 
+### C1q 手机侧未知布局变成可计数缺口（已达标 2026-11-28）
+
+以前手机采集没认出点评页时只抛一句 `RuntimeError`，报告里落成普通 `reason=error`，
+和网络错误混在一起——对账看不出「这个对象是因为页面没被认出来才没采到」。
+实测场景：模拟器深链落到酒店结果页，导航失败，对象直接消失，没有任何可数记录。
+
+改动：
+
+- `runner` 到达判据不通过时抛 `AndroidReadinessError`（带判据状态）；
+  `collect()` 记成 `reason=arrival_failed` + `arrival_reason`（`no_review_anchor` /
+  `name_partial_match` / `no_all_count` / `invalid_xml`），报告照常落盘，
+  `limitations` 写明「本次没有采集任何数据」；
+- `coverage_audit` 读手机报告的 `arrival_failed`：对象行新增
+  `phone_layout_unknown` / `phone_arrival_reason`，`summary` 新增 `phone_layout_unknown`；
+- 网页侧缺口原因不受影响（两条通道分开记，不互相污染）；
+- 单测 2 项（到达失败被标记并计数 / 正常报告不误标），不触网；
+- `test_runner` 两处旧断言从 `error` 更新到 `arrival_failed` + 具体 `arrival_reason`。
+
+**真机观察（未验证到 arrival_failed 的屏幕状态）**：在模拟器的景点**详情页**上跑采集，
+判据先卡在 `identity_unverified`（标题节点带杂字，与目标名不完全相等），
+所以那次落的是 `identity_unverified` 而不是 `arrival_failed`。
+`arrival_failed` 的代码路径由单测覆盖验证；设备上要复现它，需要一屏「标题正确但没有点评锚点」。
+
 ### C1p 城市级手机补采（已打通第一个对象，2026-11-28）
 
 队列按网页缺口排出的第一个对象 `sight-136039 长白山西景区（web_missing=1069）`
