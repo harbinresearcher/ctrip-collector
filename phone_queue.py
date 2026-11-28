@@ -131,10 +131,13 @@ def skip_reason(obj, phone):
 
 
 def queue_order(entry):
-    # never_collected 在前；其余按 missing 降序，未知缺口排在有数缺口之后；同 missing 按对象键升序。
+    # never_collected 在前；其余按手机缺口降序，未知缺口排在有数缺口之后；
+    # 缺手机目标时退到网页缺口（web_missing）降序；最后按对象键升序保证可复现。
     return (0 if entry['reason'] == 'never_collected' else 1,
             0 if entry['missing'] is not None else 1,
-            -(entry['missing'] or 0), entry['object_key'])
+            -(entry['missing'] or 0),
+            -(entry.get('web_missing') or 0),
+            entry['object_key'])
 
 
 def write_phone_queue(folder, max_objects=DEFAULT_MAX_OBJECTS):
@@ -167,7 +170,10 @@ def write_phone_queue(folder, max_objects=DEFAULT_MAX_OBJECTS):
             with_phone_gap += 1
         row = {'object_key': key, 'place': obj.get('name') or phone.get('place'),
                'kind': obj.get('kind'), 'url': obj.get('url'), 'target': target,
-               'target_unknown': target is None, 'phone_collected': collected, 'missing': missing}
+               'target_unknown': target is None, 'phone_collected': collected, 'missing': missing,
+               # 5.1.1 手机目标还没拿到时，用网页缺口排优先级：先把最大的对象打开，
+               #       否则城市级 86 个对象只能按对象键排，最该采的排在中间。
+               'web_missing': obj.get('missing') if isinstance(obj.get('missing'), int) else None}
         # 5.2 手机侧没有缺口（已知目标且已采满）不占待办位置，也不算采尽或被拦。
         if missing == 0:
             continue
