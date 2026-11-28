@@ -351,6 +351,30 @@ ull，不写 0；
 是手机侧真实入库条数，**没有**和网页 694 相加去当「总计」。原有 8 个 summary
 字段一字未改。641 项测试全绿。
 
+### C1m 「通道碰到上限」不要说成「采尽」（下一步）
+
+Codex 在 `docs/DEPLOYMENT.md` 第 4 节把口径写严了：**只有核对了末页或同口径的全部展示数，
+才可以确认该范围采完**。现在代码里连续两次空页就标 `source_exhausted` 并把
+`reachable_missing` 记 0，这是**过度声称**——真机反证：长白山西景区网页只采到 577，
+手机页面显示「全部 1099」，说明是网页通道翻页到上限，不是这个对象采完了。
+
+目标：把「碰到通道上限」和「真的采完」分开，且不让 `--drive` 因此空转。
+
+验收：
+
+- 缺口原因从 `source_exhausted` 改为 `channel_capped`（`capped=true`），
+  语义是「这条通道翻到上限/末页，但**没有**同口径全部展示数可以证明采完」；
+- `reachable_missing` 只有在 `missing == 0`（真采完）时才为 0；`channel_capped` 的对象
+  保留真实缺口，并新增 `needs_other_channel: true`；
+- `--drive` / `--collect-gaps` 仍然**跳过** `channel_capped` 的对象（否则会无限空转），
+  但报告与对账要让读者看到「是通道到顶，不是这对象没了」；
+- 历史记录（`audit-history.jsonl` 里旧的 `source_exhausted_count`）继续可读，
+  不因改名报错；
+- 单测 4 项（连续空页→`channel_capped` 且缺口保留 / `missing==0` 时才是采完 /
+  续采队列仍跳过被限对象 / 旧历史行仍可读），不触网；
+- 真实目录 `.test-tmp\real` 上复核：`sight-136039` 应为 `channel_capped`，
+  `missing` 仍为 522，且审计输出里能看出「网页 577 / 手机目标 1099」。
+
 ### C1 覆盖台账与缺口对账
 
 - 新增只读命令 `python app.py --audit --output <输出目录>`，输出 JSON，包含：
