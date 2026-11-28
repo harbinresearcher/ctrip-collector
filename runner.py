@@ -332,6 +332,53 @@ def new_review_run_id():
     return datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S') + '-' + uuid.uuid4().hex[:6]
 
 
+def scan_phone_target(adb, kind, place, folder, object_id=None, identity_source=None, run_id=None):
+    # /* ===== 步骤2.9：只读手机侧「全部」计数；数据源：当前屏幕；操作：1) 校验到达 2) 记录可见筛选 3) 落盘报告 ===== */
+    # 2.9.1 采点评慢（约每屏 0.6 条），但「这个对象到底有多少条点评」只要看一眼。
+    #       先补分母，才能判断缺口是「还没采」还是「平台没有」。
+    logger.info('开始读取手机侧全部计数')
+    if kind not in {'hotel', 'sight', 'restaurant', 'shopping'}:
+        raise ValueError('对象类型无效')
+    if identity_source is not None and identity_source not in IDENTITY_SOURCES:
+        raise ValueError('对象身份来源无效')
+    folder = Path(folder)
+    folder.mkdir(parents=True, exist_ok=True)
+    run_id = run_id or new_review_run_id()
+    if not MOBILE_REVIEW_RUN_ID.fullmatch(run_id):
+        raise ValueError('任务编号无效')
+    adb.ensure_foreground()
+    xml = adb.snapshot()
+    raw = folder / 'raw' / run_id
+    raw.mkdir(parents=True, exist_ok=True)
+    (raw / '00000.xml').write_text(xml, encoding='utf-8')
+    root = ET.fromstring(xml)
+    state = review_screen_state(xml, place, allow_missing_name=kind == 'hotel')
+    context = read_review_context(root, kind)
+    if state['arrived']:
+        reason, arrival_reason = 'target_scanned', None
+    else:
+        # 2.9.2 没认出点评页也照样落报告：这是可数的未知布局，不是「没跑过」。
+        reason, arrival_reason = 'arrival_failed', state['reason']
+    report = {'kind': kind, 'place': place, 'count': 0, 'screens': 1, 'reason': reason,
+              'error': '' if state['arrived'] else ARRIVAL_HINT.get(state['reason'], '未识别为评论页面'),
+              'arrival_reason': arrival_reason, 'run_id': run_id, 'target_scope': 'target_only',
+              'complete': False,
+              'sampling_context': {'selected_filter': context.get('selected_filter'),
+                                   'observations': [context], 'scope': 'current_run_ui_controls_only'},
+              'limitations': ['只读取屏幕上可见的「全部」计数，不采点评',
+                              '页面不会把页签标注为已选中，此处只记录看到的数字']}
+    if object_id is not None:
+        report.update(object_id=str(object_id), identity_source=identity_source, identity_id_verified=False)
+    temporary = folder / f'report-{run_id}.json.{uuid.uuid4().hex}.tmp'
+    try:
+        temporary.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
+        temporary.replace(folder / f'report-{run_id}.json')
+    finally:
+        temporary.unlink(missing_ok=True)
+    logger.info('手机侧全部计数记录完成：%s', reason)
+    return report
+
+
 def collect(adb, kind, place, folder, limit=500, max_swipes=1500, stop=None, progress=None, object_id=None,
             *, expand_reviews=False, refresh=False, save_visible_ai=False, save_review_thumbnails=False,
             identity_source=OPERATOR_DECLARED, identity_evidence=None, sight_navigation=None, run_id=None):

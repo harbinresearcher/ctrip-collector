@@ -9,7 +9,7 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
-from runner import Adb, collect
+from runner import Adb, collect, scan_phone_target
 from network import BlockedError, canonical_url, collect_network, load_target
 from hotel_browser import collect_hotel
 from capture_io import import_capture
@@ -332,6 +332,8 @@ def main():
                         help='每个对象本次最多再补这么多条；--drive 默认 200（每个对象每轮最多再补这么多条，实测约 230 条/分钟），其他模式默认 500')
     parser.add_argument('--max-swipes', type=int, default=1500)
     parser.add_argument('--ui-backend', choices=['adb', 'uiautomator2'], default='uiautomator2')
+    parser.add_argument('--phone-target', action='store_true',
+                        help='只读手机当前页面的「全部」点评数，不采点评；配合 --object-ref 使用')
     args = parser.parse_args()
     # 3.0 --limit 的默认值跟模式走：--drive 每个对象每轮补 200 条（实测约 230 条/分钟），
     #     其他模式（含 --collect-gaps）保持原来的 500，不改既有命令的口径。
@@ -527,6 +529,19 @@ def main():
         adb = Adb(args.adb, serial=args.adb_serial)
         adb.connect()
         print(json.dumps({'device': 'authorized', 'ctrip': 'installed'}, ensure_ascii=False))
+    elif args.phone_target:
+        # 3.1.0 只补分母：打开点评页看一眼「全部」有多少条，不采正文。
+        identity = resolve_object_ref(args.output, args.object_ref) if args.object_ref else None
+        if identity is None:
+            parser.error('--phone-target 需要 --object-ref（身份来自落盘证据）')
+        with Adb(args.adb, serial=args.adb_serial, ui_backend=args.ui_backend) as adb:
+            adb.connect()
+            result = scan_phone_target(adb, identity['kind'], identity['name'], args.output,
+                                       object_id=identity['object_id'],
+                                       identity_source=identity['identity_source'])
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        if result['reason'] == 'arrival_failed':
+            raise SystemExit(1)
     elif args.collect:
         # 3.1.1 --object-ref 先从落盘证据解析身份，解析成功才允许采集；失败交给 cli() 打成一行原因。
         identity = resolve_object_ref(args.output, args.object_ref) if args.object_ref else None
