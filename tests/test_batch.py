@@ -96,15 +96,30 @@ class BatchTests(unittest.TestCase):
             self.assertEqual(collect_batch([URL], folder, 1, collector)['processed'], 1)
         logger.info('数据丢失检查完成')
 
-    def test_error_stops_batch_and_retries_after_restart(self):
-        # /* ===== 步骤4：核对失败恢复；数据源：接口异常；操作：1) 记录失败并停止 2) 重启重试 ===== */
+    def test_single_object_error_does_not_stop_the_batch(self):
+        # /* ===== 步骤4：核对失败恢复；数据源：接口异常；操作：1) 记失败但继续下一个 2) 重启重试 ===== */
         logger.info('开始失败恢复检查')
         with TemporaryDirectory() as folder:
             collector = Mock(side_effect=RuntimeError('verification required'))
             first = collect_batch([URL, URL.replace('25045127', '25044336')], folder, 1, collector)
-            self.assertEqual(first['reason'], 'error')
-            self.assertEqual(collector.call_count, 1)
+            # 4.1 单对象失败只记一笔（failed），后面的对象照跑：真机实测一次
+            #     IncompleteRead 曾让 62 个对象白白没跑。
+            self.assertEqual(first['processed'], 2)
+            self.assertEqual(first['failed'], 2)
+            self.assertEqual(first['reason'], 'partial')
+            self.assertEqual(collector.call_count, 2)
             collector.side_effect = lambda *args: self.result(folder)
             self.assertEqual(collect_batch([URL], folder, 1, collector)['processed'], 1)
         logger.info('失败恢复检查完成')
+
+    def test_blocked_object_still_stops_the_batch(self):
+        # /* ===== 步骤5：被平台拦住；数据源：带验证码特征的异常；操作：1) 立即停 2) reason=blocked ===== */
+        logger.info('开始被拦停批检查')
+        with TemporaryDirectory() as folder:
+            collector = Mock(side_effect=RuntimeError('页面返回验证码'))
+            report = collect_batch([URL, URL.replace('25045127', '25044336')], folder, 1, collector)
+            # 5.1 被拦是「不要再打」的信号，必须停整轮，而不是继续下一个对象。
+            self.assertEqual(report['reason'], 'blocked')
+            self.assertEqual(collector.call_count, 1)
+        logger.info('被拦停批检查完成')
 

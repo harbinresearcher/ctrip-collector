@@ -1,6 +1,7 @@
 """持久批量任务；达到条数目标与全量完成分开记录。"""
 from contextlib import closing
 import hashlib
+import http.client
 import json
 import logging
 import sqlite3
@@ -62,7 +63,7 @@ def collect_batch(urls, output, limit, collector, stop=None, emit=None, *, refre
     output = Path(output).resolve()
     output.mkdir(parents=True, exist_ok=True)
     stop, emit = stop or Event(), emit or logger.info
-    report = {'total': len(urls), 'processed': 0, 'skipped': 0, 'reason': 'queue_exhausted',
+    report = {'total': len(urls), 'processed': 0, 'skipped': 0, 'failed': 0, 'reason': 'queue_exhausted',
               'complete': False, 'results': [], 'reused_results': [], 'error': '', 'refresh_requested': refresh,
               'task_database': str(output / 'batch.sqlite3')}
     with closing(sqlite3.connect(output / 'batch.sqlite3', timeout=30)) as db:
@@ -84,17 +85,26 @@ def collect_batch(urls, output, limit, collector, stop=None, emit=None, *, refre
             now = datetime.now(timezone.utc).isoformat()
             with db:
                 db.execute('INSERT OR REPLACE INTO tasks VALUES (?,?,?,?,?,?)', (url, limit, 'running', '{}', '{}', now))
-            try:
-                # 3.1.1 显式刷新跳过旧完成证据，并传递刷新语义给底层采集器。
-                result = (collector(url, output, limit, stop, emit, refresh=True) if refresh
-                          else collector(url, output, limit, stop, emit))
-            except Exception as exc:
-                result = {'reason': 'error', 'error': str(exc), 'export_error': '', 'complete': False}
-                # 3.1.2 详情页读取阶段被拦（如 432）在这里抛出；结果必须带 blocked，
-                #       否则 --collect-gaps / --drive 只会看到普通 error，继续打下一个对象。
-                signal = blocked_status(exc)
-                if signal is not None:
-                    result['blocked'], result['blocked_status'] = True, str(signal)
+            result = None
+            for attempt in (1, 2):
+                try:
+                    # 3.1.1 显式刷新跳过旧完成证据，并传递刷新语义给底层采集器。
+                    result = (collector(url, output, limit, stop, emit, refresh=True) if refresh
+                              else collector(url, output, limit, stop, emit))
+                    break
+                except Exception as exc:
+                    # 3.1.2 读取阶段被拦（如 432）由 blocked_status 判定；瞬时读取错误
+                    #       （IncompleteRead / 连接重置 / 超时）先重试一次再记失败。
+                    signal = blocked_status(exc)
+                    if signal is None and attempt == 1 and isinstance(
+                            exc, (http.client.IncompleteRead, TimeoutError, ConnectionResetError, OSError)):
+                        emit('读取失败，重试一次：' + str(exc)[:120])
+                        continue
+                    result = {'reason': 'error', 'error': f'{type(exc).__name__}: {exc}',
+                              'export_error': '', 'complete': False}
+                    if signal is not None:
+                        result['blocked'], result['blocked_status'] = True, str(signal)
+                    break
             hashes = {}
             # 3.2 仅在成功导出后允许下次跳过；摘要失败保留错误并停止后续请求。
             if result.get('reason') == 'target_reached' and not result.get('error') and not result.get('export_error'):
@@ -109,11 +119,21 @@ def collect_batch(urls, output, limit, collector, stop=None, emit=None, *, refre
             report['processed'] += 1
             report['results'].append(result)
             if result.get('reason') == 'error' or result.get('error') or result.get('export_error'):
-                report.update(reason='error', error=result.get('error') or result.get('export_error') or '采集失败')
-                break
+                # 3.3.1 单对象失败只记一笔，继续下一个对象（真机实测：IncompleteRead
+                #       曾让 62 个对象白白没跑）；只有被平台拦住或用户取消才停整轮。
+                report['failed'] += 1
+                report['error'] = result.get('error') or result.get('export_error') or '采集失败'
+                if result.get('blocked'):
+                    report['reason'] = 'blocked'
+                    break
+                continue
             if result.get('reason') == 'cancelled':
                 report['reason'] = 'cancelled'
                 break
+    # 3.2.5 有失败但不是被拦/取消时，整轮标 partial：让调用方看到「跑完了但不全」，
+    #       而不是 queue_exhausted（后者会被读成「都采到了」）。
+    if report['failed'] and report['reason'] == 'queue_exhausted':
+        report['reason'] = 'partial'
     # 3.3 本次清单执行结束不证明平台数据完整。
     # 3.4 报告原子写入；写不进去时已处理结果仍随返回值交给调用方。
     report_path = output / 'batch-report.json'
