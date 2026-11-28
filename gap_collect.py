@@ -52,10 +52,10 @@ def is_collectable(obj):
 
 def gap_candidates(objects):
     # 1.2 缺口大的先采；同缺口按对象键排序，保证同一目录每次输出顺序稳定。
-    # 1.3 通道已采尽（source_exhausted）或被平台拦住（blocked）的对象不再进续采队列：
-    #     前者缺口不在这一侧，后者当天必须停跑，不能被当成普通缺口继续打。
+    # 1.3 通道翻到上限（channel_capped）或被平台拦住（blocked）的对象不再进续采队列：
+    #     前者在这一侧采不出来，再翻也是空转；后者当天必须停跑，不能被当成普通缺口继续打。
     return sorted((obj for obj in objects if is_collectable(obj)
-                   and obj.get('gap_reason') not in {'source_exhausted', 'blocked'}),
+                   and obj.get('gap_reason') not in {'channel_capped', 'blocked'}),
                   key=lambda obj: (-obj['missing'], obj['object_key']))
 
 

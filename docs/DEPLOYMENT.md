@@ -33,7 +33,9 @@ App 改版会让布局解析失效。现行对策分四层：
 2. **样本回归**：`tests/fixtures/` 放真实页面 dump；每次改解析先用样本跑回归，
    新增布局先补样本再改代码。
 3. **失效可见**：`--audit` 的 `gap_reason` 会区分 `failed` / `unadapted` /
-   `source_exhausted`；App 改版后这些数字会先变，而不是静默少采。
+   `channel_capped`；App 改版后这些数字会先变，而不是静默少采。
+   `channel_capped` 只表示这条通道翻到上限/末页（`capped=true`），没有同口径全部
+   展示数证明采完，缺口仍计入 `reachable_missing`，并提示 `needs_other_channel`。
 4. **结构指纹**：`layout_fingerprint.py` 对每类页面算稳定短哈希；手机点评任务
    （`runner.collect`）与网页点评任务（`network.collect_network`）的报告都带
    `layout: {family, fingerprint, expected, version, changed}`；与基线不一致时
@@ -69,6 +71,11 @@ App 改版会让布局解析失效。现行对策分四层：
 这本身就是「不硬刷」的机制。命中 403/429/432/511 或验证提示时更早：整轮以
 `blocked` 结束，不再进入下一轮，也不请求队列里的后续对象。
 
+连续两次 `empty_page` / `queue_exhausted` 记为 `gap_reason=channel_capped`
+（`capped=true`）：只说明这条通道翻到上限/末页，**不**因此算采完——`missing`
+与 `reachable_missing` 保留真实缺口，`needs_other_channel=true` 提示去手机等
+其它通道；`--drive` / `--collect-gaps` 跳过该对象避免空转。
+
 ## 5. 异常与重试
 
 - 对超时、连接重置和普通服务暂时不可用设置退避及重试上限。重复空页、页面结构变化、登录要求和平台拒绝各自记录，保留可执行的恢复条件。
@@ -85,7 +92,8 @@ App 改版会让布局解析失效。现行对策分四层：
   2. 每日比对：`missing` 应单调不增，`reachable_missing` 应为 0 或持续下降；
   3. 出现 `failed` / `unadapted` 数上升 → 视为页面或接口变化信号，先查样本。
 - 每次 `--audit` 会把本次 `summary` 追加一行到输出目录的 `audit-history.jsonl`
-  （`captured_at`、`missing`、`reachable_missing`、`failed/unadapted/source_exhausted` 计数），
+  （`captured_at`、`missing`、`reachable_missing`、`failed/unadapted/capped` 计数；
+  旧的 `source_exhausted_count` 行仍可读，按同义计入 `capped_count`），
   只追加不覆盖，写失败只记警告、不影响对账结果；输出 JSON 的 `history` 字段回读最近
   20 行并给出 `trend`（与上一次的 `missing` 差值），缺口变大时 `warning` 会写明多出多少条。
 

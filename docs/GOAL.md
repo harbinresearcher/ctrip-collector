@@ -351,10 +351,10 @@ ull，不写 0；
 是手机侧真实入库条数，**没有**和网页 694 相加去当「总计」。原有 8 个 summary
 字段一字未改。641 项测试全绿。
 
-### C1m 「通道碰到上限」不要说成「采尽」（下一步）
+### C1m 「通道碰到上限」不要说成「采尽」（已达标，2026-11-28）
 
 Codex 在 `docs/DEPLOYMENT.md` 第 4 节把口径写严了：**只有核对了末页或同口径的全部展示数，
-才可以确认该范围采完**。现在代码里连续两次空页就标 `source_exhausted` 并把
+才可以确认该范围采完**。此前代码里连续两次空页就标 `source_exhausted` 并把
 `reachable_missing` 记 0，这是**过度声称**——真机反证：长白山西景区网页只采到 577，
 手机页面显示「全部 1099」，说明是网页通道翻页到上限，不是这个对象采完了。
 
@@ -374,6 +374,24 @@ Codex 在 `docs/DEPLOYMENT.md` 第 4 节把口径写严了：**只有核对了�
   续采队列仍跳过被限对象 / 旧历史行仍可读），不触网；
 - 真实目录 `.test-tmp\real` 上复核：`sight-136039` 应为 `channel_capped`，
   `missing` 仍为 522，且审计输出里能看出「网页 577 / 手机目标 1099」。
+
+#### C1m 验收记录：已达标（2026-11-28）
+
+真实目录 `.test-tmp\real` 上 `--audit` 输出（旧 24 行历史带
+`source_exhausted_count`，回读无坏行）：
+
+```json
+{"object_key": "sight-136039", "target": 1099, "collected": 577, "missing": 522,
+ "gap_reason": "channel_capped", "capped": true, "needs_other_channel": true,
+ "reachable_missing": 522, "phone_target": 1099, "phone_collected": 13, "complete": false}
+summary: {"target": 1518, "collected": 694, "missing": 824,
+          "reachable_missing": 824, "capped_count": 3}
+history 最新行: {"missing": 824, "reachable_missing": 824, "capped_count": 3}
+```
+
+`limitations` 新增一句：通道到顶不等于采完，只有核对末页或同口径全部展示数才算采完；
+`channel_capped` 只表示这条通道翻到上限/末页，缺口仍计入 `reachable_missing`，需换
+手机等其它通道。669 项测试全绿（skipped=4）。
 
 ### C1 覆盖台账与缺口对账
 

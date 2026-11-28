@@ -10,7 +10,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from coverage_audit import read_audit_history, write_coverage_audit
-from gap_collect import collect_gaps
+from gap_collect import collect_gaps, gap_candidates
 from mobile_scoped_store import MobileScopedStore
 
 logger = logging.getLogger(__name__)
@@ -167,10 +167,11 @@ class CoverageAuditTests(unittest.TestCase):
             self.assertEqual((obj['missing'], obj['gap_reason'], obj['complete']), (0, None, True))
             self.assertEqual({field: report['summary'][field]
                               for field in ('target', 'collected', 'missing', 'reachable_missing',
-                                            'unknown_target', 'object_count', 'directory_count', 'complete')},
+                                            'capped_count', 'unknown_target', 'object_count',
+                                            'directory_count', 'complete')},
                              {'target': 2, 'collected': 2, 'missing': 0, 'reachable_missing': 0,
-                              'unknown_target': 0, 'object_count': 1, 'directory_count': 0,
-                              'complete': False})
+                              'capped_count': 0, 'unknown_target': 0, 'object_count': 1,
+                              'directory_count': 0, 'complete': False})
             # 1.1 报告文件写进同一目录，但下一次对账不能把它当成采集证据。
             saved = json.loads(Path(report['report_file']).read_text(encoding='utf-8'))
             self.assertEqual(saved['objects'], report['objects'])
@@ -346,9 +347,9 @@ class CoverageAuditTests(unittest.TestCase):
                 self.assertTrue(Path(result['report_file']).is_file())
         logger.info('覆盖对账命令测试完成')
 
-    def test_repeated_empty_pages_are_marked_source_exhausted(self):
-        # /* ===== 步骤7：通道采尽；数据源：连续两次空页；操作：1) 标 source_exhausted 2) 可达缺口为 0 ===== */
-        logger.info('开始通道采尽分类测试')
+    def test_repeated_empty_pages_are_marked_channel_capped(self):
+        # /* ===== 步骤7：通道到顶；数据源：连续两次空页；操作：1) 标 channel_capped 2) 缺口仍计入 ===== */
+        logger.info('开始通道到顶分类测试')
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             (root / 'sight-9-object.json').write_text(json.dumps(
@@ -360,19 +361,110 @@ class CoverageAuditTests(unittest.TestCase):
                      'pages': index, 'count': 5}), encoding='utf-8')
             report = write_coverage_audit(root)
             obj = report['objects'][0]
-            # 7.1 缺口数字仍然保留（平台说 100），但可达缺口归零，不能让它一直驱动续采。
-            self.assertEqual((obj['missing'], obj['gap_reason'], obj['reachable_missing']),
-                             (100, 'source_exhausted', 0))
+            # 7.1 通道到顶不等于采完：缺口 100 保留，可达缺口不为 0，并提示还有其它通道。
+            self.assertEqual((obj['missing'], obj['gap_reason'], obj['reachable_missing'], obj['capped']),
+                             (100, 'channel_capped', 100, True))
+            self.assertTrue(obj['needs_other_channel'])
             self.assertEqual(report['summary']['missing'], 100)
-            self.assertEqual(report['summary']['reachable_missing'], 0)
-            # 7.2 只空过一次的对象仍算可采，避免把临时抖动当采尽。
+            self.assertEqual(report['summary']['reachable_missing'], 100)
+            self.assertEqual(report['summary']['capped_count'], 1)
+            # 7.2 只空过一次的对象仍算可采，避免把临时抖动当成到顶。
             (root / 'sight-9-report-20260103T000000000000Z.json').write_text(json.dumps(
                 {'object_key': 'sight-9', 'kind': 'sight', 'reason': 'target_reached', 'error': '',
                  'pages': 3, 'count': 5}),
                 encoding='utf-8')
             again = write_coverage_audit(root)['objects'][0]
-            self.assertEqual((again['gap_reason'], again['reachable_missing']), ('missing', 100))
-        logger.info('通道采尽分类测试完成')
+            self.assertEqual((again['gap_reason'], again['reachable_missing'], again['capped']),
+                             ('missing', 100, False))
+        logger.info('通道到顶分类测试完成')
+
+    def test_capped_row_keeps_real_gap_and_points_to_phone(self):
+        # /* ===== 步骤7.1：到顶但没采完；数据源：真机同类证据（网页 577/1099、手机全部 1099）；
+        #         操作：1) 缺口与可达缺口都保留 2) 标 capped 并提示换通道 ===== */
+        logger.info('开始通道到顶缺口保留测试')
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / 'sight-136039-object.json').write_text(json.dumps(
+                {'kind': 'sight', 'resource_id': 136039, 'name': '长白山西景区', 'display_total': 1099,
+                 'url': 'https://you.ctrip.com/sight/a1/136039.html'}), encoding='utf-8')
+            with closing(sqlite3.connect(root / 'network.sqlite3')) as db:
+                db.execute('CREATE TABLE network_reviews (object_key TEXT, comment_id TEXT, data TEXT, fetched_at TEXT)')
+                db.executemany('INSERT INTO network_reviews VALUES(?,?,?,?)',
+                               [('sight-136039', str(index), '{}', 't') for index in range(577)])
+                db.commit()
+            for index, reason in enumerate(('empty_page', 'queue_exhausted'), start=1):
+                (root / f'sight-136039-report-2026112{index}T000000000000Z.json').write_text(json.dumps(
+                    {'object_key': 'sight-136039', 'kind': 'sight', 'reason': reason, 'error': '',
+                     'pages': index, 'count': index}), encoding='utf-8')
+            mobile = {'run_id': '20261127T083202-567534', 'kind': 'sight', 'object_id': 136039,
+                      'place': '长白山西景区', 'reason': 'screen_budget_reached', 'count': 13,
+                      'review_count_check': {'scope': 'x', 'filter': None, 'state': 'selection_unconfirmed',
+                                             'display_total': None},
+                      'sampling_context': {'observations': [
+                          {'visible_filters': [{'label': '全部', 'display_count': 1099}]}]}}
+            (root / 'report-20261127T083202-567534.json').write_text(
+                json.dumps(mobile, ensure_ascii=False), encoding='utf-8')
+            report = write_coverage_audit(root)
+            obj = next(row for row in report['objects'] if row['object_key'] == 'sight-136039')
+            # 7.1.1 网页 577、目标 1099、缺口 522 与手机「全部」1099 都按原样保留。
+            self.assertEqual((obj['target'], obj['collected'], obj['missing']), (1099, 577, 522))
+            self.assertEqual((obj['gap_reason'], obj['capped'], obj['complete']), ('channel_capped', True, False))
+            self.assertEqual(obj['reachable_missing'], 522)
+            self.assertTrue(obj['needs_other_channel'])
+            self.assertEqual((obj['phone_target'], obj['phone_collected']), (1099, 0))
+            self.assertEqual((report['summary']['missing'], report['summary']['reachable_missing'],
+                              report['summary']['capped_count']), (522, 522, 1))
+        logger.info('通道到顶缺口保留测试完成')
+
+    def test_missing_zero_is_the_only_complete_case(self):
+        # /* ===== 步骤7.2：真采完；数据源：已采到目标数；操作：1) 可达缺口为 0 2) 不标 capped ===== */
+        logger.info('开始采完判定测试')
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / 'sight-8-object.json').write_text(json.dumps(
+                {'kind': 'sight', 'resource_id': 8, 'name': '景点8', 'display_total': 3,
+                 'url': 'https://you.ctrip.com/sight/a1/8.html'}), encoding='utf-8')
+            with closing(sqlite3.connect(root / 'network.sqlite3')) as db:
+                db.execute('CREATE TABLE network_reviews (object_key TEXT, comment_id TEXT, data TEXT, fetched_at TEXT)')
+                db.executemany('INSERT INTO network_reviews VALUES(?,?,?,?)',
+                               [('sight-8', str(index), '{}', 't') for index in range(3)])
+                db.commit()
+            # 7.2.1 即使最近两次都是空页，只要已采到目标数（missing==0）就是采完，不能说成「到顶未采完」。
+            for index, reason in enumerate(('empty_page', 'queue_exhausted'), start=1):
+                (root / f'sight-8-report-2026112{index}T000000000000Z.json').write_text(json.dumps(
+                    {'object_key': 'sight-8', 'kind': 'sight', 'reason': reason, 'error': '',
+                     'pages': index, 'count': 1}), encoding='utf-8')
+            report = write_coverage_audit(root)
+            obj = report['objects'][0]
+            self.assertEqual((obj['missing'], obj['reachable_missing']), (0, 0))
+            self.assertIsNone(obj['gap_reason'])
+            self.assertFalse(obj['capped'])
+            self.assertFalse(obj['needs_other_channel'])
+            self.assertTrue(obj['complete'])
+            self.assertEqual((report['summary']['reachable_missing'], report['summary']['capped_count']), (0, 0))
+        logger.info('采完判定测试完成')
+
+    def test_gap_queue_still_skips_capped_objects(self):
+        # /* ===== 步骤7.3：续采队列；数据源：到顶对象与普通缺口对象；操作：1) 到顶对象不入队 2) 普通缺口仍入队 ===== */
+        logger.info('开始到顶对象不入续采队列测试')
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            for identity, total in ((1, 100), (2, 50)):
+                (root / f'sight-{identity}-object.json').write_text(json.dumps(
+                    {'kind': 'sight', 'resource_id': identity, 'name': f'景点{identity}',
+                     'display_total': total, 'url': f'https://you.ctrip.com/sight/a1/{identity}.html'}),
+                    encoding='utf-8')
+            for index, reason in enumerate(('empty_page', 'queue_exhausted'), start=1):
+                (root / f'sight-1-report-2026112{index}T000000000000Z.json').write_text(json.dumps(
+                    {'object_key': 'sight-1', 'kind': 'sight', 'reason': reason, 'error': ''}), encoding='utf-8')
+            # 7.3.1 只空过一次的普通缺口对象仍在队列里，说明跳过只针对 channel_capped。
+            (root / 'sight-2-report-20261121T000000000000Z.json').write_text(json.dumps(
+                {'object_key': 'sight-2', 'kind': 'sight', 'reason': 'empty_page', 'error': ''}), encoding='utf-8')
+            objects = write_coverage_audit(root)['objects']
+            self.assertEqual({obj['object_key']: obj['gap_reason'] for obj in objects},
+                             {'sight-1': 'channel_capped', 'sight-2': 'missing'})
+            self.assertEqual([obj['object_key'] for obj in gap_candidates(objects)], ['sight-2'])
+        logger.info('到顶对象不入续采队列测试完成')
 
     def test_each_audit_appends_one_history_row(self):
         # /* ===== 步骤9：核对历史追加；数据源：同一目录连跑两次对账；操作：1) 每次一行 2) 字段来自 summary ===== */
@@ -399,7 +491,7 @@ class CoverageAuditTests(unittest.TestCase):
             self.assertEqual((latest['reachable_missing'], latest['target'], latest['collected']), (2, 4, 2))
             self.assertEqual((latest['object_count'], latest['unknown_target']), (1, 0))
             self.assertEqual((latest['failed_count'], latest['unadapted_count'],
-                              latest['source_exhausted_count']), (0, 0, 0))
+                              latest['capped_count']), (0, 0, 0))
             self.assertRegex(latest['captured_at'], r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$')
         logger.info('历史追加测试完成')
 
@@ -453,6 +545,30 @@ class CoverageAuditTests(unittest.TestCase):
             (root / 'sight-3-object.json').unlink()
             self.assertIsNone(write_coverage_audit(root)['history']['warning'])
         logger.info('历史缺口变大告警测试完成')
+
+    def test_old_history_row_with_source_exhausted_count_still_reads(self):
+        # /* ===== 步骤9.5：旧历史兼容；数据源：只含 source_exhausted_count 的旧行；操作：1) 不报错 2) 按同义读出 ===== */
+        logger.info('开始旧历史字段兼容测试')
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / 'audit-history.jsonl').write_text(
+                '{"captured_at": "2026-11-27T00:00:00Z", "missing": 522, "reachable_missing": 0,'
+                ' "review_totals_scope": "web_reviews", "source_exhausted_count": 1}\n', encoding='utf-8')
+            history = read_audit_history(root)
+            # 9.5.1 旧行没有 capped_count：按 source_exhausted_count 的同义值读出，坏行计数仍为 0。
+            self.assertEqual(history['bad_rows'], 0)
+            self.assertEqual(history['rows'][0]['capped_count'], 1)
+            self.assertEqual(history['rows'][0]['missing'], 522)
+            # 9.5.2 本次对账照常追加新字段，旧行不被改写，趋势仍按 missing 比较。
+            (root / 'sight-1-object.json').write_text(json.dumps(
+                {'kind': 'sight', 'resource_id': 1, 'name': '测试景点', 'display_total': 4}), encoding='utf-8')
+            report = write_coverage_audit(root)
+            self.assertEqual(report['summary']['missing'], 4)
+            self.assertEqual(len(report['history']['rows']), 2)
+            self.assertEqual((report['history']['rows'][-1]['capped_count'],
+                              report['history']['rows'][-1]['missing']), (0, 4))
+            self.assertEqual(report['history']['rows'][0]['source_exhausted_count'], 1)
+        logger.info('旧历史字段兼容测试完成')
 
     def test_history_cannot_compare_old_combined_totals_to_web_totals(self):
         with tempfile.TemporaryDirectory() as folder:

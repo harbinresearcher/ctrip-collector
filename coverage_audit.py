@@ -37,7 +37,8 @@ LIMITATIONS = ['只读取已落盘的目录报告、对象快照、运行报告�
                'App 本次明确选中全部时可单独对照显示总数与仍保存在本次范围内的点评；对象 ID 来自本地记录。',
                '餐饮目录使用 POI ID，网页点评使用业务 ID；只有对象快照里同时留有两个 ID 时才对账。',
                '手机卡片里的 photo_count_display 是单条点评的图片展示数，不是对象点评总数，因此不作为对象目标。',
-               '目录预算、筛选与排序决定已发现对象数，不等于平台全量；整体 complete 仍为 false。']
+               '目录预算、筛选与排序决定已发现对象数，不等于平台全量；整体 complete 仍为 false。',
+               '通道到顶不等于采完：只有核对末页或同口径全部展示数才算采完；channel_capped 只表示这条通道翻到上限/末页，缺口仍计入 reachable_missing，需换手机等其它通道。']
 # 审计历史：一行一次对账，只追加不覆盖；回读默认最近 20 行用于看缺口曲线。
 HISTORY_FILE = 'audit-history.jsonl'
 HISTORY_DEFAULT_LIMIT = 20
@@ -70,9 +71,10 @@ def latest_report(reports):
     return max(reports, key=lambda item: (item['mtime'], item['file']))
 
 
-def exhausted_runs(reports, needed=2):
-    # /* ===== 步骤2.1：判断通道是否采不出来；数据源：最近几次报告；操作：1) 只看空页 2) 连续才算数 ===== */
-    # 2.1.1 单次空页可能只是临时抖动；连续两次都以 empty_page/queue_exhausted 结束才算采尽。
+def capped_runs(reports, needed=2):
+    # /* ===== 步骤2.1：判断通道是否翻到上限；数据源：最近几次报告；操作：1) 只看空页 2) 连续才算数 ===== */
+    # 2.1.1 单次空页可能只是临时抖动；连续两次都以 empty_page/queue_exhausted 结束才算这条通道到顶。
+    #       到顶不等于采完：没有核对末页或同口径全部展示数，就不能说这个对象已经采尽。
     recent = sorted(reports, key=lambda item: (item['mtime'], item['file']), reverse=True)[:needed]
     if len(recent) < needed:
         return False
@@ -506,21 +508,24 @@ def write_coverage_audit(folder):
         blocked = bool(report and report.get('blocked') and blocked_today(report))
         failed = bool(report and (report['reason'] == 'error' or report['error']))
         attempted = item['web_attempted'] or total > 0
-        # 5.1 连续两次都「翻到空页」且没采到目标数：这条通道已经采不出来，
-        #     缺口要标成 source_exhausted，否则 --drive 会一直空转报 no_progress。
-        exhausted = bool(missing and not failed and exhausted_runs(item['reports']))
+        # 5.1 连续两次都「翻到空页」且没采到目标数：这条通道翻到上限了，但拿不到同口径的
+        #     全部展示数，不能说对象采完（真机反证：长白山西景区网页 577 条、手机「全部」1099 条）。
+        #     缺口标 channel_capped 让 --drive 不再空转，同时保留真实缺口并提示换通道。
+        capped_channel = bool(missing and not failed and capped_runs(item['reports']))
         if missing == 0:
             gap = None
         elif blocked:
             gap = 'blocked'
         elif failed:
             gap = 'failed'
-        elif exhausted:
-            gap = 'source_exhausted'
+        elif capped_channel:
+            gap = 'channel_capped'
         elif attempted:
             gap = 'missing'
         else:
             gap = 'unadapted'
+        # 5.1.1 capped 只描述最终缺口原因：被拦或失败的对象即使也连续空页，也不说成「通道到顶」。
+        capped = gap == 'channel_capped'
         # 5.2.2 手机侧目标：优先用已核对「全部」筛选的本次运行，其次用屏幕上看到的「全部」计数。
         app_run = app_comparisons.get(key)
         phone_collected = counts.get('reviews_scoped', 0)
@@ -543,9 +548,13 @@ def write_coverage_audit(folder):
                         'phone_target_source': phone_target_source,
                         'phone_missing': phone_missing,
                         'missing': missing, 'gap_reason': gap,
+                        'capped': capped,
+                        # 5.2.3 到顶只说明这一条通道，不代表对象没数据：提醒去手机等其它通道继续找。
+                        'needs_other_channel': capped,
                         'blocked': blocked,
                         'blocked_status': report.get('blocked_status') if report else '',
-                        'reachable_missing': 0 if gap == 'source_exhausted' else missing,
+                        # 5.2.4 可达缺口只在 missing == 0（确实采完）时才为 0；通道到顶仍保留真实缺口。
+                        'reachable_missing': missing,
                         'latest_reason': report['reason'] if report else None,
                         'latest_error': report['error'] if report else '',
                         'evidence_files': sorted(item['files']),
@@ -555,6 +564,7 @@ def write_coverage_audit(folder):
                'collected': sum(obj['collected'] for obj in objects),
                'missing': sum(obj['missing'] for obj in known),
                'reachable_missing': sum(obj['reachable_missing'] for obj in known),
+               'capped_count': sum(1 for obj in objects if obj['capped']),
                'unknown_target': sum(1 for obj in objects if obj['target_unknown']),
                'object_count': len(objects), 'directory_count': len(directories),
                'coverage': dict(coverage_summary(objects), discovery=discovery_summary(directories)),
@@ -589,7 +599,7 @@ def audit_history_row(report, captured_at):
     # 6.1 只落对账已有的数字；summary 缺字段时留 null，不用已采数或其他值填补。
     summary = report.get('summary') if isinstance(report.get('summary'), dict) else {}
     objects = report.get('objects') if isinstance(report.get('objects'), list) else []
-    counts = {'failed': 0, 'unadapted': 0, 'source_exhausted': 0}
+    counts = {'failed': 0, 'unadapted': 0, 'channel_capped': 0}
     for obj in objects:
         if isinstance(obj, dict) and obj.get('gap_reason') in counts:
             counts[obj['gap_reason']] += 1
@@ -599,7 +609,7 @@ def audit_history_row(report, captured_at):
             'target': summary.get('target'), 'collected': summary.get('collected'),
             'object_count': summary.get('object_count'), 'unknown_target': summary.get('unknown_target'),
             'failed_count': counts['failed'], 'unadapted_count': counts['unadapted'],
-            'source_exhausted_count': counts['source_exhausted']}
+            'capped_count': counts['channel_capped']}
 
 
 def append_audit_history(folder, report):
@@ -634,6 +644,9 @@ def read_audit_history(folder, limit=HISTORY_DEFAULT_LIMIT):
         if not isinstance(row, dict):
             bad_rows += 1
             continue
+        # 6.4.1 旧行只有 source_exhausted_count：字段改名后按同一含义继续读，旧历史不因缺新字段报错。
+        if 'capped_count' not in row and 'source_exhausted_count' in row:
+            row['capped_count'] = row['source_exhausted_count']
         rows.append(row)
     if limit > 0:
         rows = rows[-limit:]
