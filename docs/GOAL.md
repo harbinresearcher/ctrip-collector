@@ -415,6 +415,27 @@ history 最新行: {"missing": 824, "reachable_missing": 824, "capped_count": 3}
 `batch.py` 现在记一笔失败后继续，只有「被平台拦住」或「用户取消」才停整轮，
 并对 `IncompleteRead`/连接重置/超时重试一次。
 
+### C1u 手机侧「没有点评入口」单独成类（2026-11-28）
+
+上一轮剩下的主要失败是「未找到可核对的景点详情」。逐个查下来，其中不少对象**根本没有点评**：
+点进详情页，页面写「暂无评分」、没有点评入口；仓库导航按设计拒绝继续，整条命令报错退出，
+什么证据都没留下——对账里这些对象和「还没轮到」一模一样。
+
+改动：
+
+- `runner.scan_phone_target(allow_detail_probe=True)`：没到达点评页时先解析景点详情，
+  详情能解析但 `review_display` 为空 → `reason=no_review_entry`，报告带
+  `detail_seen` / `review_entry_missing`；
+- `app --auto-open`：导航抛 `ValueError/RuntimeError` 不再让整条命令失败，改为继续扫描，
+  把实际屏幕状态记录下来；
+- 对账对象行新增 `phone_no_review_entry`，`summary.phone_no_review_entry` 计数。
+
+实测（同一批对象）：3 个对象从「失败」变成 `no_review_entry`，
+对账里 `phone_no_review_entry = 4`、`phone_layout_unknown = 12`、有手机目标 36 个。
+
+**12 个 `arrival_failed` 仍是最大的剩余类别**（扫描时停在别的页面或页面核对不过），
+下一轮继续诊断这一类。
+
 #### C1t 续：手机目标 23 → 35 个，失败按类别统计（2026-11-28）
 
 用打通的导航继续扫，并把失败分门别类地数：
