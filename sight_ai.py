@@ -11,12 +11,16 @@ from core import bounds
 from sight_guide import app_nodes, text
 from sight_snapshot import APP, unique_value
 from sight_gallery_thumbnails import capture_thumbnails, locate_tiles, write_thumbnails
+from sight_review_navigation import MANUAL_PROMPTS, app_nodes as screen_app_nodes
+from sight_review_navigation import checked_reviews_title, sight_screen_title
 
 
 SOURCE = 'android_sight_ai_snapshot'
 TABS = ('图片/视频', '景点详情', '必看指南', '用户点评')
 SCORE = r'(?:[0-4](?:\.[0-9])?|5(?:\.0)?)'
 DIMENSIONS = ('景色', '趣味', '性价比')
+QUEUE_MAX_SEARCH_SWIPES = 4
+REVIEW_RESTORE_ERROR = '无法确认已回到同一景点的点评页，队列已暂停。'
 
 
 def read_ratings(group):
@@ -75,8 +79,7 @@ def read_gallery(card):
     return result, scroller
 
 
-def read_sight_ai(xml, expected_name):
-    root = ET.fromstring(xml)
+def sight_ai_panel(root, expected_name, *, collapse=False):
     nodes = [node for window in root for node in app_nodes(window)]
     parents = {child: parent for parent in root.iter() for child in parent}
     cards = [node for node in nodes if node.get('resource-id') == 'reviewsummary_exposure']
@@ -101,10 +104,29 @@ def read_sight_ai(xml, expected_name):
 
     panels = [list(app_nodes(child)) for child in card
               if child.get('resource-id') != 'aipick_usershot_exposure']
-    marked = [panel for panel in panels if sum(text(node).replace(' ', '') == '由AI生成' for node in panel) == 1]
+    marker = '收起' if collapse else '由AI生成'
+    marked = [panel for panel in panels if sum(text(node).replace(' ', '') == marker for node in panel) == 1]
     if len(marked) != 1:
         raise ValueError('总结卡缺少可确认的「由AI生成」标记')
     panel = marked[0]
+    window = card
+    while parents[window] is not root:
+        window = parents[window]
+    return card, panel, content, parents, bounds(window)
+
+
+def ai_control_coordinates(panel, viewport, label):
+    controls = [node for node in panel if text(node) == label and node.get('enabled') == 'true'
+                and node.get('visible-to-user') != 'false']
+    if len(controls) == 1:
+        left, top, right, bottom = bounds(controls[0])
+        if viewport[0] <= left < right <= viewport[2] and viewport[1] <= top < bottom <= viewport[3]:
+            return str((left + right) // 2), str((top + bottom) // 2)
+    return None
+
+
+def read_sight_ai(xml, expected_name):
+    card, panel, content, parents, viewport = sight_ai_panel(ET.fromstring(xml), expected_name)
     words = [text(node) for node in panel if text(node)]
     sections = [{'topic': match[1], 'body': match[2].strip()} for word in dict.fromkeys(words)
                 if (match := re.fullmatch(r'([\u3400-\u9fff]{2,16})\s*[:：]\s*(\S.*)', word, re.DOTALL))]
@@ -115,16 +137,7 @@ def read_sight_ai(xml, expected_name):
     scores, dimensions = read_ratings(group) if group is not None and any(
         node is group for node in app_nodes(content)) else ({}, [])
     gallery, scroller = read_gallery(card)
-    window = card
-    while parents[window] is not root:
-        window = parents[window]
-    viewport = bounds(window)
-    controls = [node for node in panel if text(node) == '查看全部总结' and node.get('enabled') == 'true']
-    target = None
-    if len(controls) == 1 and '收起' not in words:
-        left, top, right, bottom = bounds(controls[0])
-        if viewport[0] <= left < right <= viewport[2] and viewport[1] <= top < bottom <= viewport[3]:
-            target = (str((left + right) // 2), str((top + bottom) // 2))
+    target = ai_control_coordinates(panel, viewport, '查看全部总结') if '收起' not in words else None
     state = 'expanded' if '收起' in words and '查看全部总结' not in words else (
         'preview' if '查看全部总结' in words else 'visible')
     result = {'kind': 'sight', 'name': expected_name, 'source': 'ctrip_android_ui',
@@ -141,6 +154,14 @@ def read_sight_ai(xml, expected_name):
 def parse_sight_ai(xml, expected_name):
     result, _, _, _ = read_sight_ai(xml, expected_name)
     return result
+
+
+def apply_expanded_summary(result, expanded):
+    previous_topics = {section['topic'] for section in result['sections']}
+    expanded_topics = {section['topic'] for section in expanded['sections']}
+    if expanded['summary_state'] == 'expanded' and previous_topics <= expanded_topics:
+        result.update(sections=expanded['sections'], summary_state='expanded',
+                      expanded_raw_hash=expanded['raw_hash'])
 
 
 def capture_expanded_summary(device, name, stop, result, target, *, refresh_target):
@@ -161,11 +182,16 @@ def capture_expanded_summary(device, name, stop, result, target, *, refresh_targ
         device.ensure_foreground()
     except (ValueError, ET.ParseError):
         return
-    previous_topics = {section['topic'] for section in result['sections']}
-    expanded_topics = {section['topic'] for section in expanded['sections']}
-    if expanded['summary_state'] == 'expanded' and previous_topics <= expanded_topics:
-        result.update(sections=expanded['sections'], summary_state='expanded',
-                      expanded_raw_hash=expanded['raw_hash'])
+    apply_expanded_summary(result, expanded)
+
+
+def save_summary_report(temporary, path, result, stop):
+    with temporary.open('x', encoding='utf-8') as stream:
+        json.dump(result, stream, ensure_ascii=False, indent=2)
+    if stop.is_set():
+        return False
+    temporary.replace(path)
+    return True
 
 
 def capture_sight_ai(device, output, name, stop, *, save_gallery_thumbnails=False, expand_summary=False):
@@ -204,14 +230,148 @@ def capture_sight_ai(device, output, name, stop, *, save_gallery_thumbnails=Fals
                                            'report_id': report_id, 'original_files': False, 'complete': False}
         if expand_summary and target is not None and not stop.is_set():
             capture_expanded_summary(device, name, stop, result, target, refresh_target=save_gallery_thumbnails)
-        temporary.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding='utf-8')
-        if stop.is_set():
+        report_written = save_summary_report(temporary, path, result, stop)
+        if not report_written:
             return {'reason': 'cancelled', 'complete': False}
-        temporary.replace(path)
-        report_written = True
     finally:
         temporary.unlink(missing_ok=True)
         staged_archive.unlink(missing_ok=True)
         if archive_written and not report_written:
             archive.unlink(missing_ok=True)
     return result
+
+
+def check_queue_sight_stop(stop):
+    if stop.is_set():
+        raise InterruptedError('景点 AI 总结任务已停止。')
+
+
+def queue_sight_frame(device, name, stop):
+    check_queue_sight_stop(stop)
+    device.ensure_foreground()
+    xml = device.snapshot()
+    device.ensure_foreground()
+    check_queue_sight_stop(stop)
+    try:
+        root = ET.fromstring(xml)
+    except ET.ParseError as exc:
+        raise RuntimeError(REVIEW_RESTORE_ERROR) from exc
+    if any(text(node) in MANUAL_PROMPTS for node in screen_app_nodes(root)):
+        raise RuntimeError('景点点评页面需要登录或验证，队列已暂停。')
+    if sight_screen_title(root) != name:
+        raise RuntimeError(REVIEW_RESTORE_ERROR)
+    return xml, root
+
+
+def queue_ai_gesture(device, stop, *command):
+    check_queue_sight_stop(stop)
+    device.ensure_foreground()
+    check_queue_sight_stop(stop)
+    device.run('shell', 'input', *command)
+    if stop.wait(0.8):
+        check_queue_sight_stop(stop)
+
+
+def find_queue_sight_ai(device, name, stop):
+    previous_xml = None
+    for attempt in range(QUEUE_MAX_SEARCH_SWIPES + 1):
+        xml, root = queue_sight_frame(device, name, stop)
+        try:
+            result, _, _, target = read_sight_ai(xml, name)
+        except ValueError:
+            if checked_reviews_title(root, name) is None:
+                raise RuntimeError(REVIEW_RESTORE_ERROR)
+            if attempt == QUEUE_MAX_SEARCH_SWIPES or xml == previous_xml:
+                return None, None, root
+            x1, y1, x2, y2 = bounds(root.find('node'))
+            width, height = x2 - x1, y2 - y1
+            if width <= 0 or height <= 0:
+                raise RuntimeError(REVIEW_RESTORE_ERROR)
+            x = str(x1 + width // 2)
+            queue_ai_gesture(device, stop, 'swipe', x, str(y1 + height * 5 // 10),
+                             x, str(y1 + height * 8 // 10), '450')
+            previous_xml = xml
+        else:
+            return result, target, root
+
+
+def restore_queue_sight_reviews(device, name, stop, root):
+    try:
+        _, panel, _, _, viewport = sight_ai_panel(root, name, collapse=True)
+    except ValueError:
+        collapse_target = None
+    else:
+        collapse_target = ai_control_coordinates(panel, viewport, '收起')
+        if collapse_target is None:
+            raise RuntimeError(REVIEW_RESTORE_ERROR)
+    if collapse_target is not None:
+        queue_ai_gesture(device, stop, 'tap', *collapse_target)
+        _, root = queue_sight_frame(device, name, stop)
+    if checked_reviews_title(root, name) is None:
+        raise RuntimeError(REVIEW_RESTORE_ERROR)
+
+
+def observe_queue_sight_ai(device, name, stop):
+    xml, root = queue_sight_frame(device, name, stop)
+    try:
+        report, _, _, target = read_sight_ai(xml, name)
+    except ValueError:
+        return root, None, None
+    return root, report, target
+
+
+def expand_queue_sight_ai(device, name, stop, result, target):
+    queue_ai_gesture(device, stop, 'tap', *target)
+    root, observed, visible_target = observe_queue_sight_ai(device, name, stop)
+    if visible_target == target:
+        stop.wait(0.55)
+        root, observed, visible_target = observe_queue_sight_ai(device, name, stop)
+        if visible_target == target:
+            queue_ai_gesture(device, stop, 'tap', *target)
+            root, observed, _ = observe_queue_sight_ai(device, name, stop)
+    if observed is not None:
+        apply_expanded_summary(result, observed)
+    return root
+
+
+def capture_queue_sight_ai(device, output, name, object_id, queue_id, stop, *, report_id):
+    """Save a bounded, visible summary while retaining the queue's review page."""
+    if (not isinstance(queue_id, str) or not re.fullmatch('[0-9a-f]{32}', queue_id)
+            or not isinstance(report_id, str) or not re.fullmatch('[0-9a-f]{32}', report_id)
+            or not isinstance(object_id, str) or not re.fullmatch('[1-9][0-9]{0,19}', object_id)):
+        raise ValueError('景点 AI 总结的队列身份无效。')
+    result, target, root = find_queue_sight_ai(device, name, stop)
+    if result is None:
+        return {'status': 'not_visible'}
+
+    captured_at = datetime.now(timezone(timedelta(hours=8))).isoformat()
+    scene_error = None
+    if target is not None:
+        try:
+            root = expand_queue_sight_ai(device, name, stop, result, target)
+        except InterruptedError:
+            raise
+        except RuntimeError as exc:
+            scene_error = exc
+
+    path = Path(output) / f'sight-ai-{report_id}.json'
+    result.update(captured_at=captured_at, file=str(path.resolve()), queue_id=queue_id,
+                  object_id=object_id, identity_verification='queue_address_and_screen_title',
+                  identity_id_verified=False)
+    temporary = path.with_suffix(f'.{uuid.uuid4().hex}.part')
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        published = save_summary_report(temporary, path, result, stop)
+    except OSError:
+        status = {'status': 'error', 'error': '无法保存景点 AI 总结。'}
+    else:
+        if not published:
+            check_queue_sight_stop(stop)
+        status = {'status': 'saved', 'report_file': path.name, 'section_count': len(result['sections']),
+                  'summary_state': result['summary_state']}
+    finally:
+        temporary.unlink(missing_ok=True)
+    if scene_error is not None:
+        raise scene_error
+    restore_queue_sight_reviews(device, name, stop, root)
+    return status

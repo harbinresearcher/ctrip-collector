@@ -1,5 +1,6 @@
 """Run a saved sight review queue on one Android emulator."""
 import sqlite3
+import uuid
 from pathlib import Path
 from subprocess import SubprocessError
 
@@ -7,6 +8,8 @@ from mobile_review_recovery import saved_sight_attempt
 from mobile_sight_queue import create_sight_queue, load_sight_queue, lock_sight_queue, save_sight_queue
 from object_identity import read_evidence, resolve_object_ref
 from runner import Adb, collect, new_review_run_id
+from sight_ai import capture_queue_sight_ai
+from sight_queue_ai_export import read_sight_queue_ai_report
 from sight_review_navigation import open_sight_reviews, return_from_sight_reviews
 from workbench_app_jobs import sight_navigation_address
 
@@ -17,7 +20,8 @@ REVIEW_FIELDS = ('run_id', 'count', 'new_count', 'screens', 'sample_csv_count', 
 
 
 def queue_result(queue):
-    return dict(queue, items=[{key: item[key] for key in ('object_ref', 'name', 'status', 'result')}
+    return dict(queue, items=[{key: item[key] for key in ('object_ref', 'name', 'status', 'result', 'ai_summary')
+                               if key in item}
                               for item in queue['items']])
 
 
@@ -66,6 +70,47 @@ def previous_sample(output, item):
     return None
 
 
+def saved_queue_ai(output, queue_id, item):
+    report_id = item.get('ai_report_id')
+    if not report_id:
+        return None
+    filename = f'sight-ai-{report_id}.json'
+    try:
+        report = read_sight_queue_ai_report(output, queue_id, item, filename)
+    except (OSError, ValueError):
+        return None
+    return {'status': 'saved', 'report_file': filename, 'section_count': report['section_count'],
+            'summary_state': report['summary_state']}
+
+
+def save_queue_ai(device, output, queue, item, stop, emit):
+    queue_id = queue['queue_id']
+    summary = saved_queue_ai(output, queue_id, item)
+    if summary is None:
+        report_id = item.get('ai_report_id') or uuid.uuid4().hex
+        item['ai_report_id'] = report_id
+        save_sight_queue(output, queue)
+        emit(f"开始读取 {item['name']} 的 AI 总结")
+        try:
+            summary = capture_queue_sight_ai(device, output, item['name'], item['object_id'], queue_id, stop,
+                                             report_id=report_id)
+        except (RuntimeError, OSError, ValueError, SubprocessError) as exc:
+            summary = saved_queue_ai(output, queue_id, item)
+            if summary is not None:
+                item['ai_summary'] = summary
+                save_sight_queue(output, queue)
+            elif not isinstance(exc, InterruptedError):
+                item['ai_summary'] = {'status': 'error', 'error': str(exc)}
+                save_sight_queue(output, queue)
+            raise
+        if summary['status'] == 'saved':
+            summary = saved_queue_ai(output, queue_id, item) or {
+                'status': 'error', 'error': '无法核对保存的 AI 总结报告。',
+            }
+    item['ai_summary'] = summary
+    save_sight_queue(output, queue)
+
+
 def run_sight_queue(output, queue, adb_path, adb_serial, stop, emit):
     queue['reason'] = 'running'
     save_sight_queue(output, queue)
@@ -102,6 +147,8 @@ def run_sight_queue(output, queue, adb_path, adb_serial, stop, emit):
                 origin = return_from_sight_reviews(device, previous, stop, next_name=name) if previous else None
                 navigation = open_sight_reviews(device, name, item['address'], stop,
                                                 allow_search=origin == 'search', require_address_search=True)
+                if queue.get('save_ai_summary'):
+                    save_queue_ai(device, output, queue, item, stop, emit)
                 report = collect(device, 'sight', name, output, queue['limit'], queue['max_swipes'], stop, emit,
                                  object_id=item['object_id'], identity_source='evidence_manifest',
                                  identity_evidence=item['identity_evidence'], sight_navigation=navigation,
@@ -141,7 +188,7 @@ def prepare_sight_queue_job(request, output, adb_path, *, adb_serial=None):
         raise ValueError('景点点评队列需要配置 Android 模拟器。')
     output = Path(output).resolve()
     if 'queue_id' in request:
-        if any(field in request for field in ('object_refs', 'limit', 'max_swipes')):
+        if any(field in request for field in ('object_refs', 'limit', 'max_swipes', 'save_ai_summary')):
             raise ValueError('继续队列时沿用已保存的景点和数量设置。')
         queue_id = request['queue_id']
         try:
@@ -161,6 +208,9 @@ def prepare_sight_queue_job(request, output, adb_path, *, adb_serial=None):
             or len(set(refs)) != len(refs)):
         raise ValueError('请选择 1 至 20 个不同的本地景点。')
     limit, max_swipes = request.get('limit', 500), request.get('max_swipes', 1500)
+    save_ai_summary = request.get('save_ai_summary', False)
+    if type(save_ai_summary) is not bool:
+        raise ValueError('景点 AI 总结采集设置无效。')
     if type(limit) is not int or not 1 <= limit <= 100000 or type(max_swipes) is not int or not 1 <= max_swipes <= 10000:
         raise ValueError('每个景点的点评目标须为 1 至 100000，滑动上限须为 1 至 10000。')
     items = []
@@ -171,7 +221,7 @@ def prepare_sight_queue_job(request, output, adb_path, *, adb_serial=None):
         items.append(dict(evidence, address=sight_navigation_address(output, evidence)))
 
     def start(stop, emit):
-        queue = create_sight_queue(output, items, limit, max_swipes)
+        queue = create_sight_queue(output, items, limit, max_swipes, save_ai_summary=save_ai_summary)
         queue_id = queue['queue_id']
         with lock_sight_queue(output, queue_id):
             return run_sight_queue(output, load_sight_queue(output, queue_id), adb_path, adb_serial, stop, emit)

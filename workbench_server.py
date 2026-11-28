@@ -14,6 +14,7 @@ from pathlib import Path
 from zipfile import BadZipFile, ZipFile
 from object_identity import list_object_refs
 from mobile_sight_queue import list_sight_queues
+from sight_queue_ai_export import build_sight_queue_ai_export
 from workbench_jobs import make_job
 from app_page_fields import list_raw_page_runs
 from screenshot_ocr import MAX_IMAGE_BYTES, recognize_screenshot
@@ -95,7 +96,7 @@ def create_server(output, adb_path=None, port=8765, *, adb_serial=None):
     output = Path(output).resolve()
 
     class Handler(BaseHTTPRequestHandler):
-        def reply(self, status, value):
+        def reply(self, status, value, *, filename=None):
             # /* ===== 步骤1：输出接口结果；数据源：任务状态；操作：1) UTF8编码 2) 禁止缓存 ===== */
             logger.info('开始发送接口响应')
             body = json.dumps(value, ensure_ascii=False).encode('utf-8')
@@ -104,6 +105,8 @@ def create_server(output, adb_path=None, port=8765, *, adb_serial=None):
             self.send_header('Content-Length', str(len(body)))
             self.send_header('Cache-Control', 'no-store')
             self.send_header('X-Content-Type-Options', 'nosniff')
+            if filename is not None:
+                self.send_header('Content-Disposition', f'attachment; filename="{filename}"')
             self.end_headers()
             self.wfile.write(body)
             logger.info('接口响应发送完成')
@@ -198,6 +201,17 @@ def create_server(output, adb_path=None, port=8765, *, adb_serial=None):
                     self.reply(500, {'error': '无法列出已保存的 App 页面任务'})
             elif self.path == '/api/sight-review-queues':
                 self.reply(200, {'queues': list_sight_queues(output)})
+            elif urlsplit(self.path).path == '/api/sight-queue-ai':
+                params = parse_qs(urlsplit(self.path).query, keep_blank_values=True)
+                queues = params.get('queue', [])
+                try:
+                    if params.keys() != {'queue'} or len(queues) != 1:
+                        raise ValueError('景点点评队列编号无效')
+                    bundle = build_sight_queue_ai_export(output, queues[0])
+                except (ValueError, OSError):
+                    self.reply(404, {'error': '找不到此队列可导出的景点 AI 总结'})
+                else:
+                    self.reply(200, bundle, filename=f'sight-queue-ai-{bundle["queue_id"]}.json')
             elif self.path == '/api/saved-review-runs':
                 try:
                     self.reply(200, {'runs': saved_review_runs(output)})

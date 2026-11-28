@@ -2,6 +2,7 @@ import copy
 import unittest
 from pathlib import Path
 from threading import Event
+from unittest.mock import patch
 from xml.etree import ElementTree as ET
 
 from runner import AndroidReadinessError, sight_screen_title
@@ -92,6 +93,29 @@ class SightReviewNavigationTests(unittest.TestCase):
         self.assertEqual(device.actions, [('home', (453, 799)), ('search', NAME),
                                           ('filled', (472, 317)), ('detail', (236, 1107))])
         self.assertFalse(device.temporary_no_focus)
+
+    def test_waits_for_verified_detail_beyond_normal_window_on_observed_loading_page(self):
+        device = NavigationDevice()
+        loading = (FIXTURES / 'sight-review-nav-loading.xml').read_text('utf-8')
+        pending_frames = iter([loading] * 14)
+        original_snapshot = device.snapshot
+
+        def snapshot():
+            if device.screen == 'detail' and (frame := next(pending_frames, None)) is not None:
+                return frame
+            return original_snapshot()
+
+        with patch.object(device, 'snapshot', side_effect=snapshot):
+            self.assertEqual(open_sight_reviews(device, NAME, ADDRESS, FastStop()), 'opened')
+        self.assertEqual(device.actions[-1], ('detail', (236, 1107)))
+
+    def test_loading_page_never_repeats_the_search_tap_when_it_stalls(self):
+        device = NavigationDevice()
+        device.frames['detail'] = (FIXTURES / 'sight-review-nav-loading.xml').read_text('utf-8')
+        with self.assertRaisesRegex(RuntimeError, '景点详情或点评'):
+            open_sight_reviews(device, NAME, ADDRESS, FastStop())
+        self.assertEqual(device.actions[-1], ('filled', (472, 317)))
+        self.assertEqual(len(device.actions), 3)
 
     def test_home_search_works_with_observed_rotating_suggestion(self):
         device = NavigationDevice()

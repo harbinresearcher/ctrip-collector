@@ -75,6 +75,7 @@ button{font-weight:500;border-color:#d5d0c5;min-height:44px}button.primary{box-s
   <label for="sightQueueResume">队列来源</label>
   <select id="sightQueueResume" aria-describedby="sightQueueSavedStatus"><option value="">新建队列</option></select>
   <p id="sightQueueSavedStatus" class="hint" role="status"></p>
+  <a id="sightQueueSavedAi" class="hint" download hidden>下载所选队列 AI 总结（JSON）</a>
 </div>
 <div id="objectPicker" hidden>
   <label for="objectQuery">从本地目录选择</label>
@@ -93,6 +94,8 @@ button{font-weight:500;border-color:#d5d0c5;min-height:44px}button.primary{box-s
     <div><label for="sightQueueLimit">每个景点的目标点评条数</label><input id="sightQueueLimit" type="number" min="1" max="100000" value="500" required disabled></div>
     <div><label for="sightQueueSwipes">每个景点的滚动次数上限</label><input id="sightQueueSwipes" type="number" min="1" max="10000" value="1500" required disabled></div>
   </div>
+  <label for="sightQueueSaveAi"><input id="sightQueueSaveAi" type="checkbox" style="width:auto" aria-describedby="sightQueueAiHint" disabled>同时保存景点 AI 总结</label>
+  <p id="sightQueueAiHint" class="hint">逐个尝试展开并保存可见的总结。结果会说明是展开后的内容、预览，还是本次未读取到。</p>
 </div>
 <div id="autoSightWrap" hidden>
   <label for="autoSight"><input id="autoSight" type="checkbox" style="width:auto" aria-describedby="autoSightHint" disabled>自动打开景点点评</label>
@@ -210,10 +213,18 @@ function sightQueueReason(reason){
     needs_attention:'需要检查模拟器页面后继续',
   })[reason]||'已保存的队列';
 }
+function sightQueueAiUrl(queueId){
+  return /^[0-9a-f]{32}$/.test(queueId)?'/api/sight-queue-ai?'+new URLSearchParams({queue:queueId}):'';
+}
 function showSightQueueForm(){
   const active=sightQueueMode(), resume=active&&Boolean(sightQueueResume.value);
   $('sightQueueSetup').hidden=!active;
-  $('sightQueueDraft').hidden=$('sightQueueLimit').disabled=$('sightQueueSwipes').disabled=!active||resume;
+  $('sightQueueDraft').hidden=$('sightQueueLimit').disabled=$('sightQueueSwipes').disabled=$('sightQueueSaveAi').disabled=!active||resume;
+  const link=$('sightQueueSavedAi');
+  const href=resume&&sightQueueResume.selectedOptions[0]?.dataset.aiSaved==='true'?sightQueueAiUrl(sightQueueResume.value):'';
+  link.hidden=!href;
+  if(href)link.href=href;
+  else link.removeAttribute('href');
   if(active)$('start').textContent=resume?'继续队列 ↗':'开始队列 ↗';
 }
 async function loadSightQueueOptions(){
@@ -227,7 +238,9 @@ async function loadSightQueueOptions(){
       const time=Date.parse(queue.updated_at||queue.created_at);
       const stamp=Number.isFinite(time)?new Date(time).toLocaleString('zh-CN'):'';
       const label=[queue.recorded_count+'/'+queue.item_count+' 个已有记录',sightQueueReason(queue.reason),stamp];
-      return new Option(label.filter(Boolean).join(' · '),queue.queue_id);
+      const option=new Option(label.filter(Boolean).join(' · '),queue.queue_id);
+      if(queue.ai_saved_count>0)option.dataset.aiSaved='true';
+      return option;
     });
     sightQueueResume.replaceChildren(new Option('新建队列',''),...options);
     sightQueueResume.value=options.some(option=>option.value===previous)?previous:'';
@@ -285,6 +298,7 @@ function sightQueueRequest(){
   return {
     mode,object_refs:[...queueDraft.keys()],
     limit:Number($('sightQueueLimit').value),max_swipes:Number($('sightQueueSwipes').value),
+    ...($('sightQueueSaveAi').checked?{save_ai_summary:true}:{}),
   };
 }
 let objectMatches=new Map(),selectedObject=null,manualObjectDraft=null,objectRequest=0,objectSearchTimer;
@@ -1274,6 +1288,9 @@ function renderSightQueue(box,result){
   summary.className='hint';
   const recorded=result.items.filter(item=>item.status==='recorded').length;
   summary.textContent=sightQueueReason(result.reason)+' · 已留档 '+recorded+' / '+result.items.length+' 个景点';
+  const saveAi=result.save_ai_summary===true;
+  const aiSaved=saveAi?result.items.filter(item=>item.ai_summary?.status==='saved').length:0;
+  if(saveAi)summary.textContent+=' · 已保存 '+aiSaved+' 份 AI 总结';
   const list=document.createElement('ol');
   list.className='sight-queue-list';
   const states={pending:'待采集',running:'采集中',recorded:'已留档',retry:'等待重试'};
@@ -1300,6 +1317,15 @@ function renderSightQueue(box,result){
       message.textContent=run.error;
       row.append(message);
     }
+    if(saveAi){
+      const ai=item.ai_summary,aiDetail=document.createElement('small');
+      const savedStates={expanded:'已保存展开后的 AI 总结',preview:'已保存 AI 总结预览',visible:'已保存可见的 AI 总结'};
+      const aiStates={not_visible:'本次未读到可见的 AI 总结',error:'AI 总结读取失败'};
+      aiDetail.textContent=ai?.status==='saved'
+        ?(savedStates[ai.summary_state]||'已保存可见的 AI 总结')+(Number.isInteger(ai.section_count)?' · '+ai.section_count+' 段':'')
+        :(aiStates[ai?.status]||'AI 总结状态待核对')+(ai?.error?' · '+ai.error:'');
+      row.append(aiDetail);
+    }
     const sampleRun=run?.sample_run_id||run?.run_id;
     if(typeof sampleRun==='string'&&sampleRun&&run.sample_csv_count>0){
       const link=document.createElement('a');
@@ -1311,6 +1337,14 @@ function renderSightQueue(box,result){
     list.append(row);
   }
   section.append(title,summary,list);
+  const aiHref=aiSaved?sightQueueAiUrl(result.queue_id):'';
+  if(aiHref){
+    const link=document.createElement('a');
+    link.href=aiHref;
+    link.download='';
+    link.textContent='下载队列 AI 总结（JSON）';
+    section.append(link);
+  }
   box.append(section);
   if(sightQueueMode())loadSightQueueOptions();
 }

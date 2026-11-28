@@ -104,6 +104,26 @@ class MobileSightQueueTests(unittest.TestCase):
         self.assertEqual(load_sight_queue(self.output, queue['queue_id']), old)
         self.assertEqual(len(list(self.output.iterdir())), 1)
 
+    def test_save_retries_a_transient_windows_replace_conflict(self):
+        queue = create_sight_queue(self.output, [sight(35)], 50, 100)
+        queue['reason'] = 'running'
+        blocked = PermissionError('目标报告暂时被占用')
+        blocked.winerror = 5
+        replace = Path.replace
+        calls = []
+
+        def briefly_blocked(temporary, path):
+            calls.append(path)
+            if len(calls) == 1:
+                raise blocked
+            return replace(temporary, path)
+
+        with patch.object(Path, 'replace', briefly_blocked):
+            save_sight_queue(self.output, queue)
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(load_sight_queue(self.output, queue['queue_id']), queue)
+        self.assertEqual(len(list(self.output.iterdir())), 1)
+
     def test_locks_exclude_a_second_process_and_allow_reacquiring_after_release(self):
         queue_id = create_sight_queue(self.output, [sight(35)], 50, 100)['queue_id']
         probe = (

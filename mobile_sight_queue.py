@@ -8,6 +8,7 @@ import uuid
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
+from time import sleep
 
 from mobile_scoped_store import MOBILE_REVIEW_RUN_ID
 from object_identity import MAX_EVIDENCE_BYTES, OBJECT_REF, read_evidence
@@ -17,6 +18,7 @@ QUEUE_PREFIX = 'sight-review-queue-'
 QUEUE_ID = re.compile(r'[a-f0-9]{32}')
 QUEUE_FILE = re.compile(rf'{QUEUE_PREFIX}([a-f0-9]{{32}})\.json')
 EVIDENCE_FILE = re.compile(r'[A-Za-z0-9][A-Za-z0-9-]*\.json')
+AI_REPORT_FILE = re.compile(r'sight-ai-([a-f0-9]{32})\.json')
 ITEM_FIELDS = ('object_ref', 'object_id', 'name', 'address', 'identity_evidence')
 QUEUE_MODE = 'app_sight_queue'
 QUEUE_REASONS = ('ready', 'running', 'queue_recorded', 'stopped_by_user', 'needs_attention')
@@ -44,6 +46,25 @@ def queue_time(value):
     return parsed
 
 
+def validate_item_ai(item):
+    report_id = item.get('ai_report_id')
+    if report_id is not None and (not isinstance(report_id, str) or not QUEUE_ID.fullmatch(report_id)):
+        raise ValueError('景点 AI 总结任务编号无效')
+    summary = item.get('ai_summary')
+    if summary is None:
+        return
+    if not isinstance(summary, dict) or summary.get('status') not in ('saved', 'not_visible', 'error'):
+        raise ValueError('景点 AI 总结状态无效')
+    if summary['status'] == 'saved':
+        filename = summary.get('report_file')
+        match = AI_REPORT_FILE.fullmatch(filename) if isinstance(filename, str) else None
+        sections = summary.get('section_count')
+        if (match is None or (report_id is not None and match[1] != report_id)
+                or type(sections) is not int or sections < 1
+                or summary.get('summary_state') not in ('expanded', 'preview', 'visible')):
+            raise ValueError('景点 AI 总结报告引用无效')
+
+
 def validate_queue(queue, queue_id):
     if (not isinstance(queue, dict) or queue.get('queue_id') != queue_id
             or queue.get('mode') != QUEUE_MODE or queue.get('reason') not in QUEUE_REASONS
@@ -51,6 +72,8 @@ def validate_queue(queue, queue_id):
         raise ValueError('景点点评队列记录无效')
     queue_time(queue.get('created_at'))
     queue_time(queue.get('updated_at'))
+    if type(queue.get('save_ai_summary', False)) is not bool:
+        raise ValueError('景点 AI 总结采集设置无效')
     limit, swipes, items = queue.get('limit'), queue.get('max_swipes'), queue.get('items')
     if type(limit) is not int or not 1 <= limit <= 100000 or type(swipes) is not int or not 1 <= swipes <= 10000:
         raise ValueError('目标点评数须为 1 至 100000，滑动上限须为 1 至 10000')
@@ -75,6 +98,7 @@ def validate_queue(queue, queue_id):
         attempt = item.get('attempt_run_id')
         if attempt is not None and (not isinstance(attempt, str) or not MOBILE_REVIEW_RUN_ID.fullmatch(attempt)):
             raise ValueError('景点点评队列的尝试编号无效')
+        validate_item_ai(item)
         result = item.get('result')
         if result is None:
             continue
@@ -86,12 +110,13 @@ def validate_queue(queue, queue_id):
                 raise ValueError('景点点评结果的任务编号无效')
 
 
-def create_sight_queue(output, items, limit, max_swipes):
+def create_sight_queue(output, items, limit, max_swipes, *, save_ai_summary=False):
     if not isinstance(items, (tuple, list)) or any(not isinstance(item, dict) for item in items):
         raise ValueError('请选择 1 至 20 个景点')
     now = datetime.now(timezone.utc).isoformat()
     queue = {'queue_id': uuid.uuid4().hex, 'mode': QUEUE_MODE, 'created_at': now, 'updated_at': now,
              'limit': limit, 'max_swipes': max_swipes, 'reason': 'ready', 'complete': False,
+             'save_ai_summary': save_ai_summary,
              'items': [dict({key: item.get(key) for key in ITEM_FIELDS}, status='pending', result=None)
                        for item in items]}
     save_sight_queue(output, queue)
@@ -125,7 +150,17 @@ def save_sight_queue(output, queue):
             stream.write(payload)
             stream.flush()
             os.fsync(stream.fileno())
-        temporary.replace(path)
+        for attempt in range(4):
+            try:
+                temporary.replace(path)
+            except PermissionError as exc:
+                if attempt == 3 or getattr(exc, 'winerror', None) not in (5, 32, 33):
+                    raise
+                # A concurrent Windows reader can briefly prevent the atomic rename.
+                sleep(0.03 * (2 ** attempt))
+                check_destination(path)
+            else:
+                break
     finally:
         temporary.unlink(missing_ok=True)
     queue['updated_at'] = updated['updated_at']
@@ -143,8 +178,11 @@ def list_sight_queues(output):
         except (OSError, ValueError):
             continue
         items = queue['items']
-        summaries.append(dict({key: queue[key] for key in fields}, item_count=len(items),
-                              recorded_count=sum(item['status'] == 'recorded' for item in items)))
+        summary = dict({key: queue[key] for key in fields}, item_count=len(items),
+                       recorded_count=sum(item['status'] == 'recorded' for item in items))
+        if queue.get('save_ai_summary'):
+            summary['ai_saved_count'] = sum((item.get('ai_summary') or {}).get('status') == 'saved' for item in items)
+        summaries.append(summary)
     summaries.sort(key=lambda row: (queue_time(row['updated_at']), row['queue_id']), reverse=True)
     return summaries[:50]
 

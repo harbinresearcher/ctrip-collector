@@ -30,6 +30,17 @@ def review_result(identity, reason='target_reached'):
             'count': identity, 'new_count': 1, 'screens': 2, 'sample_csv_count': 1}
 
 
+def write_ai_report(folder, name, object_id, queue_id, report_id):
+    filename = f'sight-ai-{report_id}.json'
+    (Path(folder) / filename).write_text(json.dumps({
+        'kind': 'sight', 'name': name, 'object_id': object_id, 'queue_id': queue_id,
+        'source': 'ctrip_android_ui', 'source_method': 'android_sight_ai_snapshot',
+        'generated_by_ai': True, 'summary_state': 'expanded', 'complete': False,
+        'sections': [{'topic': '景观', 'body': '模拟验收用总结'}],
+    }), encoding='utf-8')
+    return filename
+
+
 def interrupted_queue(folder, *, final_reason=None, report_identity='4'):
     identity, name = '4', '景点4'
     ref = write_sight(folder, identity)
@@ -55,6 +66,72 @@ def interrupted_queue(folder, *, final_reason=None, report_identity='4'):
 
 
 class SightQueueWorkbenchTests(unittest.TestCase):
+    def test_sight_queue_keeps_ai_and_reviews_separate(self):
+        from mobile_sight_queue import load_sight_queue
+
+        def ai_capture(device, output, name, object_id, queue_id, stop, *, report_id):
+            state = load_sight_queue(output, queue_id)
+            item = next(entry for entry in state['items'] if entry['object_id'] == object_id)
+            self.assertEqual((item['status'], item['ai_report_id']), ('running', report_id))
+            if object_id == '2':
+                return {'status': 'not_visible'}
+            filename = write_ai_report(output, name, object_id, queue_id, report_id)
+            return {'status': 'saved', 'report_file': filename, 'section_count': 1, 'summary_state': 'expanded'}
+
+        with tempfile.TemporaryDirectory() as folder, patch('app_sight_queue_jobs.Adb'), \
+                patch('app_sight_queue_jobs.open_sight_reviews', return_value='opened'), \
+                patch('app_sight_queue_jobs.return_from_sight_reviews', return_value='search'), \
+                patch('app_sight_queue_jobs.capture_queue_sight_ai', side_effect=ai_capture), \
+                patch('app_sight_queue_jobs.collect', side_effect=[review_result(1), review_result(2)]) as collect:
+            refs = [write_sight(folder, number) for number in (1, 2)]
+            job = make_job({'mode': 'app_sight_queue', 'object_refs': refs, 'save_ai_summary': True}, folder, 'adb.exe')
+            result = job(Event(), Mock())
+            self.assertTrue(result['save_ai_summary'])
+            self.assertEqual([item['ai_summary']['status'] for item in result['items']], ['saved', 'not_visible'])
+            self.assertEqual(result['items'][0]['ai_summary']['section_count'], 1)
+            self.assertEqual(result['reason'], 'queue_recorded')
+            self.assertFalse(result['complete'])
+            self.assertEqual(collect.call_count, 2)
+            saved = load_sight_queue(folder, result['queue_id'])
+            self.assertEqual(saved['items'][0]['ai_summary'], result['items'][0]['ai_summary'])
+
+    def test_sight_queue_reuses_summary_after_unfinished_review_attempt(self):
+        from mobile_sight_queue import create_sight_queue, save_sight_queue
+
+        with tempfile.TemporaryDirectory() as folder, patch('app_sight_queue_jobs.Adb'), \
+                patch('app_sight_queue_jobs.open_sight_reviews', return_value='opened'), \
+                patch('app_sight_queue_jobs.capture_queue_sight_ai') as capture, \
+                patch('app_sight_queue_jobs.collect', return_value=review_result(1)):
+            write_sight(folder, 1)
+            queue = create_sight_queue(folder, [{'object_ref': 'sight-1', 'object_id': '1', 'name': '景点1',
+                                                'address': '江苏省南京市1号',
+                                                'identity_evidence': 'sight-1-object.json'}],
+                                       1, 3, save_ai_summary=True)
+            queue['items'][0].update(status='running', ai_report_id='a' * 32)
+            save_sight_queue(folder, queue)
+            path = write_ai_report(folder, '景点1', '1', queue['queue_id'], 'a' * 32)
+            job = make_job({'mode': 'app_sight_queue', 'queue_id': queue['queue_id']}, folder, 'adb.exe')
+            result = job(Event(), Mock())
+            capture.assert_not_called()
+            self.assertEqual(result['items'][0]['ai_summary']['report_file'], path)
+            self.assertEqual(result['items'][0]['status'], 'recorded')
+
+    def test_sight_queue_preserves_summary_if_restoring_reviews_fails(self):
+        def ai_capture(device, output, name, object_id, queue_id, stop, *, report_id):
+            write_ai_report(output, name, object_id, queue_id, report_id)
+            raise RuntimeError('点评页恢复失败')
+
+        with tempfile.TemporaryDirectory() as folder, patch('app_sight_queue_jobs.Adb'), \
+                patch('app_sight_queue_jobs.open_sight_reviews', return_value='opened'), \
+                patch('app_sight_queue_jobs.capture_queue_sight_ai', side_effect=ai_capture), \
+                patch('app_sight_queue_jobs.collect') as collect:
+            ref = write_sight(folder, 1)
+            request = {'mode': 'app_sight_queue', 'object_refs': [ref], 'save_ai_summary': True}
+            result = make_job(request, folder, 'adb.exe')(Event(), Mock())
+            self.assertEqual(result['reason'], 'needs_attention')
+            self.assertEqual(result['items'][0]['ai_summary']['status'], 'saved')
+            self.assertEqual(result['items'][0]['result']['error'], '点评页恢复失败')
+            collect.assert_not_called()
     def test_new_queue_reads_checkpoint_under_lock(self):
         from mobile_sight_queue import load_sight_queue, save_sight_queue
 

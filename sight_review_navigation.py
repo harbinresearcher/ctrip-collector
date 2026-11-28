@@ -11,6 +11,8 @@ HOME_GUIDE = 'ctrip.android.view:id/home_grid_guide_widget'
 DETAIL_TITLE = 'gs_spotdetail_view_name'
 MANUAL_PROMPTS = {'安全验证', '请完成验证', '拖动滑块完成拼图', '请先登录'}
 REVIEW_NOT_CONFIRMED = '未确认已进入目标景点的用户点评，请核对后重试。'
+STANDARD_READS = 12
+LOADING_READS = 44
 
 
 def text(node):
@@ -47,8 +49,10 @@ def read_screen(device, stop):
     return root
 
 
-def wait_for(device, stop, find, message):
-    for _ in range(12):
+def wait_for(device, stop, find, message, *, loading=None):
+    max_reads = LOADING_READS if loading else STANDARD_READS
+    for attempt in range(1, max_reads + 1):
+        still_loading = False
         try:
             root = read_screen(device, stop)
         except AndroidReadinessError as exc:
@@ -57,6 +61,9 @@ def wait_for(device, stop, find, message):
         else:
             if (result := find(root)) is not None:
                 return result
+            still_loading = loading is not None and loading(root)
+        if attempt == max_reads or (attempt >= STANDARD_READS and not still_loading):
+            break
         if stop.wait(0.45):
             cancellation_check(stop)
     raise RuntimeError(message)
@@ -186,6 +193,12 @@ def detail_or_reviews(root, name, address):
     return ('detail', entry) if entry is not None else None
 
 
+def detail_loading(root):
+    window = root.find('node')
+    return window is not None and any(text(node) == '精彩即将呈现' and visible_in(node, window)
+                                      for node in app_nodes(root))
+
+
 def open_sight_reviews(device, name, address, stop, *, allow_search=False, require_address_search=False):
     if not isinstance(name, str) or not (name := name.strip()):
         raise ValueError('请填写景点名称。')
@@ -213,7 +226,8 @@ def open_sight_reviews(device, name, address, stop, *, allow_search=False, requi
                          '搜索未找到同时匹配名称和地址的景点，请手动打开目标点评。')
     tap(device, candidate, stop)
     scene, entry = wait_for(device, stop, lambda root: detail_or_reviews(root, name, address),
-                            '未找到可核对的景点详情或点评，请手动打开目标点评。')
+                            '未找到可核对的景点详情或点评，请稍后回到首页重试。',
+                            loading=detail_loading)
     if scene == 'detail':
         tap(device, entry, stop)
         wait_for(device, stop, lambda root: checked_reviews_title(root, name), REVIEW_NOT_CONFIRMED)
