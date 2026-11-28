@@ -147,7 +147,10 @@ class RunnerTests(unittest.TestCase):
             adb = Adb('adb', 'test')
             with patch.object(adb, 'ensure_foreground'), patch.object(adb, 'snapshot', return_value=xml):
                 report = collect(adb, 'hotel', '酒店', Path(folder), max_swipes=0, object_id='123')
-            self.assertEqual(report['reason'], 'error')
+            # 未到达点评页现在是 arrival_failed（未知布局可计数），不再混进普通 error。
+            # 这一屏的酒店名只是包含目标名，判据给的是 name_partial_match。
+            self.assertEqual(report['reason'], 'arrival_failed')
+            self.assertEqual(report['arrival_reason'], 'name_partial_match')
             self.assertEqual(report['count'], 0)
         logger.info('混合窗口标签检查完成')
 
@@ -364,7 +367,7 @@ class RunnerTests(unittest.TestCase):
             with patch.object(adb, 'ensure_foreground'), patch.object(adb, 'snapshot', return_value=xml), patch.object(adb, 'run') as run:
                 report = collect(adb, 'hotel', 'test', Path(folder), max_swipes=1)
                 run.assert_not_called()
-                self.assertEqual(report['reason'], 'error')
+                self.assertEqual(report['reason'], 'arrival_failed')
         logger.info('详情页误识别检查完成')
 
     def test_android16_focus_uses_full_window_dump(self):

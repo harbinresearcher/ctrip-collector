@@ -384,6 +384,14 @@ def write_coverage_audit(folder):
             if (label_total := phone_all_label(data)) is not None:
                 item['phone_label'] = {'display_total': label_total, 'file': path.name,
                                        'mtime': path.stat().st_mtime}
+            # 3.5.2 手机侧「没认出点评页」也要留下一笔：这类报告没有数据，
+            #       但它是可数的布局缺口，对账要能统计「几个对象因为页面没认出来而没采到」。
+            if data.get('reason') == 'arrival_failed':
+                previous = item.get('phone_arrival')
+                if previous is None or path.stat().st_mtime >= previous['mtime']:
+                    item['phone_arrival'] = {'reason': data.get('reason'),
+                                             'arrival_reason': data.get('arrival_reason'),
+                                             'file': path.name, 'mtime': path.stat().st_mtime}
 
     # 3.6 目录报告给出平台总数与已发现对象；目录卡片的点评数可作对象级目标。
     for path in sorted(folder.glob('discovery-*.json')):
@@ -538,6 +546,9 @@ def write_coverage_audit(folder):
         #       不再挡住续采，否则一次偶发 429 会让这个对象永久退出队列。
         blocked = bool(report and report.get('blocked') and blocked_today(report))
         failed = bool(report and (report['reason'] == 'error' or report['error']))
+        # 5.0.3 「没认出点评页」单独成一类：它不是网络失败，是布局/入口问题，
+        #       对账要能数出「有几个对象是因为页面没认出来才没采到」。
+        arrival_failed = bool(report and report.get('reason') == 'arrival_failed')
         attempted = item['web_attempted'] or total > 0
         # 5.1 连续两次都「翻到空页」且没采到目标数：这条通道翻到上限了，但拿不到同口径的
         #     全部展示数，不能说对象采完（真机反证：长白山西景区网页 577 条、手机「全部」1099 条）。
@@ -547,6 +558,8 @@ def write_coverage_audit(folder):
             gap = None
         elif blocked:
             gap = 'blocked'
+        elif arrival_failed:
+            gap = 'arrival_failed'
         elif failed:
             gap = 'failed'
         elif capped_channel:
@@ -592,6 +605,14 @@ def write_coverage_audit(folder):
                         'blocked_status': report.get('blocked_status') if report else '',
                         # 5.2.4 可达缺口只在 missing == 0（确实采完）时才为 0；通道到顶仍保留真实缺口。
                         'reachable_missing': missing,
+                        # 5.2.5 未知布局：最新一次手机采集没认出点评页时，记下缺哪一条判据，
+                        #       让「补样本 / 换入口」变成可数、可排期的缺口。
+                        'layout_unknown': arrival_failed,
+                        'arrival_reason': (report or {}).get('arrival_reason') if arrival_failed else None,
+                        # 5.2.6 手机上「没认出点评页」的那次尝试：与网页缺口分开记，
+                        #       否则一个从来没被认出来的对象看起来和「还没轮到」一模一样。
+                        'phone_layout_unknown': bool(item.get('phone_arrival')),
+                        'phone_arrival_reason': (item.get('phone_arrival') or {}).get('arrival_reason'),
                         'latest_reason': report['reason'] if report else None,
                         'latest_error': report['error'] if report else '',
                         'evidence_files': sorted(item['files']),
@@ -602,6 +623,8 @@ def write_coverage_audit(folder):
                'missing': sum(obj['missing'] for obj in known),
                'reachable_missing': sum(obj['reachable_missing'] for obj in known),
                'capped_count': sum(1 for obj in objects if obj['capped']),
+               'layout_unknown': sum(1 for obj in objects if obj['layout_unknown']),
+               'phone_layout_unknown': sum(1 for obj in objects if obj['phone_layout_unknown']),
                'unknown_target': sum(1 for obj in objects if obj['target_unknown']),
                'object_count': len(objects), 'directory_count': len(directories),
                'coverage': dict(coverage_summary(objects), discovery=discovery_summary(directories)),

@@ -379,6 +379,7 @@ def collect(adb, kind, place, folder, limit=500, max_swipes=1500, stop=None, pro
     attempted_cards = set()
     observed_keys = {} if scoped else None
     reason, error, unchanged, empty, screens = 'screen_budget_reached', '', 0, 0, 0
+    arrival_state = None
     initial = store.count() if scoped else store.count(kind, place)
     total = initial
     previous = None
@@ -441,8 +442,10 @@ def collect(adb, kind, place, folder, limit=500, max_swipes=1500, stop=None, pro
                 # 3.1.3 到没到点评页要能说清楚缺哪一条：锚点 / 对象名 / 全部计数。
                 state = review_screen_state(review_xml, place,
                                             allow_missing_name=kind == 'hotel')
-                raise RuntimeError(ARRIVAL_HINT.get(state['reason'],
-                                                    '未识别为评论页面，请先在手机打开目标对象的全部评论。'))
+                # 3.1.4 带上判据状态抛出：报告里要能写出「缺哪一条」，否则未知布局
+                #       只会变成一句 error，对账看不出这是布局问题还是网络问题。
+                raise AndroidReadinessError(state, ARRIVAL_HINT.get(
+                    state['reason'], '未识别为评论页面，请先在手机打开目标对象的全部评论。'))
             if first_screen_ai is not None and index == 0 and not stop.is_set():
                 try:
                     summary = parse_ai(xml)
@@ -566,6 +569,12 @@ def collect(adb, kind, place, folder, limit=500, max_swipes=1500, stop=None, pro
                 break
     except InterruptedError:
         reason = 'stopped_by_user'
+    except AndroidReadinessError as exc:
+        # 3.1.5 到达判据不通过单独记 arrival_failed：这不是网络错误，而是「没认出页面」，
+        #       对账要能把它数成未知布局，提示补样本或换入口。
+        reason, error = 'arrival_failed', str(exc)
+        arrival_state = exc.state if isinstance(exc.state, dict) else None
+        logger.warning('未识别为点评页：%s', error)
     except Exception as exc:
         reason, error = 'error', str(exc)
         logger.exception('采集中止')
@@ -596,11 +605,14 @@ def collect(adb, kind, place, folder, limit=500, max_swipes=1500, stop=None, pro
                       'count': count, 'new_count': count - initial,
                       'screens': screens, 'reason': reason, 'error': error, 'target': limit,
                       'complete': False, 'csv': exported, 'export_error': export_error, 'run_id': run_id,
+                      'arrival_reason': (arrival_state or {}).get('reason'),
                       'limitations': ['仅当前对象；无全站发现', '未验证全量；未下载媒体原文件',
                                       '折叠文本需核对；has_expand=1 不保证完整',
                                       '内容指纹去重，不是服务端评论ID；可能合并同名同日同文评论',
                                       '恢复已保存数据，不自动恢复手机滚动位置',
                                       '对象名称由操作者填写；程序未核验评论页面属于该对象']}
+            if reason == 'arrival_failed':
+                report['limitations'].append('当前屏幕未被识别为点评页，本次没有采集任何数据；需要补样本或手动打开点评页')
             # 4.3 手填 ID 只隔离存储，不证明该页面属于对应对象；证据清单只说明编号出处。
             if scoped:
                 report.update(object_id=store.object_id, identity_source=identity_source,
