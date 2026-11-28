@@ -170,9 +170,18 @@ class Adb:
         self._ui.send_keys(text, clear=True)
 
     def ensure_foreground(self):
-        state = self.run('shell', 'dumpsys', 'window')
-        focused = next((line.partition('=')[2].strip() for line in state.splitlines()
-                        if line.strip().startswith('mCurrentFocus=')), '')
+        # 3.1.0.1 模拟器在页面切换瞬间会读不到焦点窗口（dumpsys 返回空）：
+        #         重试两次再判失败，避免把「正在切页」当成「用户把 App 切走了」。
+        state = ''
+        for attempt in range(3):
+            state = self.run('shell', 'dumpsys', 'window')
+            focused = next((line.partition('=')[2].strip() for line in state.splitlines()
+                            if line.strip().startswith('mCurrentFocus=')), '')
+            if focused and focused != 'null':
+                break
+            if attempt < 2:
+                # 等待要短：工作台的前台检查有 2 秒超时，重试不能把请求拖过超时。
+                time.sleep(0.5)
         if not focused or focused == 'null':
             raise AndroidReadinessError('focus_unknown', '无法确认携程在前台，已停止操作 Android 设备。')
         if not re.search(r'(?:^|\s)ctrip\.android\.view/', focused):

@@ -12,7 +12,22 @@ from workbench_server import create_server
 
 class AndroidReadinessTests(unittest.TestCase):
     def check_devices(self, replies=(), *, adb='adb', serial=None, origin=None):
-        with TemporaryDirectory() as folder, patch('runner.subprocess.run', side_effect=replies) as run:
+        # 重试逻辑会多读几次，所以队列用完后重复最后一条完成结果；
+        # 最后一条是异常时照旧抛出，保持原有「失败命令」用例的语义。
+        queue = list(replies)
+
+        def responder(*args, **kwargs):
+            if queue:
+                item = queue.pop(0)
+                # 列表里的异常对象要抛出去（和 side_effect 直接给列表时的语义一致）。
+                if isinstance(item, BaseException):
+                    raise item
+                return item
+            if isinstance(replies[-1], BaseException):
+                raise replies[-1]
+            return replies[-1]
+
+        with TemporaryDirectory() as folder, patch('runner.subprocess.run', side_effect=responder) as run:
             server = create_server(folder, adb, port=0, adb_serial=serial)
             thread = Thread(target=server.serve_forever, daemon=True)
             thread.start()
@@ -62,7 +77,9 @@ class AndroidReadinessTests(unittest.TestCase):
         for tail, expected in [
             ([reply('')], 'not_installed'),
             ([reply('package:ctrip.android.view\n'), reply('  mCurrentFocus=Window{aa u0 com.other/.Page}\n')], 'background'),
-            ([reply('package:ctrip.android.view\n'), reply('  mCurrentFocus=null\n')], 'focus_unknown'),
+            # 读不到焦点会重试两次再判失败（切页瞬间不该算「App 被切走」），所以给三次同样的回复。
+            ([reply('package:ctrip.android.view\n'), reply('  mCurrentFocus=null\n'),
+              reply('  mCurrentFocus=null\n'), reply('  mCurrentFocus=null\n')], 'focus_unknown'),
         ]:
             with self.subTest(expected=expected):
                 status, payload, _ = self.check_devices([reply('List of devices attached\nphone\tdevice\n'), *tail])
