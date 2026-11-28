@@ -398,11 +398,16 @@ def scan_phone_target(adb, kind, place, folder, object_id=None, identity_source=
         #         这既不是未知布局也不是失败：平台就是没有可采的点评。
         if allow_detail_probe:
             try:
-                from sight_snapshot import parse_sight_snapshot
+                from sight_snapshot import parse_sight_snapshot, sight_detail_without_reviews
                 detail_state = parse_sight_snapshot(xml, place)
             except (ValueError, ET.ParseError):
-                detail_state = None
-            if detail_state is not None and not detail_state.get('review_display'):
+                # 2.9.2.2 只有标题 + 「暂无评分」的简化详情页解析不了，但那同样说明没有点评。
+                try:
+                    detail_state = sight_detail_without_reviews(xml, place)
+                except (ValueError, ET.ParseError):
+                    detail_state = None
+            if detail_state is not None and (detail_state.get('status') == 'no_reviews'
+                                             or not detail_state.get('review_display')):
                 reason, arrival_reason = 'no_review_entry', None
     report = {'kind': kind, 'place': place, 'count': 0, 'screens': 1, 'reason': reason,
               'error': '' if state['arrived'] else ARRIVAL_HINT.get(state['reason'], '未识别为评论页面'),

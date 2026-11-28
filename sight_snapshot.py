@@ -119,6 +119,26 @@ def sight_header(nodes, parents, title_node):
     return fields
 
 
+def sight_detail_without_reviews(xml, expected_name):
+    # /* ===== 步骤0.9：详情页没有点评；数据源：携程UI树；操作：1) 标题同名 2) 无「N条点评」 3) 有「暂无评分」 ===== */
+    # 0.9.1 实测：小景点详情页可能只有标题 + 「暂无评分 + 写点评」，没有「景点详情/用户点评」页签，
+    #       严格解析会失败，但它确实说明了「平台没有可采点评」。
+    root = ET.fromstring(xml)
+    nodes = [node for node in root.iter('node') if node.get('package') == APP]
+    titles = [node for node in nodes if node.get('resource-id') == 'gs_spotdetail_view_name']
+    if len(titles) != 1:
+        return None
+    names = [child.get('text', '').strip() for child in titles[0] if child.get('text', '').strip()]
+    if [name.strip() for name in names] != [expected_name.strip()]:
+        return None
+    texts = [node.get('text', '').strip() for node in nodes if node.get('text', '').strip()]
+    if any('条点评' in value for value in texts):
+        return None
+    if '暂无评分' not in texts:
+        return None
+    return {'status': 'no_reviews', 'name': expected_name.strip(), 'marker': '暂无评分'}
+
+
 def parse_sight_snapshot(xml, expected_name):
     # /* ===== 步骤1：核对页面；数据源：携程UI树；操作：1) 限定应用 2) 验证名称和详情标签 ===== */
     logger.info('开始核对景点详情')
