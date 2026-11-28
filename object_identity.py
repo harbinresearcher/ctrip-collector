@@ -154,14 +154,25 @@ def resolve_object_ref(folder, object_ref):
     if not folder.is_dir():
         raise ValueError(f'输出目录不存在，无法从落盘证据解析 {text}：{folder}')
     problems = []
+    fallback = None
     for path, scope, key in evidence_candidates(folder, text):
         try:
             for found, name, address in evidence_objects(path, scope, key):
-                if found == text:
-                    logger.info('对象身份来自%s：%s', scope, path.name)
-                    return object_identity(text, name, path, address)
+                if found != text:
+                    continue
+                # 4.2.1 同一对象可能有多份目录报告：带地址的那份信息更全，导航要用它；
+                #       先记住第一份可用的，再继续找带地址的。
+                identity = object_identity(text, name, path, address)
+                if address:
+                    logger.info('对象身份来自%s：%s（含地址）', scope, path.name)
+                    return identity
+                if fallback is None:
+                    fallback = (scope, identity)
         except (OSError, ValueError, TypeError) as exc:
             problems.append(f'{path.name}：{exc}')
+    if fallback is not None:
+        logger.info('对象身份来自%s：%s', fallback[0], fallback[1]['identity_evidence'])
+        return fallback[1]
     detail = '；'.join(problems) if problems else '输出目录内没有该对象的证据文件'
     raise ValueError(f'无法从落盘证据解析 {text}：{detail}。未采集；不会猜测对象编号。'
                      '请先采集一次网页版对象，或用 --audit 确认证据。')

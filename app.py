@@ -10,7 +10,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
 from runner import Adb, collect, scan_phone_target
-from sight_review_navigation import open_sight_reviews
+from sight_review_navigation import ensure_home, open_sight_reviews
 from network import BlockedError, canonical_url, collect_network, load_target
 from hotel_browser import collect_hotel
 from capture_io import import_capture
@@ -546,6 +546,9 @@ def main():
                     parser.error('--auto-open 目前只支持景点')
                 if not identity.get('address'):
                     parser.error('目录证据里没有地址关键词，无法自动核对搜索结果；请手动打开点评页')
+                # 3.1.0.2 导航要从首页搜索框开始：先退回首页，退不回去就明确报错。
+                if not ensure_home(adb, threading.Event()):
+                    parser.error('没能回到携程首页，请手动回到首页后重试')
                 open_sight_reviews(adb, identity['name'], identity['address'], threading.Event())
             result = scan_phone_target(adb, identity['kind'], identity['name'], args.output,
                                        object_id=identity['object_id'],

@@ -199,6 +199,20 @@ def detail_loading(root):
                                       for node in app_nodes(root))
 
 
+def ensure_home(device, stop, attempts=4):
+    # /* ===== 步骤1.5：回到能开始搜索的页面；数据源：当前屏幕；操作：1) 已是首页直接返回 2) 否则返回键最多 4 次 ===== */
+    # 1.5.1 导航要从首页搜索框开始；停在搜索结果页时先退回，别硬点。
+    for index in range(attempts + 1):
+        root = read_screen(device, stop)
+        if home_search(root) is not None:
+            return True
+        if index == attempts:
+            break
+        cancellation_check(stop)
+        device.run('shell', 'input', 'keyevent', 'KEYCODE_BACK')
+    return False
+
+
 def open_sight_reviews(device, name, address, stop, *, allow_search=False, require_address_search=False):
     if not isinstance(name, str) or not (name := name.strip()):
         raise ValueError('请填写景点名称。')
